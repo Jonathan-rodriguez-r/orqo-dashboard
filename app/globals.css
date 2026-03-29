@@ -1,15 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Figtree:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap');
 
+/* ── Dark (default) ── */
 :root {
   --g00:#060908;--g01:#0B100D;--g02:#111812;--g03:#1D2920;--g04:#2E4038;
   --g05:#7A9488;--g06:#B4C4BC;--g07:#E9EDE9;--g08:#F5F5F2;
   --acc:#2CB978;--acc-g:rgba(44,185,120,0.10);--acc-g2:rgba(44,185,120,0.06);
   --red:#DC4848;--red-g:rgba(220,72,72,0.10);
   --yellow:#F5B43C;--yellow-g:rgba(245,180,60,0.10);
-  --blue:#3B82F6;
+  --blue:#2CB978;
   --f-disp:'Syne',sans-serif;--f-body:'Figtree',sans-serif;--f-mono:'DM Mono',monospace;
   --sidebar-w:220px;--topbar-h:60px;--radius:10px;--radius-sm:7px;--radius-lg:14px;
 }
+
+/* ── Light ── */
+[data-theme="light"] {
+  --g00:#F4F7F4;--g01:#FFFFFF;--g02:#EDF2ED;--g03:#D5E3D5;--g04:#B0C8B0;
+  --g05:#527060;--g06:#2A4434;--g07:#152018;--g08:#090F0A;
+  --acc:#2CB978;--acc-g:rgba(44,185,120,0.12);--acc-g2:rgba(44,185,120,0.07);
+  --red:#C43838;--red-g:rgba(196,56,56,0.10);
+  --yellow:#C47A10;--yellow-g:rgba(196,122,16,0.10);
+  --blue:#2CB978;
+}
+
+/* ── Theme toggle button ── */
+.theme-btn{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--g03);background:none;cursor:pointer;color:var(--g05);display:flex;align-items:center;justify-content:center;transition:background 0.15s,color 0.15s;}
+.theme-btn:hover{background:var(--g02);color:var(--g07);}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;background:var(--g00);color:var(--g07);font-family:var(--f-body);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;}
 ::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--g03);border-radius:4px;}

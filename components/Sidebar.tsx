@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 const NAV = [
   { href: '/dashboard', label: 'Resumen', icon: (
@@ -69,6 +70,19 @@ export default function Sidebar({ userEmail, userName }: Props) {
     router.push('/login');
   }
 
+  const [theme, setTheme] = useState<'dark'|'light'>('dark');
+  useEffect(() => {
+    const saved = (localStorage.getItem('orqo_theme') as 'dark'|'light') || 'dark';
+    setTheme(saved);
+    document.documentElement.setAttribute('data-theme', saved);
+  }, []);
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('orqo_theme', next);
+  }
+
   const initials = (userName ?? userEmail ?? 'U').slice(0, 1).toUpperCase();
 
   return (
@@ -103,6 +117,18 @@ export default function Sidebar({ userEmail, userName }: Props) {
             <div className="sidebar-user-name">{userName ?? userEmail ?? 'Usuario'}</div>
             <div className="sidebar-user-role">{userEmail}</div>
           </div>
+          <button className="theme-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+            {theme === 'dark' ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8"/>
+                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </button>
         </div>
         <button
           className="sidebar-item"
