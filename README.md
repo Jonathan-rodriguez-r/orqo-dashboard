@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ORQO Dashboard
 
-## Getting Started
+Panel de administración para ORQO — asistente de IA para WordPress y WhatsApp.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Framework**: Next.js 16.2.1 (App Router, Turbopack)
+- **UI**: React 19, TypeScript
+- **Base de datos**: MongoDB Atlas (base `orqo`)
+- **Auth**: Magic links via Resend + JWT (jose), cookie `orqo_session` (7 días)
+- **Deploy**: Vercel → `dashboard.orqo.io`
+
+## Variables de entorno
+
+```env
+MONGODB_URI=mongodb+srv://...
+RESEND_API_KEY=re_...
+JWT_SECRET=...          # string largo aleatorio
+APP_URL=https://dashboard.orqo.io
+EMAIL_FROM=hola@orqo.io
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> En desarrollo, el magic link se imprime en la consola en lugar de enviarse por email.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Desarrollo local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd orqo-dashboard
+npm install
+npm run dev
+```
 
-## Learn More
+Abrir [http://localhost:3000](http://localhost:3000).
 
-To learn more about Next.js, take a look at the following resources:
+## Estructura
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+orqo-dashboard/
+├── app/
+│   ├── api/auth/        ← login (magic link) + verify + logout
+│   ├── dashboard/       ← páginas del panel
+│   │   ├── page.tsx     ← Resumen
+│   │   ├── widget/
+│   │   ├── agents/
+│   │   ├── conversations/
+│   │   ├── integrations/
+│   │   ├── account/
+│   │   └── users/
+│   ├── login/           ← página de login
+│   └── globals.css      ← design tokens, dark + light mode
+├── components/
+│   ├── Sidebar.tsx      ← nav lateral con toggle dark/light
+│   └── AuthGuard.tsx    ← redirección si no hay sesión
+└── lib/
+    └── auth.ts          ← helpers JWT y sesión
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Rutas de la API
 
-## Deploy on Vercel
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/auth/login` | Envía magic link al email |
+| GET | `/api/auth/verify` | Verifica token y crea sesión |
+| POST | `/api/auth/logout` | Borra cookie de sesión |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Auto-deploy en Vercel al hacer push a `main` en el submodulo `orqo-dashboard/`.
+El dashboard tiene su propio repositorio git dentro del repo principal.
