@@ -44,9 +44,18 @@ const NAV = [
       <path d="M2 13.5c0-3 2.686-5 6-5s6 2 6 5"/>
     </svg>
   )},
+  { href: '/dashboard/users', label: 'Accesos', icon: (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="6" cy="4" r="2.5"/>
+      <path d="M1 13.5c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
+      <path d="M11 2a2.5 2.5 0 0 1 0 5M15 13.5c0-2-1.343-3.716-3.194-4.378"/>
+    </svg>
+  )},
 ];
 
-export default function Sidebar() {
+type Props = { userEmail?: string; userName?: string };
+
+export default function Sidebar({ userEmail, userName }: Props) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -54,6 +63,13 @@ export default function Sidebar() {
     if (href === '/dashboard') return pathname === '/dashboard';
     return pathname.startsWith(href);
   }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  }
+
+  const initials = (userName ?? userEmail ?? 'U').slice(0, 1).toUpperCase();
 
   return (
     <aside className="sidebar">
@@ -81,13 +97,23 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-avatar">B</div>
+        <div className="sidebar-user" style={{marginBottom:'10px'}}>
+          <div className="sidebar-avatar">{initials}</div>
           <div className="sidebar-user-info">
-            <div className="sidebar-user-name">Bacata DM</div>
-            <div className="sidebar-user-role">Admin</div>
+            <div className="sidebar-user-name">{userName ?? userEmail ?? 'Usuario'}</div>
+            <div className="sidebar-user-role">{userEmail}</div>
           </div>
         </div>
+        <button
+          className="sidebar-item"
+          style={{width:'100%',color:'var(--g05)'}}
+          onClick={logout}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{width:14,height:14}}>
+            <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6"/>
+          </svg>
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   );
