@@ -80,7 +80,30 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 // ── Access / Users (mini) ─────────────────────────────────────────────────────
-type User = { _id: string; email: string; name?: string; createdAt?: string };
+type User = {
+  _id: string; email: string; name?: string; avatar?: string;
+  role?: string; createdAt?: string | number; lastLogin?: string | number;
+};
+
+const ROLE_BADGE: Record<string, { label: string; color: string }> = {
+  owner:         { label: 'Propietario', color: 'var(--acc)' },
+  admin:         { label: 'Admin',       color: '#6C63FF' },
+  analyst:       { label: 'Analista',    color: '#2196F3' },
+  agent_manager: { label: 'Agentes',     color: '#FF9800' },
+  viewer:        { label: 'Observador',  color: 'var(--g05)' },
+};
+
+function RoleBadge({ role }: { role?: string }) {
+  const def = ROLE_BADGE[role ?? ''] ?? { label: role ?? 'Usuario', color: 'var(--g05)' };
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+      background: def.color + '18', color: def.color,
+    }}>
+      {def.label}
+    </span>
+  );
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -102,7 +125,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (tab === 'access') {
-      fetch('/api/users').then(r => r.json()).then(d => setUsers(d.users ?? []));
+      fetch('/api/users').then(r => r.json()).then(d => setUsers(Array.isArray(d) ? d : (d.users ?? [])));
     }
   }, [tab]);
 
@@ -325,24 +348,32 @@ export default function SettingsPage() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Desde</th></tr>
+                  <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Último acceso</th><th>Desde</th></tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: 'var(--g05)' }}>Sin usuarios</td></tr>
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--g05)' }}>Sin usuarios</td></tr>
                   ) : users.map(u => (
                     <tr key={u._id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-                            {(u.name ?? u.email).slice(0, 1).toUpperCase()}
-                          </div>
-                          {u.name ?? '—'}
+                          {u.avatar
+                            ? <img src={u.avatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}/>
+                            : <div className="sidebar-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                                {(u.name ?? u.email).slice(0, 1).toUpperCase()}
+                              </div>
+                          }
+                          <span style={{ fontWeight: 500, fontSize: 13 }}>{u.name ?? u.email.split('@')[0]}</span>
                         </div>
                       </td>
-                      <td>{u.email}</td>
-                      <td><span className="badge badge-green">Admin</span></td>
-                      <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('es') : '—'}</td>
+                      <td style={{ color: 'var(--g05)', fontSize: 12.5 }}>{u.email}</td>
+                      <td><RoleBadge role={u.role}/></td>
+                      <td style={{ color: 'var(--g05)', fontSize: 12 }}>
+                        {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('es') : 'Nunca'}
+                      </td>
+                      <td style={{ color: 'var(--g05)', fontSize: 12 }}>
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('es') : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

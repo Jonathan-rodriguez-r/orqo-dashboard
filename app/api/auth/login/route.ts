@@ -13,8 +13,6 @@ export async function POST(req: Request) {
     }
 
     const db = await getDb();
-
-    // Check if any users exist; if not, allow first-time setup
     const userCount = await db.collection('users').countDocuments();
     const user = await db.collection('users').findOne({ email });
 
@@ -22,28 +20,32 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Este correo no tiene acceso al dashboard.' }, { status: 403 });
     }
 
-    // If first user, create them as admin
+    // First user ever — provision as owner with full workspaceId
     if (userCount === 0) {
       await db.collection('users').insertOne({
         email,
-        name: email.split('@')[0],
-        role: 'admin',
-        createdAt: Date.now(),
+        name:        email.split('@')[0],
+        role:        'owner',
+        workspaceId: 'default',
+        createdAt:   new Date(),
       });
     }
 
-    // Generate magic link token
     const token = randomBytes(32).toString('hex');
     await db.collection('auth_tokens').insertOne({
       token,
       email,
-      expiresAt: Date.now() + 15 * 60 * 1000, // 15 min
+      expiresAt: Date.now() + 15 * 60 * 1000,
       used: false,
     });
 
     const link = `${APP_URL}/api/auth/verify?token=${token}`;
 
-    // Send email
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('\n\x1b[32m[ORQO DEV] Magic link para', email, ':\x1b[0m');
+      console.log('\x1b[36m' + link + '\x1b[0m\n');
+    }
+
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? 'ORQO <noreply@orqo.app>',
       to: email,
