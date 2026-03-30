@@ -35,16 +35,26 @@ const CT = ({ active, payload, label }: any) => {
 };
 
 export default function ReportsPage() {
-  const [days, setDays] = useState(30);
-  const [data, setData] = useState<Analytics | null>(null);
+  const [days, setDays]     = useState(30);
+  const [data, setData]     = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
     fetch(`/api/analytics?days=${days}`)
       .then(r => r.json())
       .then(d => { if (d.ok) setData(d); setLoading(false); });
-  }, [days]);
+  }
+
+  useEffect(() => { load(); }, [days]);
+
+  async function runSeed() {
+    setSeeding(true);
+    await fetch('/api/seed', { method: 'POST' });
+    setSeeding(false);
+    load();
+  }
 
   return (
     <div className="dash-content">
@@ -66,11 +76,21 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {loading || !data ? (
+      {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {[1,2,3].map(i => (
             <div key={i} style={{ height: 200, background: 'var(--g02)', borderRadius: 'var(--radius-lg)', animation: 'pulse 1.5s ease-in-out infinite' }}/>
           ))}
+        </div>
+      ) : !data || data.totals.conversations === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>📈</div>
+          <p style={{ color: 'var(--g05)', marginBottom: 20 }}>
+            Sin datos de informes todavía. Carga datos de demo para ver análisis en acción.
+          </p>
+          <button className="btn btn-primary" onClick={runSeed} disabled={seeding}>
+            {seeding ? 'Cargando...' : 'Cargar datos de demostración'}
+          </button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

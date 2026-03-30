@@ -124,14 +124,14 @@ export default function HomeCharts({ days = 30 }: { days?: number }) {
     </div>
   );
 
-  if (error || !data) return (
+  if (error || !data || data.totals.conversations === 0) return (
     <div className="card" style={{ textAlign: 'center', padding: 40 }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
       <p style={{ color: 'var(--g05)', marginBottom: 16 }}>
-        {error || 'Sin datos de analíticas todavía.'}
+        {error || 'Sin datos de analíticas todavía. Carga datos de demo para ver el dashboard en acción.'}
       </p>
       <button className="btn btn-primary" onClick={runSeed} disabled={seeding}>
-        {seeding ? 'Inicializando...' : 'Inicializar datos de demostración'}
+        {seeding ? 'Cargando datos de demo...' : 'Cargar datos de demostración'}
       </button>
     </div>
   );

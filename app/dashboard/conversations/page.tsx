@@ -179,11 +179,17 @@ export default function ConversationsPage() {
 
   async function seedDemo() {
     setSeeding(true); setSeedMsg('');
-    const res = await fetch('/api/seed/conversations', { method: 'POST' });
+    const res = await fetch('/api/seed', { method: 'POST' });
     const d   = await res.json();
     setSeeding(false);
-    if (d.ok) { setSeedMsg(`✓ ${d.inserted} conversaciones insertadas`); load(1, '', ''); setPage(1); }
-    else       setSeedMsg('Error al insertar datos de demo');
+    if (d.ok) {
+      const n = d.inserted?.conversations ?? 60;
+      setSeedMsg(d.skipped ? '✓ Datos de demo ya cargados' : `✓ ${n} conversaciones de demo insertadas`);
+      load(1, '', '');
+      setPage(1);
+    } else {
+      setSeedMsg('Error al insertar datos de demo');
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

@@ -23,6 +23,19 @@ const MESSAGES = [
   'Necesito factura electrónica de mi compra',
   '¿Cuándo sale el próximo despacho?',
 ];
+const MODELS = [
+  { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5', provider: 'anthropic' },
+  { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5', provider: 'anthropic' },
+  { id: 'claude-haiku-4-5',  label: 'Haiku 4.5',  provider: 'anthropic' },
+  { id: 'claude-opus-4',     label: 'Opus 4',      provider: 'anthropic' },
+  { id: 'gpt-4o',            label: 'GPT-4o',      provider: 'openai'    },
+  { id: 'gpt-4o-mini',       label: 'GPT-4o mini', provider: 'openai'    },
+];
+
+function genConvId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return 'CNV-' + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
 
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)] as T; }
 function rand(min: number, max: number) { return min + Math.floor(Math.random() * (max - min + 1)); }
@@ -47,9 +60,12 @@ export async function POST() {
   try {
     const db = await getDb();
 
-    // Idempotency check
-    const existing = await db.collection('analytics_daily').countDocuments();
-    if (existing >= 25) {
+    // Idempotency check — only skip if BOTH analytics AND conversations are populated
+    const [analyticsCount, convCount] = await Promise.all([
+      db.collection('analytics_daily').countDocuments(),
+      db.collection('conversations').countDocuments(),
+    ]);
+    if (analyticsCount >= 25 && convCount >= 50) {
       return Response.json({ ok: true, skipped: true, message: 'Seed ya ejecutado' });
     }
 
@@ -98,21 +114,31 @@ export async function POST() {
       d.setDate(d.getDate() - daysAgo);
       d.setHours(rand(8, 21), rand(0, 59), rand(0, 59));
 
-      const name = pick(NAMES);
-      const email = `${name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
+      const name    = pick(NAMES);
+      const email   = `${name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
       const channel = pick(CHANNELS);
-      const status = pick(STATUSES);
+      const status  = pick(STATUSES);
+      const model   = pick(MODELS);
+      const msgCount = rand(2, 14);
+      const tokInput  = msgCount * rand(80, 180) + rand(200, 800);
+      const tokOutput = msgCount * rand(120, 280) + rand(100, 500);
 
       conversationsToInsert.push({
-        workspaceId: 'default',
-        user_name: name,
-        user_email: email,
-        last_message: pick(MESSAGES),
-        message_count: rand(2, 14),
+        workspaceId:    'default',
+        conv_id:        genConvId(),
+        user_name:      name,
+        user_email:     email,
+        last_message:   pick(MESSAGES),
+        message_count:  msgCount,
         status,
         channel,
-        agent: pick(AGENTS),
-        phone: `+57 ${rand(300, 321)} ${rand(100, 999)} ${rand(1000, 9999)}`,
+        agent:          pick(AGENTS),
+        model:          model.id,
+        model_label:    model.label,
+        model_provider: model.provider,
+        tokens: { input: tokInput, output: tokOutput, total: tokInput + tokOutput },
+        duration_s: msgCount * rand(30, 90) + rand(60, 240),
+        phone:   channel === 'whatsapp' ? `+57 ${rand(300, 321)} ${rand(100, 999)} ${rand(1000, 9999)}` : undefined,
         updatedAt: d.getTime(),
         createdAt: d,
       });
