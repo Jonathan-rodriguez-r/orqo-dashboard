@@ -6,13 +6,25 @@ const CORS_HEADERS = {
   'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
 };
 
+const INACTIVE = Response.json({ active: false }, { headers: CORS_HEADERS });
+
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const key = searchParams.get('key');
+
     const db = await getDb();
+
+    // If a key is provided, validate it against the account and check the account is active
+    if (key) {
+      const account = await db.collection('config').findOne({ _id: 'account' as any });
+      if (!account || account.api_key !== key) return INACTIVE;
+      // (Future: check account.plan_active flag here)
+    }
 
     // Primary: new widget_config collection
     let doc = await db.collection('widget_config').findOne({ widgetId: 'default' });
