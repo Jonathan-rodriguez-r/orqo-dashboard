@@ -130,6 +130,18 @@ export default function Sidebar({ userEmail, userName }: Props) {
             )}
           </button>
         </div>
+        <a
+          href="https://orqo.io"
+          target="_blank"
+          rel="noopener"
+          className="sidebar-item"
+          style={{width:'100%',color:'var(--g05)',textDecoration:'none',display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{width:14,height:14,flexShrink:0}}>
+            <path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4M9 1h5m0 0v5m0-5L7 9" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          orqo.io
+        </a>
         <button
           className="sidebar-item"
           style={{width:'100%',color:'var(--g05)'}}
