@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getDb } from '@/lib/mongodb';
 import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
 import { getDefaultPermissions } from '@/lib/rbac';
+import { logSecurityEvent } from '@/lib/security-log';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
@@ -30,6 +31,9 @@ export async function GET(req: Request) {
   jar.delete('orqo_oauth_state');
 
   if (!storedState || storedState !== state) {
+    const db = await getDb();
+    await logSecurityEvent(db, req, 'csrf_violation', 'google',
+      'OAuth state no coincide — posible ataque CSRF');
     redirect('/login?error=invalid_state');
   }
 
@@ -75,7 +79,9 @@ export async function GET(req: Request) {
 
     if (!user && userCount > 0) {
       // Not a registered user and workspace already has members
-      redirect('/login?error=noaccess');
+      await logSecurityEvent(db, req, 'google_noaccess', 'google',
+        'Inicio con Google rechazado — correo no autorizado', profile.email);
+      redirect('/login?error=unauthorized');
     }
 
     if (!user) {

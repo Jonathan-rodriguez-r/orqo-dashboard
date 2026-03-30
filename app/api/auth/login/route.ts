@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/mongodb';
+import { logSecurityEvent } from '@/lib/security-log';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 
@@ -12,15 +13,17 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Email requerido' }, { status: 400 });
     }
 
-    const db = await getDb();
+    const db        = await getDb();
     const userCount = await db.collection('users').countDocuments();
-    const user = await db.collection('users').findOne({ email });
+    const user      = await db.collection('users').findOne({ email });
 
     if (userCount > 0 && !user) {
+      await logSecurityEvent(db, req, 'login_blocked', 'magic_link',
+        'Intento de inicio de sesión con correo no autorizado', email);
       return Response.json({ error: 'Este correo no tiene acceso al dashboard.' }, { status: 403 });
     }
 
-    // First user ever — provision as owner with full workspaceId
+    // First user ever — provision as owner
     if (userCount === 0) {
       await db.collection('users').insertOne({
         email,

@@ -18,25 +18,28 @@ function Notice() {
 
   if (!reason && !err) return null;
 
+  const isSecurityError = err === 'unauthorized' || err === 'invalid_state';
+
   const msg =
     reason === 'unauthenticated'    ? 'Inicia sesión para continuar.' :
     reason === 'expired'            ? 'Tu sesión cerró por inactividad. Inicia sesión de nuevo.' :
+    err === 'unauthorized'          ? 'No autorizado. Este acceso ha sido registrado.' :
     err === 'expired'               ? 'El enlace de acceso expiró. Solicita uno nuevo.' :
     err === 'noaccess'              ? 'Este correo no tiene acceso al dashboard.' :
     err === 'google_cancelled'      ? 'Inicio con Google cancelado.' :
-    err === 'invalid_state'         ? 'Error de seguridad OAuth. Intenta de nuevo.' :
+    err === 'invalid_state'         ? 'Acceso denegado. El evento fue registrado.' :
     err === 'google_token'          ? 'Error al conectar con Google. Intenta de nuevo.' :
                                       'Enlace inválido. Solicita uno nuevo.';
 
   return (
     <div style={{
-      background: 'rgba(234,179,8,0.08)',
-      border: '1px solid var(--yellow)',
+      background: isSecurityError ? 'rgba(239,68,68,0.08)' : 'rgba(234,179,8,0.08)',
+      border: `1px solid ${isSecurityError ? 'var(--red)' : 'var(--yellow)'}`,
       borderRadius: 'var(--radius-sm)',
       padding: '10px 14px',
       marginBottom: '16px',
       fontSize: '13px',
-      color: 'var(--yellow)',
+      color: isSecurityError ? 'var(--red)' : 'var(--yellow)',
     }}>
       {msg}
     </div>
