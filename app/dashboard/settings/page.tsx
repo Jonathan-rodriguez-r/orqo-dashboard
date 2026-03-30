@@ -114,6 +114,7 @@ export default function SettingsPage() {
   const [invRole, setInvRole]     = useState('viewer');
   const [inviting, setInviting]   = useState(false);
   const [invErr, setInvErr]       = useState('');
+  const [inviteLink, setInviteLink] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editUserName, setEditUserName]   = useState('');
   const [editUserEmail, setEditUserEmail] = useState('');
@@ -169,7 +170,7 @@ export default function SettingsPage() {
   // ── Invite user ────────────────────────────────────────────────────────────
   async function inviteUser(e: React.FormEvent) {
     e.preventDefault();
-    setInviting(true); setInvErr('');
+    setInviting(true); setInvErr(''); setInviteLink('');
     const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -178,7 +179,8 @@ export default function SettingsPage() {
     const d = await res.json();
     setInviting(false);
     if (!res.ok) { setInvErr(d.error ?? 'Error al invitar'); return; }
-    setShowInvite(false); setInvEmail(''); setInvName(''); setInvRole('viewer');
+    setInviteLink(d.inviteLink ?? '');
+    setInvEmail(''); setInvName(''); setInvRole('viewer');
     loadUsers();
   }
 
@@ -481,9 +483,28 @@ export default function SettingsPage() {
                     {invErr && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{invErr}</p>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="submit" className="btn btn-primary btn-sm" disabled={inviting}>{inviting ? 'Invitando...' : 'Invitar'}</button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowInvite(false); setInvErr(''); }}>Cancelar</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowInvite(false); setInvErr(''); setInviteLink(''); }}>Cancelar</button>
                     </div>
                   </form>
+
+                  {inviteLink && (
+                    <div style={{ marginTop: 16, padding: '12px 14px', background: 'rgba(44,185,120,0.08)', border: '1px solid rgba(44,185,120,0.25)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, color: 'var(--acc)', fontWeight: 600, marginBottom: 6 }}>
+                        ✓ Invitación enviada. Comparte este link de activación (válido 72h):
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <code style={{ fontSize: 11, color: 'var(--g06)', wordBreak: 'break-all', flex: 1, background: 'var(--g02)', padding: '6px 8px', borderRadius: 6 }}>{inviteLink}</code>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ flexShrink: 0 }}
+                          onClick={() => navigator.clipboard.writeText(inviteLink)}
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
