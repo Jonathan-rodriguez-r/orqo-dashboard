@@ -23,6 +23,7 @@ export const WIDGET_DEFAULTS = {
   // Behavior
   interactionLimit: 20,
   showBranding: true,
+  soundEnabled: true,
   // Home screen articles (ordered list of article ids)
   homeArticles: ['wp-connect', 'plugin-install', 'whatsapp-setup', 'agents'],
   // Articles

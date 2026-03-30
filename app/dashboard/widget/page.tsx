@@ -32,6 +32,7 @@ type WidgetCfg = {
   widgetRadius: number;
   interactionLimit: number;
   showBranding: boolean;
+  soundEnabled: boolean;
   homeArticles: string[];
   articles: Article[];
 };
@@ -57,6 +58,7 @@ const DEFAULTS: WidgetCfg = {
   widgetRadius: 14,
   interactionLimit: 20,
   showBranding: true,
+  soundEnabled: true,
   homeArticles: ['wp-connect', 'plugin-install', 'whatsapp-setup', 'agents'],
   articles: [],
 };
@@ -483,6 +485,7 @@ export default function WidgetPage() {
               <input className="input" type="number" min={1} max={500} value={cfg.interactionLimit} onChange={e => set('interactionLimit', Number(e.target.value))} style={{ maxWidth: 120 }} />
             </div>
             <ToggleRow title='Mostrar "powered by ORQO"' desc="Muestra el crédito en el footer del widget" checked={cfg.showBranding} onChange={v => set('showBranding', v)} />
+            <ToggleRow title="Sonido de respuesta" desc="Reproduce un tono suave cada vez que el agente envía un mensaje" checked={cfg.soundEnabled} onChange={v => set('soundEnabled', v)} />
           </div>
 
         </div>
