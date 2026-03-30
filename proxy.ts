@@ -6,7 +6,7 @@ const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'orqo-dev-secret-change-in-production'
 );
 
-const PUBLIC = ['/login', '/api/auth'];
+const PUBLIC = ['/login', '/api/auth', '/api/public'];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
