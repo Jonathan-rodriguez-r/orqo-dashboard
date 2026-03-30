@@ -52,12 +52,12 @@ function WidgetIcon() {
 }
 
 const CHANNEL_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  whatsapp:    { label: 'WhatsApp',   color: '#25D366', icon: <WhatsAppIcon /> },
-  instagram:   { label: 'Instagram',  color: '#E1306C', icon: <InstagramIcon /> },
-  facebook:    { label: 'Facebook',   color: '#1877F2', icon: <FacebookIcon /> },
-  shopify:     { label: 'Shopify',    color: '#96BF48', icon: <ShopifyIcon /> },
-  woocommerce: { label: 'WooCommerce',color: '#7F54B3', icon: <WooIcon /> },
-  widget:      { label: 'Widget',     color: '#2CB978', icon: <WidgetIcon /> },
+  whatsapp:    { label: 'WhatsApp',    color: '#25D366', icon: <WhatsAppIcon /> },
+  instagram:   { label: 'Instagram',   color: '#E1306C', icon: <InstagramIcon /> },
+  facebook:    { label: 'Facebook',    color: '#1877F2', icon: <FacebookIcon /> },
+  shopify:     { label: 'Shopify',     color: '#96BF48', icon: <ShopifyIcon /> },
+  woocommerce: { label: 'WooCommerce', color: '#7F54B3', icon: <WooIcon /> },
+  widget:      { label: 'Widget',      color: '#2CB978', icon: <WidgetIcon /> },
 };
 
 function ChannelBadge({ channel }: { channel?: string }) {
@@ -70,6 +70,51 @@ function ChannelBadge({ channel }: { channel?: string }) {
   );
 }
 
+// ── Model badge ───────────────────────────────────────────────────────────────
+const MODEL_COLORS: Record<string, string> = {
+  anthropic: '#2CB978',
+  openai:    '#00A1E0',
+  google:    '#4285F4',
+};
+
+function ModelBadge({ model, provider, label }: { model?: string; provider?: string; label?: string }) {
+  if (!model) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>—</span>;
+  const color = MODEL_COLORS[provider ?? 'anthropic'] ?? '#7A9488';
+  const display = label ?? model;
+  return (
+    <span style={{
+      display: 'inline-block', fontSize: 11, fontWeight: 600,
+      padding: '2px 7px', borderRadius: 20,
+      background: color + '18', color,
+      whiteSpace: 'nowrap',
+    }}>
+      {display}
+    </span>
+  );
+}
+
+// ── Token display ─────────────────────────────────────────────────────────────
+function TokenCell({ tokens }: { tokens?: { input: number; output: number; total: number } }) {
+  if (!tokens) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>—</span>;
+  const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--g07)' }}>{fmt(tokens.total)}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--g05)', marginTop: 1 }}>
+        ↑{fmt(tokens.input)} · ↓{fmt(tokens.output)}
+      </div>
+    </div>
+  );
+}
+
+// ── Duration ──────────────────────────────────────────────────────────────────
+function fmtDuration(s?: number) {
+  if (!s || s < 0) return '—';
+  if (s < 60)  return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
 function relTime(ts: number) {
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
@@ -80,8 +125,11 @@ function relTime(ts: number) {
   return `${Math.floor(h / 24)}d`;
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Tokens = { input: number; output: number; total: number };
 type Conv = {
   _id: string;
+  conv_id?: string;
   user_name?: string;
   user_email?: string;
   phone?: string;
@@ -91,48 +139,70 @@ type Conv = {
   updatedAt?: number;
   agent?: string;
   channel?: string;
+  model?: string;
+  model_label?: string;
+  model_provider?: string;
+  tokens?: Tokens;
+  duration_s?: number;
 };
 
 const PAGE_SIZE = 20;
 const ALL_CHANNELS = ['', 'whatsapp', 'instagram', 'facebook', 'shopify', 'woocommerce', 'widget'];
 const CH_LABELS: Record<string, string> = {
-  '': 'Todos los canales',
-  whatsapp: 'WhatsApp', instagram: 'Instagram', facebook: 'Facebook',
-  shopify: 'Shopify', woocommerce: 'WooCommerce', widget: 'Widget Web',
+  '': 'Todos', whatsapp: 'WhatsApp', instagram: 'Instagram',
+  facebook: 'Facebook', shopify: 'Shopify', woocommerce: 'WooCommerce', widget: 'Widget',
 };
 
 export default function ConversationsPage() {
-  const [convs, setConvs] = useState<Conv[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [convs, setConvs]     = useState<Conv[]>([]);
+  const [total, setTotal]     = useState(0);
+  const [page, setPage]       = useState(1);
+  const [search, setSearch]   = useState('');
   const [channel, setChannel] = useState('');
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState('');
 
-  useEffect(() => {
+  function load(p = page, q = search, ch = channel) {
     setLoading(true);
     const params = new URLSearchParams({
-      page: String(page),
-      limit: String(PAGE_SIZE),
-      q: search,
-      ...(channel ? { channel } : {}),
+      page: String(p), limit: String(PAGE_SIZE), q,
+      ...(ch ? { channel: ch } : {}),
     });
     fetch(`/api/conversations?${params}`)
       .then(r => r.json())
-      .then(d => {
-        setConvs(d.items ?? []);
-        setTotal(d.total ?? 0);
-        setLoading(false);
-      });
-  }, [page, search, channel]);
+      .then(d => { setConvs(d.items ?? []); setTotal(d.total ?? 0); })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(page, search, channel); }, [page, search, channel]);
+
+  async function seedDemo() {
+    setSeeding(true); setSeedMsg('');
+    const res = await fetch('/api/seed/conversations', { method: 'POST' });
+    const d   = await res.json();
+    setSeeding(false);
+    if (d.ok) { setSeedMsg(`✓ ${d.inserted} conversaciones insertadas`); load(1, '', ''); setPage(1); }
+    else       setSeedMsg('Error al insertar datos de demo');
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="dash-content">
       <div className="page-header">
-        <h1 className="page-title">Conversaciones</h1>
-        <p className="page-sub">{total.toLocaleString('es')} conversaciones registradas</p>
+        <div>
+          <h1 className="page-title">Conversaciones</h1>
+          <p className="page-sub">{total.toLocaleString('es')} conversaciones registradas</p>
+        </div>
+        {total === 0 && !loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {seedMsg && <span style={{ fontSize: 12, color: 'var(--acc)' }}>{seedMsg}</span>}
+            <button className="btn btn-ghost btn-sm" onClick={seedDemo} disabled={seeding}>
+              {seeding ? 'Insertando...' : '+ Cargar demo'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -145,7 +215,7 @@ export default function ConversationsPage() {
             </svg>
             <input
               className="search-input"
-              placeholder="Buscar por nombre o mensaje..."
+              placeholder="Buscar nombre, mensaje, ID..."
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -154,7 +224,7 @@ export default function ConversationsPage() {
           {/* Channel filter pills */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {ALL_CHANNELS.map(ch => {
-              const cfg = ch ? CHANNEL_CONFIG[ch] : null;
+              const cfg    = ch ? CHANNEL_CONFIG[ch] : null;
               const active = channel === ch;
               return (
                 <button
@@ -183,24 +253,28 @@ export default function ConversationsPage() {
           <table>
             <thead>
               <tr>
+                <th className="hide-md" style={{ width: 96 }}>ID</th>
                 <th>Usuario</th>
                 <th className="hide-sm">Canal</th>
+                <th className="hide-md">Modelo</th>
+                <th className="hide-md">Tokens</th>
                 <th className="hide-md">Último mensaje</th>
                 <th className="hide-md">Agente</th>
+                <th className="hide-md" style={{ width: 64 }}>Msgs</th>
                 <th>Estado</th>
-                <th>Hace</th>
+                <th style={{ width: 60 }}>Hace</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--g05)', padding: 40 }}>
+                  <td colSpan={10} style={{ textAlign: 'center', color: 'var(--g05)', padding: 40 }}>
                     Cargando…
                   </td>
                 </tr>
               ) : convs.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={10}>
                     <div className="empty">
                       <div className="empty-icon">💬</div>
                       <div className="empty-text">Sin conversaciones para estos filtros</div>
@@ -209,41 +283,73 @@ export default function ConversationsPage() {
                 </tr>
               ) : convs.map(c => (
                 <tr key={c._id}>
+                  {/* ID */}
+                  <td className="hide-md">
+                    {c.conv_id
+                      ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--g05)', letterSpacing: '0.03em' }}>{c.conv_id}</span>
+                      : <span style={{ color: 'var(--g04)', fontSize: 11 }}>—</span>
+                    }
+                  </td>
+
+                  {/* Usuario */}
                   <td>
-                    <div style={{ fontWeight: 600, color: 'var(--g07)' }}>{c.user_name ?? 'Visitante'}</div>
-                    {c.user_email && (
-                      <div style={{ fontSize: 11.5, color: 'var(--g05)' }}>{c.user_email}</div>
-                    )}
-                    {c.phone && (
-                      <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.phone}</div>
+                    <div style={{ fontWeight: 600, color: 'var(--g07)', fontSize: 13 }}>{c.user_name ?? 'Visitante'}</div>
+                    {c.user_email && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.user_email}</div>}
+                    {c.phone      && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.phone}</div>}
+                    {c.duration_s && (
+                      <div style={{ fontSize: 10.5, color: 'var(--g04)', marginTop: 1 }}>⏱ {fmtDuration(c.duration_s)}</div>
                     )}
                   </td>
+
+                  {/* Canal */}
                   <td className="hide-sm">
                     <ChannelBadge channel={c.channel} />
                   </td>
-                  <td className="hide-md" style={{
-                    maxWidth: 260, overflow: 'hidden',
-                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
+
+                  {/* Modelo */}
+                  <td className="hide-md">
+                    <ModelBadge model={c.model} provider={c.model_provider} label={c.model_label} />
+                  </td>
+
+                  {/* Tokens */}
+                  <td className="hide-md">
+                    <TokenCell tokens={c.tokens} />
+                  </td>
+
+                  {/* Último mensaje */}
+                  <td className="hide-md" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>
                     {c.last_message ?? '—'}
                   </td>
-                  <td className="hide-md" style={{ fontSize: 12.5 }}>
+
+                  {/* Agente */}
+                  <td className="hide-md" style={{ fontSize: 12, color: 'var(--g06)' }}>
                     {c.agent ?? '—'}
                   </td>
+
+                  {/* Msgs */}
+                  <td className="hide-md" style={{ fontSize: 12, color: 'var(--g05)', textAlign: 'center' }}>
+                    {c.message_count ?? '—'}
+                  </td>
+
+                  {/* Estado */}
                   <td>
                     <span className={`badge ${
-                      c.status === 'resolved' ? 'badge-green'
-                        : c.status === 'escalated' ? 'badge-yellow'
-                        : c.status === 'open' ? 'badge-blue'
-                        : 'badge-gray'
+                      c.status === 'resolved'  ? 'badge-green'
+                      : c.status === 'escalated' ? 'badge-yellow'
+                      : c.status === 'open'      ? 'badge-blue'
+                      : 'badge-gray'
                     }`}>
-                      {c.status === 'resolved' ? 'Resuelta'
+                      {c.status === 'resolved'  ? 'Resuelta'
                         : c.status === 'escalated' ? 'Escalada'
-                        : c.status === 'open' ? 'Abierta'
-                        : c.status ?? 'cerrada'}
+                        : c.status === 'open'      ? 'Abierta'
+                        : c.status ?? 'Cerrada'}
                     </span>
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{relTime(c.updatedAt ?? Date.now())}</td>
+
+                  {/* Hace */}
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--g05)' }}>
+                    {relTime(c.updatedAt ?? Date.now())}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -253,14 +359,12 @@ export default function ConversationsPage() {
         {/* Pagination */}
         <div className="pagination">
           <span className="page-info">
-            {total > 0 ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '0 resultados'}
+            {total > 0
+              ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}`
+              : '0 resultados'}
           </span>
-          <button className="page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-            ← Anterior
-          </button>
-          <button className="page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-            Siguiente →
-          </button>
+          <button className="page-btn" disabled={page <= 1}         onClick={() => setPage(p => p - 1)}>← Anterior</button>
+          <button className="page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Siguiente →</button>
         </div>
       </div>
     </div>

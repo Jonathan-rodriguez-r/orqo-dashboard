@@ -3,18 +3,25 @@ import { getDb } from '@/lib/mongodb';
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const page = Math.max(1, Number(searchParams.get('page') ?? 1));
-    const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit') ?? 20)));
-    const q = searchParams.get('q') ?? '';
+    const page    = Math.max(1, Number(searchParams.get('page')  ?? 1));
+    const limit   = Math.min(50, Math.max(1, Number(searchParams.get('limit') ?? 20)));
+    const q       = searchParams.get('q')       ?? '';
+    const channel = searchParams.get('channel') ?? '';
+    const status  = searchParams.get('status')  ?? '';
+    const model   = searchParams.get('model')   ?? '';
 
     const db = await getDb();
-    const filter = q
-      ? { $or: [
-          { user_name: { $regex: q, $options: 'i' } },
-          { last_message: { $regex: q, $options: 'i' } },
-          { user_email: { $regex: q, $options: 'i' } },
-        ]}
-      : {};
+
+    const filter: Record<string, any> = {};
+    if (q)       filter.$or     = [
+      { user_name:    { $regex: q, $options: 'i' } },
+      { last_message: { $regex: q, $options: 'i' } },
+      { user_email:   { $regex: q, $options: 'i' } },
+      { conv_id:      { $regex: q, $options: 'i' } },
+    ];
+    if (channel) filter.channel = channel;
+    if (status)  filter.status  = status;
+    if (model)   filter.model   = model;
 
     const [items, total] = await Promise.all([
       db.collection('conversations')
