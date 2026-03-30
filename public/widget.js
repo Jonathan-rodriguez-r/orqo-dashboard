@@ -125,16 +125,16 @@
   function applyPosition(el, winEl, pos) {
     var isTop = pos.includes('top');
     var isLeft = pos.includes('left');
-    var isCenter = pos === 'center';
+    var isCenter = pos.includes('center');
     el.style.bottom = isTop ? 'auto' : '2rem';
     el.style.top = isTop ? '2rem' : 'auto';
     el.style.right = (isLeft || isCenter) ? 'auto' : '2rem';
     el.style.left = isLeft ? '2rem' : isCenter ? '50%' : 'auto';
-    el.style.alignItems = isLeft ? 'flex-start' : 'flex-end';
-    if (isCenter) el.style.transform = 'translateX(-50%)';
+    el.style.alignItems = isLeft ? 'flex-start' : isCenter ? 'center' : 'flex-end';
+    el.style.transform = isCenter ? 'translateX(-50%)' : '';
     if (winEl) {
       var vO = isTop ? 'top' : 'bottom';
-      var hO = isLeft ? 'left' : 'right';
+      var hO = isLeft ? 'left' : isCenter ? 'center' : 'right';
       winEl.style.transformOrigin = vO + ' ' + hO;
     }
   }

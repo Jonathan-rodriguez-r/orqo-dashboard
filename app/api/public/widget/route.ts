@@ -3,7 +3,7 @@ import { getDb } from '@/lib/mongodb';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+  'Cache-Control': 'no-store',
 };
 
 const INACTIVE = Response.json({ active: false }, { headers: CORS_HEADERS });

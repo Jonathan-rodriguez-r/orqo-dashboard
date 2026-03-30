@@ -62,11 +62,12 @@ const DEFAULTS: WidgetCfg = {
 };
 
 const POSITIONS = [
-  { value: 'bottom-right', label: 'Abajo — Derecha' },
-  { value: 'bottom-left',  label: 'Abajo — Izquierda' },
-  { value: 'top-right',    label: 'Arriba — Derecha' },
-  { value: 'top-left',     label: 'Arriba — Izquierda' },
-  { value: 'center',       label: 'Centro' },
+  { value: 'bottom-right',  label: 'Abajo — Derecha' },
+  { value: 'bottom-left',   label: 'Abajo — Izquierda' },
+  { value: 'bottom-center', label: 'Abajo — Centro' },
+  { value: 'top-right',     label: 'Arriba — Derecha' },
+  { value: 'top-left',      label: 'Arriba — Izquierda' },
+  { value: 'top-center',    label: 'Arriba — Centro' },
 ];
 
 // ── Real human agent portraits ─────────────────────────────────────────────
@@ -177,12 +178,24 @@ export default function WidgetPage() {
 
   async function doSave() {
     setSaving(true);
-    await fetch('/api/config/widget', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    });
-    setSaving(false); setSaved(true);
+    try {
+      const res = await fetch('/api/config/widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert('Error al guardar: ' + (d.error ?? res.status));
+        return;
+      }
+    } catch (e: any) {
+      alert('Error de red: ' + e.message);
+      return;
+    } finally {
+      setSaving(false);
+    }
+    setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
 
@@ -494,15 +507,11 @@ export default function WidgetPage() {
             {(() => {
               const isTop    = cfg.position.includes('top');
               const isLeft   = cfg.position.includes('left');
-              const isCenter = cfg.position === 'center';
+              const isCenter = cfg.position.includes('center');
               const hSide: React.CSSProperties = isCenter ? { left: '50%', transform: 'translateX(-50%)' }
                 : isLeft ? { left: 12 } : { right: 12 };
-              const btnV: React.CSSProperties = isCenter
-                ? { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }
-                : isTop ? { top: 12, ...hSide } : { bottom: 12, ...hSide };
-              const winV: React.CSSProperties = isCenter
-                ? { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }
-                : isTop ? { top: 62, ...hSide } : { bottom: 62, ...hSide };
+              const btnV: React.CSSProperties = isTop ? { top: 12, ...hSide } : { bottom: 12, ...hSide };
+              const winV: React.CSSProperties = isTop ? { top: 62, ...hSide } : { bottom: 62, ...hSide };
               return (
                 <div style={{ background: previewBg, borderRadius: 10, height: 240, position: 'relative', overflow: 'hidden', marginBottom: 14, transition: 'background 0.25s' }}>
                   {cfg.active && (
@@ -552,6 +561,15 @@ export default function WidgetPage() {
               <button className="btn btn-ghost" onClick={saveAndPreview} style={{ justifyContent: 'center' }}>
                 Guardar y abrir vista previa →
               </button>
+              <a
+                href="https://dashboard.orqo.io/api/public/widget"
+                target="_blank"
+                rel="noopener"
+                className="btn btn-ghost"
+                style={{ justifyContent: 'center', fontSize: 11, color: 'var(--g04)' }}
+              >
+                Ver respuesta API →
+              </a>
             </div>
           </div>
         </div>
