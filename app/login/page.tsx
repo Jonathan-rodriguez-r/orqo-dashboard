@@ -213,12 +213,36 @@ export default function LoginPage() {
           )}
         </div>
 
-        <div style={{textAlign:'center',marginTop:'24px',fontSize:'12px',color:'var(--g05)'}}>
-          Producto de{' '}
-          <a href="https://bacatadm.com" target="_blank" rel="noopener noreferrer" style={{color:'var(--acc)'}}>
-            Bacata Digital Media
-          </a>
+        {/* Footer */}
+        <div style={{marginTop:'40px',borderTop:'1px solid var(--g03)',paddingTop:'24px',display:'flex',flexDirection:'column',alignItems:'center',gap:'12px'}}>
+          <div style={{display:'flex',gap:'20px',flexWrap:'wrap',justifyContent:'center'}}>
+            <a href="https://orqo.io" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+              orqo.io
+            </a>
+            <a href="https://orqo.io/#marca" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+              Identidad de marca
+            </a>
+            <a href="https://orqo.io/privacy" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+              Privacidad
+            </a>
+            <a href="mailto:hola@orqo.io" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+              hola@orqo.io
+            </a>
+          </div>
+          <div style={{fontSize:'11px',color:'var(--g04)',textAlign:'center',lineHeight:1.7}}>
+            Un producto de{' '}
+            <a href="https://bacatadm.com" target="_blank" rel="noopener" style={{color:'inherit'}}>
+              Bacata Digital Media
+            </a>
+            {' · '}
+            <a href="https://wa.me/573013211669" target="_blank" rel="noopener" style={{color:'inherit'}}>
+              +57 301 321 1669
+            </a>
+            {' · '}🇨🇴 Orgullosamente colombiano
+          </div>
+          <div style={{fontSize:'10.5px',color:'var(--g04)'}}>© 2026 ORQO · orqo.io</div>
         </div>
+
       </div>
     </div>
   );
