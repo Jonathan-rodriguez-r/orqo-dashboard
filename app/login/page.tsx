@@ -1,7 +1,13 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+
+function genChallenge() {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  return { a, b, answer: a + b };
+}
 
 type Step = 'email' | 'sent' | 'error';
 
@@ -42,9 +48,23 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState('');
 
+  const [challenge, setChallenge] = useState(genChallenge);
+  const [captchaVal, setCaptchaVal] = useState('');
+  const [captchaErr, setCaptchaErr] = useState(false);
+
+  useEffect(() => { setChallenge(genChallenge()); }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
+
+    if (parseInt(captchaVal, 10) !== challenge.answer) {
+      setCaptchaErr(true);
+      setChallenge(genChallenge());
+      setCaptchaVal('');
+      return;
+    }
+    setCaptchaErr(false);
     setLoading(true);
     setErrMsg('');
     try {
@@ -128,11 +148,32 @@ export default function LoginPage() {
                     autoFocus
                   />
                 </div>
+                {/* Captcha */}
+                <div className="field" style={{marginBottom:'12px'}}>
+                  <label className="label">
+                    Verificación — ¿cuánto es {challenge.a} + {challenge.b}?
+                  </label>
+                  <input
+                    className="input"
+                    type="number"
+                    placeholder="Respuesta"
+                    value={captchaVal}
+                    onChange={e => { setCaptchaVal(e.target.value); setCaptchaErr(false); }}
+                    required
+                    style={captchaErr ? { borderColor: 'var(--red)' } : {}}
+                  />
+                  {captchaErr && (
+                    <div style={{color:'var(--red)',fontSize:'12px',marginTop:'5px'}}>
+                      Respuesta incorrecta. Intenta de nuevo.
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={loading}
-                  style={{width:'100%',justifyContent:'center',marginTop:'8px'}}
+                  style={{width:'100%',justifyContent:'center',marginTop:'4px'}}
                 >
                   {loading ? 'Enviando…' : 'Enviar enlace →'}
                 </button>
