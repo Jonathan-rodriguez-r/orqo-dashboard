@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/mongodb';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,11 +62,12 @@ export async function POST() {
     const db = await getDb();
 
     // Idempotency check — only skip if BOTH analytics AND conversations are populated
-    const [analyticsCount, convCount] = await Promise.all([
+    const [analyticsCount, convCount, logsCount] = await Promise.all([
       db.collection('analytics_daily').countDocuments(),
       db.collection('conversations').countDocuments(),
+      db.collection('audit_logs').countDocuments(),
     ]);
-    if (analyticsCount >= 25 && convCount >= 50) {
+    if (analyticsCount >= 25 && convCount >= 50 && logsCount >= 40) {
       return Response.json({ ok: true, skipped: true, message: 'Seed ya ejecutado' });
     }
 
@@ -144,6 +146,87 @@ export async function POST() {
       });
     }
 
+    // ── 50 audit log entries ──────────────────────────────────────────────
+    const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+    const DEMO_EMAILS  = ['owner@empresa.com', 'admin@empresa.com', 'analista@empresa.com'];
+    const DEMO_IPS     = ['190.26.44.12', '181.51.23.8', '10.0.0.5'];
+
+    const auditSeed = [
+      // Auth events
+      { level:'INFO',  severity:'LOW',    category:'auth',     action:'LOGIN_SUCCESS',           message:'owner@empresa.com inició sesión via Google OAuth',   actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] } },
+      { level:'INFO',  severity:'LOW',    category:'auth',     action:'LOGIN_SUCCESS',           message:'admin@empresa.com inició sesión via magic link',      actor:{ email:'admin@empresa.com', role:'admin', ip:DEMO_IPS[1] } },
+      { level:'INFO',  severity:'LOW',    category:'auth',     action:'MAGIC_LINK_SENT',         message:'Magic link enviado a analista@empresa.com',           actor:{ email:'analista@empresa.com', ip:DEMO_IPS[2] } },
+      { level:'WARN',  severity:'MEDIUM', category:'auth',     action:'LOGIN_BLOCKED',           message:'Intento con correo no autorizado: intruso@hacker.com', actor:{ email:'intruso@hacker.com', ip:'45.33.32.156' } },
+      { level:'INFO',  severity:'LOW',    category:'auth',     action:'LOGIN_SUCCESS',           message:'analista@empresa.com inició sesión via magic link',   actor:{ email:'analista@empresa.com', role:'analyst', ip:DEMO_IPS[2] } },
+      { level:'INFO',  severity:'LOW',    category:'auth',     action:'GOOGLE_AUTH_SUCCESS',     message:'owner@empresa.com inició sesión via Google OAuth',   actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] } },
+      // Security events
+      { level:'WARN',  severity:'HIGH',   category:'security', action:'GOOGLE_AUTH_BLOCKED',     message:'Google OAuth rechazado — correo no autorizado: spam@example.com', actor:{ email:'spam@example.com', ip:'203.0.113.42' } },
+      { level:'WARN',  severity:'HIGH',   category:'security', action:'UNAUTHORIZED_TOKEN_USE',  message:'Token de acceso inválido o ya utilizado',            actor:{ ip:'185.220.101.5' } },
+      { level:'WARN',  severity:'MEDIUM', category:'security', action:'EXPIRED_TOKEN_USE',       message:'Intento de uso de token expirado (viewer@empresa.com)', actor:{ email:'viewer@empresa.com', ip:DEMO_IPS[1] } },
+      { level:'WARN',  severity:'HIGH',   category:'security', action:'CSRF_VIOLATION',          message:'OAuth state mismatch — posible ataque CSRF en flujo Google', actor:{ ip:'104.21.33.78' } },
+      // User events
+      { level:'INFO',  severity:'LOW',    category:'users',    action:'USER_INVITED',            message:'owner@empresa.com invitó a admin@empresa.com con rol admin',
+        actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] },
+        target:{ type:'user', email:'admin@empresa.com', label:'Admin Principal' },
+        metadata:{ after:{ email:'admin@empresa.com', name:'Admin Principal', role:'admin' }, extra:{ emailSent:true } } },
+      { level:'INFO',  severity:'LOW',    category:'users',    action:'USER_INVITED',            message:'owner@empresa.com invitó a analista@empresa.com con rol analyst',
+        actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] },
+        target:{ type:'user', email:'analista@empresa.com', label:'María Analista' },
+        metadata:{ after:{ email:'analista@empresa.com', name:'María Analista', role:'analyst' }, extra:{ emailSent:true } } },
+      { level:'INFO',  severity:'LOW',    category:'users',    action:'USER_UPDATED',            message:'admin@empresa.com actualizó al usuario viewer@empresa.com',
+        actor:{ email:'admin@empresa.com', role:'admin', ip:DEMO_IPS[1] },
+        target:{ type:'user', email:'viewer@empresa.com' },
+        metadata:{ before:{ name:'Juan Viewer', role:'viewer' }, after:{ name:'Juan Observer', role:'viewer' }, diff:{ name:{ from:'Juan Viewer', to:'Juan Observer' } } } },
+      { level:'WARN',  severity:'MEDIUM', category:'users',    action:'USER_DELETED',            message:'owner@empresa.com eliminó al usuario temporal@empresa.com',
+        actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] },
+        target:{ type:'user', email:'temporal@empresa.com', label:'Usuario Temporal' },
+        metadata:{ before:{ email:'temporal@empresa.com', name:'Usuario Temporal', role:'viewer' } } },
+      // Role events
+      { level:'INFO',  severity:'LOW',    category:'roles',    action:'ROLE_CREATED',            message:'admin@empresa.com creó el rol "Soporte Senior" (soporte_senior)',
+        actor:{ email:'admin@empresa.com', role:'admin', ip:DEMO_IPS[1] },
+        target:{ type:'role', id:'soporte_senior', label:'Soporte Senior' },
+        metadata:{ after:{ slug:'soporte_senior', label:'Soporte Senior', permissions:['conversations.view','dashboard.view'] } } },
+      { level:'WARN',  severity:'MEDIUM', category:'roles',    action:'ROLE_PERMISSIONS_UPDATED', message:'owner@empresa.com actualizó permisos del rol "admin"',
+        actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] },
+        target:{ type:'role', id:'admin', label:'Administrador' },
+        metadata:{ before:{ permissions:['dashboard.view','conversations.view'] }, after:{ permissions:['dashboard.view','conversations.view','admin.logs'] }, extra:{ added:['admin.logs'], removed:[] } } },
+      { level:'WARN',  severity:'MEDIUM', category:'roles',    action:'ROLE_DELETED',            message:'owner@empresa.com eliminó el rol "soporte_senior"',
+        actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] },
+        target:{ type:'role', id:'soporte_senior', label:'Soporte Senior' } },
+      // System events
+      { level:'INFO',  severity:'LOW',    category:'system',   action:'SEED_EXECUTED',           message:'Datos de demostración generados exitosamente',         actor:{ email:'owner@empresa.com', role:'owner', ip:DEMO_IPS[0] } },
+      { level:'ERROR', severity:'HIGH',   category:'system',   action:'DB_CONNECTION_ERROR',     message:'MongoDB connection timeout — reconectando automáticamente', metadata:{ error:{ message:'MongoServerSelectionError: connect ETIMEDOUT', code:'ETIMEDOUT' } } },
+      { level:'INFO',  severity:'LOW',    category:'system',   action:'DB_RECONNECTED',          message:'Conexión con MongoDB restaurada exitosamente' },
+      // Agent events
+      { level:'INFO',  severity:'LOW',    category:'agent',    action:'AGENT_ACTIVATED',         message:'Agente "Soporte WhatsApp" activado por admin@empresa.com',
+        actor:{ email:'admin@empresa.com', role:'admin', ip:DEMO_IPS[1] },
+        target:{ type:'agent', label:'Soporte WhatsApp' } },
+      { level:'WARN',  severity:'MEDIUM', category:'agent',    action:'AGENT_QUOTA_WARNING',     message:'Agente "Catálogo" alcanzó 85% del límite de tokens mensual',
+        target:{ type:'agent', label:'Catálogo' } },
+      // Conversation events
+      { level:'INFO',  severity:'LOW',    category:'conversation', action:'CONVERSATION_ESCALATED', message:'Conversación CNV-A3F7KP escalada a humano (límite de intentos)',
+        target:{ type:'conversation', id:'CNV-A3F7KP' } },
+      // Billing
+      { level:'INFO',  severity:'LOW',    category:'billing',  action:'PLAN_RENEWAL',            message:'Plan Starter renovado automáticamente' },
+      { level:'WARN',  severity:'HIGH',   category:'billing',  action:'PAYMENT_FAILED',          message:'Pago fallido — reintentar en 24h',
+        metadata:{ error:{ message:'card_declined', code:'insufficient_funds' } } },
+    ] as any[];
+
+    // Spread events over last 30 days with varied timestamps
+    const auditToInsert = auditSeed.map((entry, idx) => {
+      const daysAgo = Math.floor(idx / 2);
+      const d = new Date(today);
+      d.setDate(d.getDate() - Math.min(daysAgo, 29));
+      d.setHours(rand(7, 22), rand(0, 59), rand(0, 59));
+      return {
+        correlationId: randomUUID(),
+        ...entry,
+        http: entry.http ?? undefined,
+        createdAt: d,
+        expiresAt: new Date(d.getTime() + RETENTION_MS),
+      };
+    });
+
     // ── MongoDB indexes (DBA best practices) ──────────────────────────────
     await db.collection('analytics_daily').createIndex(
       { date: 1 }, { unique: true, background: true }
@@ -166,8 +249,17 @@ export async function POST() {
     );
 
     // ── Insert ────────────────────────────────────────────────────────────
-    await db.collection('analytics_daily').insertMany(analyticsToInsert);
-    await db.collection('conversations').insertMany(conversationsToInsert);
+    if (analyticsCount < 25)  await db.collection('analytics_daily').insertMany(analyticsToInsert);
+    if (convCount < 50)       await db.collection('conversations').insertMany(conversationsToInsert);
+    if (logsCount < 40)       await db.collection('audit_logs').insertMany(auditToInsert);
+
+    // TTL index on audit_logs
+    await db.collection('audit_logs').createIndex(
+      { expiresAt: 1 }, { expireAfterSeconds: 0, background: true }
+    );
+    await db.collection('audit_logs').createIndex(
+      { createdAt: -1 }, { background: true }
+    );
 
     // ── Config doc ────────────────────────────────────────────────────────
     await db.collection('config').updateOne(
@@ -179,8 +271,9 @@ export async function POST() {
     return Response.json({
       ok: true,
       inserted: {
-        analytics: analyticsToInsert.length,
-        conversations: conversationsToInsert.length,
+        analytics: analyticsCount < 25 ? analyticsToInsert.length : 0,
+        conversations: convCount < 50 ? conversationsToInsert.length : 0,
+        auditLogs: logsCount < 40 ? auditToInsert.length : 0,
       },
       indexes: 'created',
     });

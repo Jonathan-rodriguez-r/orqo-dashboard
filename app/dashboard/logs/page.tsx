@@ -241,6 +241,8 @@ export default function LogsPage() {
     return () => clearTimeout(t);
   }, [q]);
 
+  const [forbidden, setForbidden] = useState(false);
+
   const load = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -251,9 +253,14 @@ export default function LogsPage() {
     if (from) params.set('from', from);
 
     fetch(`/api/logs?${params}`)
-      .then(r => r.json())
+      .then(async r => {
+        if (r.status === 403) { setForbidden(true); return null; }
+        return r.json();
+      })
       .then(d => {
+        if (!d) return;
         if (d.ok) {
+          setForbidden(false);
           setLogs(d.items ?? []);
           setTotal(d.total ?? 0);
           setStats(d.stats ?? { byLevel: {}, byCategory: {} });
@@ -292,6 +299,27 @@ export default function LogsPage() {
           <p className="page-sub">Registro completo de actividad del sistema — retención {retentionDays} días</p>
         </div>
       </div>
+
+      {/* Permission error */}
+      {forbidden && (
+        <div style={{ background: 'rgba(220,72,72,0.08)', border: '1px solid rgba(220,72,72,0.25)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 20, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>🔒</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--red)', marginBottom: 4 }}>Sin permiso: admin.logs</div>
+            <div style={{ fontSize: 13, color: 'var(--g05)', lineHeight: 1.6 }}>
+              Tu sesión activa no incluye el permiso <code style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--g02)', padding: '1px 5px', borderRadius: 4 }}>admin.logs</code>.
+              Esto ocurre cuando la sesión fue creada antes de actualizar el rol.
+            </div>
+            <a
+              href="/api/auth/logout"
+              style={{ display: 'inline-block', marginTop: 10, fontSize: 12.5, color: 'var(--acc)', textDecoration: 'underline', cursor: 'pointer' }}
+              onClick={async e => { e.preventDefault(); await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }}
+            >
+              Cerrar sesión y volver a entrar →
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="stats-grid" style={{ marginBottom: 20 }}>

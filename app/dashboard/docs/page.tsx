@@ -176,9 +176,23 @@ const FAQ_GROUPS = [
 // ── Changelog data ────────────────────────────────────────────────────────────
 const CHANGELOG = [
   {
-    version: 'v1.2',
+    version: 'v1.3',
     date: 'Mar 2026',
     label: 'Actual',
+    items: [
+      'Cuenta: logo del cliente en la barra lateral (upload por archivo ≤512KB o URL), nombre del dashboard personalizable',
+      'Cuenta: campos adicionales — industria, teléfono, dirección, email de soporte',
+      'Centro de ayuda: manual completo (10 secciones), FAQ agrupado por rol (Propietario/Admin/Analista/Observador/Operaciones)',
+      'Centro de ayuda: changelog siempre actualizado; tab "Logs" eliminado (reemplazado por sección dedicada)',
+      'Logs & Auditoría: error 403 muestra aviso claro con link de re-login (sesión anterior sin permiso admin.logs)',
+      'Seed: genera 25 entradas demo de audit_logs con todas las categorías y niveles para visualización inmediata',
+      'Fix: changelog e identidad de marca en orqo.io ahora siguen preferencia dark/light del usuario (localStorage)',
+    ],
+  },
+  {
+    version: 'v1.2',
+    date: 'Mar 2026',
+    label: null,
     items: [
       'Sistema de observabilidad y auditoría completo — audit_logs con TTL en MongoDB',
       'Logs & Auditoría: UI con filtros combinables (nivel, categoría, fecha, texto), acordeón expandible con JSON before/after',
