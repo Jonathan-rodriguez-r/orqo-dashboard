@@ -13,10 +13,20 @@ export async function OPTIONS() {
 export async function GET() {
   try {
     const db = await getDb();
-    const doc = await db.collection('widget_config').findOne({ widgetId: 'default' });
+
+    // Primary: new widget_config collection
+    let doc = await db.collection('widget_config').findOne({ widgetId: 'default' });
+
+    // Fallback: legacy config collection (saved before migration)
     if (!doc) {
+      const legacy = await db.collection('config').findOne({ _id: 'widget' as any });
+      if (legacy) {
+        const { _id, ...rest } = legacy;
+        return Response.json({ active: true, ...rest }, { headers: CORS_HEADERS });
+      }
       return Response.json({ active: true, _defaults: true }, { headers: CORS_HEADERS });
     }
+
     const { _id, ...rest } = doc;
     return Response.json(rest, { headers: CORS_HEADERS });
   } catch {
