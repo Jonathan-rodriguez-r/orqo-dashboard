@@ -88,7 +88,7 @@ export async function PATCH(req: Request) {
   }
 
   if (Object.keys(update).length === 0)
-    return Response.json({ error: 'Nada que actualizar' }, { status: 400 });
+    return Response.json({ ok: true, message: 'Sin cambios' });
 
   await db.collection('users').updateOne({ email }, { $set: update });
   return Response.json({ ok: true });

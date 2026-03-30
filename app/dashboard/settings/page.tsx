@@ -191,20 +191,26 @@ export default function SettingsPage() {
     setEditUserErr('');
   }
 
+  const [savingUser, setSavingUser] = useState(false);
+
   async function saveUser(e: React.FormEvent) {
     e.preventDefault();
     if (!editingUser) return;
     setEditUserErr('');
-    const body: Record<string, string> = { email: editingUser.email };
-    if (editUserName  !== (editingUser.name  ?? ''))  body.name     = editUserName;
-    if (editUserEmail !== editingUser.email)           body.newEmail = editUserEmail;
-    if (editUserRole  !== (editingUser.role  ?? ''))   body.role     = editUserRole;
+    setSavingUser(true);
+    // Always send all fields — let API decide what changed
     const res = await fetch('/api/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        email:    editingUser.email,
+        name:     editUserName.trim() || undefined,
+        newEmail: editUserEmail.trim().toLowerCase() !== editingUser.email ? editUserEmail.trim().toLowerCase() : undefined,
+        role:     editUserRole,
+      }),
     });
     const d = await res.json();
+    setSavingUser(false);
     if (!res.ok) { setEditUserErr(d.error ?? 'Error al guardar'); return; }
     setEditingUser(null);
     loadUsers();
@@ -554,8 +560,10 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     {editUserErr && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{editUserErr}</p>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="submit" className="btn btn-primary btn-sm">Guardar cambios</button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={savingUser}>
+                        {savingUser ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingUser(null)}>Cancelar</button>
                     </div>
                   </form>
@@ -661,13 +669,16 @@ export default function SettingsPage() {
                           </div>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button className="btn btn-primary btn-sm" disabled={savingRole} onClick={() => saveRolePerms(r.slug)}>
                           {savingRole ? 'Guardando...' : 'Guardar permisos'}
                         </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setExpandedRole(null)}>Cancelar</button>
-                        <span style={{ fontSize: 11, color: 'var(--g05)', marginLeft: 8 }}>
-                          {editPerms.length} de {SYSTEM_MODULES.length} permisos seleccionados
+                        <span style={{ fontSize: 11, color: 'var(--g05)' }}>
+                          {editPerms.length}/{SYSTEM_MODULES.length} permisos
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--yellow)', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', padding: '2px 8px', borderRadius: 6 }}>
+                          ⚠ Los cambios aplican en el próximo inicio de sesión
                         </span>
                       </div>
                     </div>
