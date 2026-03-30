@@ -208,6 +208,10 @@ export default function AgentsPage() {
 
   // Skills
   const [skills, setSkills] = useState<Record<string, boolean>>({});
+  const [skillsError, setSkillsError] = useState(false);
+
+  // Md preview
+  const [showMd, setShowMd] = useState(false);
 
   // Context
   const [corporateContext, setCorporateContext]   = useState('');
@@ -234,8 +238,39 @@ export default function AgentsPage() {
     setPreChatFields(prev => ({ ...prev, [field]: { ...prev[field], [key]: value } }));
   }
 
+  const MAX_SKILLS = 8;
+
   function toggleSkill(id: string) {
-    setSkills(prev => ({ ...prev, [id]: !prev[id] }));
+    setSkills(prev => {
+      const isOn = prev[id];
+      if (!isOn) {
+        const currentCount = Object.values(prev).filter(Boolean).length;
+        if (currentCount >= MAX_SKILLS) {
+          setSkillsError(true);
+          setTimeout(() => setSkillsError(false), 2500);
+          return prev;
+        }
+      }
+      return { ...prev, [id]: !isOn };
+    });
+  }
+
+  // Auto-select default skills for a profile (clears existing)
+  const PROFILE_SKILLS: Record<string, string[]> = {
+    sales:     ['leads', 'convert', 'escalate', 'consult', 'appt', 'prices', 'inventory', 'star'],
+    support:   ['advisor', 'solutions', 'technical', 'trainer', 'faq', 'explain', 'escalate', 'summarize'],
+    host:      ['reservas', 'disponibilidad', 'checkin', 'manual', 'reglas', 'appt', 'messages', 'multilang'],
+    marketing: ['leads', 'convert', 'upsell', 'catalog', 'faq', 'multilang', 'star', 'explain'],
+    info:      ['faq', 'explain', 'summarize', 'solutions', 'advisor', 'multilang', 'locale', 'quiz'],
+  };
+
+  function selectProfile(id: string) {
+    setProfile(id);
+    const defaults = PROFILE_SKILLS[id] ?? [];
+    const newSkills: Record<string, boolean> = {};
+    defaults.slice(0, MAX_SKILLS).forEach(s => { newSkills[s] = true; });
+    setSkills(newSkills);
+    setSkillsError(false);
   }
 
   // Generate agent markdown preview
@@ -577,7 +612,7 @@ export default function AgentsPage() {
             {PROFILES.map(p => (
               <button
                 key={p.id}
-                onClick={() => setProfile(p.id)}
+                onClick={() => selectProfile(p.id)}
                 style={{
                   padding: '14px 12px',
                   borderRadius: 'var(--radius-sm)',
@@ -641,7 +676,17 @@ export default function AgentsPage() {
 
       {/* ── 7. Skills del agente ─────────────────────────────────────────── */}
       <section style={{ marginBottom: 32 }}>
-        <SectionTitle>Skills del agente</SectionTitle>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <SectionTitle>Skills del agente</SectionTitle>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {skillsError && (
+              <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>Máximo {MAX_SKILLS} skills</span>
+            )}
+            <span className={`badge ${Object.values(skills).filter(Boolean).length >= MAX_SKILLS ? 'badge-red' : 'badge-green'}`}>
+              {Object.values(skills).filter(Boolean).length} / {MAX_SKILLS}
+            </span>
+          </div>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {SKILLS_GROUPS.map(group => {
             const activeCount = group.skills.filter(s => skills[s.id]).length;
@@ -791,22 +836,38 @@ export default function AgentsPage() {
 
       {/* ── 10. Vista previa del agente (.md) ───────────────────────────── */}
       <section style={{ marginBottom: 32 }}>
-        <SectionTitle>Vista previa del agente</SectionTitle>
-        <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 12.5, color: 'var(--g05)' }}>
-              Generado automáticamente según tu configuración actual
-            </span>
-            <span className="badge badge-gray">Solo lectura</span>
-          </div>
-          <textarea
-            className="input input-mono"
-            rows={20}
-            readOnly
-            value={generateMd()}
-            style={{ resize: 'none', fontSize: 11.5, lineHeight: 1.8, opacity: 0.7, cursor: 'default' }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <SectionTitle>Vista previa del agente</SectionTitle>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowMd(v => !v)}>
+            {showMd ? '▲ Colapsar' : '▼ Ver .md generado'}
+          </button>
         </div>
+        {showMd && (
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--g05)' }}>Generado automáticamente · Solo referencia</span>
+              <span className="badge badge-gray">No editable</span>
+            </div>
+            <pre style={{
+              fontFamily: 'var(--f-mono)',
+              fontSize: 11.5,
+              lineHeight: 1.8,
+              color: 'var(--g06)',
+              background: 'var(--g02)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '14px 16px',
+              overflow: 'auto',
+              maxHeight: 400,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              pointerEvents: 'none',
+            }}>
+              {generateMd()}
+            </pre>
+          </div>
+        )}
       </section>
 
       {/* ── Save bar ─────────────────────────────────────────────────────── */}

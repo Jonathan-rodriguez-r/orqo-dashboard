@@ -9,6 +9,8 @@ type AccountCfg = {
   business_name: string;
   email: string;
   website: string;
+  active_domain: string;
+  widget_page_url: string;
   timezone: string;
   language: string;
   api_key: string;
@@ -21,6 +23,8 @@ const DEFAULTS: AccountCfg = {
   business_name: '',
   email: '',
   website: '',
+  active_domain: '',
+  widget_page_url: '',
   timezone: 'America/Bogota',
   language: 'es',
   api_key: '',
@@ -132,6 +136,16 @@ export default function AccountPage() {
           <div className="field">
             <label className="label">Sitio web</label>
             <input className="input" value={cfg.website} onChange={e => set('website', e.target.value)} placeholder="https://miempresa.com"/>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label className="label">Dominio activo</label>
+              <input className="input" value={cfg.active_domain} onChange={e => set('active_domain', e.target.value)} placeholder="orqo.io"/>
+            </div>
+            <div className="field">
+              <label className="label">Página donde aparece el widget</label>
+              <input className="input" value={cfg.widget_page_url} onChange={e => set('widget_page_url', e.target.value)} placeholder="https://orqo.io"/>
+            </div>
           </div>
           <div className="field-row">
             <div className="field">
