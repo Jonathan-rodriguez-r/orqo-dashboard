@@ -110,7 +110,7 @@ export const WIDGET_DEFAULTS = {
 </ul>
 <h3>Cómo revisar tu consumo</h3>
 <p>En el dashboard, la sección <strong>Resumen</strong> muestra cuántas interacciones has usado y cuántas te quedan.</p>
-<div class="art-note"><strong>¿Llegaste al límite?</strong> Escríbenos a hola@orqo.io para ampliar tu límite de inmediato.</div>`
+<div class="art-note"><strong>¿Llegaste al límite?</strong> Escríbenos a hello@orqo.io para ampliar tu límite de inmediato.</div>`
     },
     {
       id: 'plugin-install',

@@ -219,14 +219,14 @@ export default function LoginPage() {
             <a href="https://orqo.io" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               orqo.io
             </a>
-            <a href="https://orqo.io/#marca" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+            <a href="https://orqo.io/Marca/orqo-manual-marca-final.html" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               Identidad de marca
             </a>
             <a href="https://orqo.io/privacy" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               Privacidad
             </a>
-            <a href="mailto:hola@orqo.io" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
-              hola@orqo.io
+            <a href="mailto:hello@orqo.io" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+              hello@orqo.io
             </a>
           </div>
           <div style={{fontSize:'11px',color:'var(--g04)',textAlign:'center',lineHeight:1.7}}>
