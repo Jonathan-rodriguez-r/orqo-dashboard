@@ -59,6 +59,29 @@ export async function POST(req: Request) {
   return Response.json({ ok: true });
 }
 
+export async function PATCH(req: Request) {
+  const session = await getSession();
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasPermission(session.permissions, 'settings.users'))
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { email, role } = await req.json();
+  if (!email || !role) return Response.json({ error: 'email y role son requeridos' }, { status: 400 });
+
+  if (email === session.email && role !== session.role)
+    return Response.json({ error: 'No puedes cambiar tu propio rol.' }, { status: 400 });
+
+  if (role === 'owner' && session.role !== 'owner')
+    return Response.json({ error: 'Solo el propietario puede asignar el rol Owner.' }, { status: 403 });
+
+  const db = await getDb();
+  const roleDoc = await db.collection('roles').findOne({ slug: role });
+  const permissions: string[] = roleDoc?.permissions ?? getDefaultPermissions(role);
+
+  await db.collection('users').updateOne({ email }, { $set: { role, permissions } });
+  return Response.json({ ok: true });
+}
+
 export async function DELETE(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
