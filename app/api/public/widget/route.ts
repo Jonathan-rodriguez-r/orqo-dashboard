@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/mongodb';
+import { writeLog } from '@/app/api/admin/logs/route';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -6,42 +7,50 @@ const CORS_HEADERS = {
   'Cache-Control': 'no-store',
 };
 
-const INACTIVE = Response.json({ active: false }, { headers: CORS_HEADERS });
-
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const key = searchParams.get('key');
+  const { searchParams } = new URL(req.url);
+  const key = searchParams.get('key');
+  const origin = req.headers.get('origin') ?? 'unknown';
 
+  try {
     const db = await getDb();
 
-    // If a key is provided, validate it against the account and check the account is active
+    // If a key is provided, validate it against the account
     if (key) {
       const account = await db.collection('config').findOne({ _id: 'account' as any });
-      if (!account || account.api_key !== key) return INACTIVE;
-      // (Future: check account.plan_active flag here)
+      if (!account || account.api_key !== key) {
+        await writeLog({ level: 'warn', source: 'public-api', msg: 'API key inválida rechazada', detail: `origin: ${origin}` });
+        return Response.json({ active: false }, { headers: CORS_HEADERS });
+      }
     }
 
-    // Primary: new widget_config collection
-    let doc = await db.collection('widget_config').findOne({ widgetId: 'default' });
+    // Primary: widget_config collection
+    const doc = await db.collection('widget_config').findOne({ widgetId: 'default' });
 
-    // Fallback: legacy config collection (saved before migration)
     if (!doc) {
+      // Fallback: legacy config collection
       const legacy = await db.collection('config').findOne({ _id: 'widget' as any });
       if (legacy) {
+        await writeLog({ level: 'info', source: 'public-api', msg: 'Config servida desde colección legacy', detail: `origin: ${origin}` });
         const { _id, ...rest } = legacy;
         return Response.json({ active: true, ...rest }, { headers: CORS_HEADERS });
       }
+      await writeLog({ level: 'warn', source: 'public-api', msg: 'No hay config en BD — sirviendo defaults', detail: `origin: ${origin}` });
       return Response.json({ active: true, _defaults: true }, { headers: CORS_HEADERS });
     }
 
+    await writeLog({ level: 'info', source: 'public-api', msg: 'Config servida correctamente', detail: `active:${doc.active} origin:${origin}` });
     const { _id, ...rest } = doc;
     return Response.json(rest, { headers: CORS_HEADERS });
-  } catch {
+
+  } catch (e: any) {
+    // LOG: MongoDB connection failure or query error
+    await writeLog({ level: 'error', source: 'public-api', msg: 'Error leyendo config de MongoDB', detail: e.message }).catch(() => {});
+    console.error('[ORQO] /api/public/widget error:', e.message);
     return Response.json({ active: true, _defaults: true }, { headers: CORS_HEADERS });
   }
 }

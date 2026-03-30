@@ -167,8 +167,15 @@ export async function POST(req: Request) {
       { $set: body },
       { upsert: true }
     );
+    // LOG: config saved
+    await db.collection('activity_logs').insertOne({
+      ts: Date.now(), level: 'info', source: 'widget-config',
+      msg: 'Configuración guardada', detail: `active:${body.active} title:"${body.title}"`,
+    }).catch(() => {}); // never crash on log failure
     return Response.json({ ok: true });
   } catch (e: any) {
+    // LOG: save failure
+    console.error('[ORQO] widget config POST error:', e.message);
     return Response.json({ error: e.message }, { status: 500 });
   }
 }

@@ -52,6 +52,13 @@ const NAV = [
       <path d="M11 2a2.5 2.5 0 0 1 0 5M15 13.5c0-2-1.343-3.716-3.194-4.378"/>
     </svg>
   )},
+  { href: '/dashboard/docs', label: 'Centro', icon: (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 2h8l4 4v8H2z" strokeLinejoin="round"/>
+      <path d="M10 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 8h6M5 11h4" strokeLinecap="round"/>
+    </svg>
+  )},
 ];
 
 type Props = { userEmail?: string; userName?: string };
