@@ -25,8 +25,11 @@ type WidgetCfg = {
   windowOpacity: number;
   buttonOpacity: number;
   iconMode: 'orqo' | 'favicon' | 'photo';
+  faviconPreset: string;
   faviconUrl: string;
   agentPhoto: string;
+  fontFamily: string;
+  widgetRadius: number;
   interactionLimit: number;
   showBranding: boolean;
   homeArticles: string[];
@@ -47,21 +50,64 @@ const DEFAULTS: WidgetCfg = {
   windowOpacity: 1.0,
   buttonOpacity: 1.0,
   iconMode: 'orqo',
+  faviconPreset: '',
   faviconUrl: '',
   agentPhoto: '',
+  fontFamily: 'default',
+  widgetRadius: 14,
   interactionLimit: 20,
   showBranding: true,
   homeArticles: ['wp-connect', 'plugin-install', 'whatsapp-setup', 'agents'],
   articles: [],
 };
 
-const POSITIONS = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
+const POSITIONS = [
+  { value: 'bottom-right', label: 'Abajo — Derecha' },
+  { value: 'bottom-left',  label: 'Abajo — Izquierda' },
+  { value: 'top-right',    label: 'Arriba — Derecha' },
+  { value: 'top-left',     label: 'Arriba — Izquierda' },
+  { value: 'center',       label: 'Centro' },
+];
 
+// ── Real human agent portraits ─────────────────────────────────────────────
 const AGENT_PHOTOS = [
-  { id: 'g1', label: 'Agente A', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=orqo-a1&backgroundColor=2CB978&radius=50' },
-  { id: 'g2', label: 'Agente B', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=orqo-a2&backgroundColor=3B82F6&radius=50' },
-  { id: 'g3', label: 'Agente C', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=orqo-a3&backgroundColor=9B59B6&radius=50' },
-  { id: 'g4', label: 'Agente D', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=orqo-a4&backgroundColor=F5B43C&radius=50' },
+  { id: 'w1', label: 'Laura',   url: 'https://randomuser.me/api/portraits/women/44.jpg' },
+  { id: 'w2', label: 'Camila',  url: 'https://randomuser.me/api/portraits/women/65.jpg' },
+  { id: 'w3', label: 'Sofía',   url: 'https://randomuser.me/api/portraits/women/90.jpg' },
+  { id: 'w4', label: 'Valeria', url: 'https://randomuser.me/api/portraits/women/29.jpg' },
+  { id: 'm1', label: 'Carlos',  url: 'https://randomuser.me/api/portraits/men/32.jpg' },
+  { id: 'm2', label: 'Andrés',  url: 'https://randomuser.me/api/portraits/men/43.jpg' },
+  { id: 'm3', label: 'Miguel',  url: 'https://randomuser.me/api/portraits/men/75.jpg' },
+  { id: 'm4', label: 'Daniel',  url: 'https://randomuser.me/api/portraits/men/91.jpg' },
+];
+
+// ── 10 icon presets for favicon mode ──────────────────────────────────────
+const ICON_PRESETS = [
+  { id: 'chat',     label: 'Chat',     svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'support',  label: 'Soporte',  svg: '<path d="M3 11a9 9 0 1 1 18 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M21 11v4a2 2 0 0 1-2 2h-1M3 11v4a2 2 0 0 0 2 2h1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
+  { id: 'robot',    label: 'IA',       svg: '<rect x="3" y="9" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="9" cy="14" r="1.5" fill="currentColor"/><circle cx="15" cy="14" r="1.5" fill="currentColor"/><path d="M9 18h6M12 9V6m-3 0h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
+  { id: 'spark',    label: 'Magia',    svg: '<path d="M12 2l1.5 4H18l-3.5 2.5 1.5 4L12 10l-4 2.5 1.5-4L6 6h4.5z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M19 15l1 2-2 1 2 1-1 2-1-2-2 1 1-2-2-1 2-1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/>' },
+  { id: 'bolt',     label: 'Rápido',   svg: '<path d="M13 2L4.5 13H12l-1 9L21 11H14z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'heart',    label: 'Cercano',  svg: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'star',     label: 'Calidad',  svg: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'phone',    label: 'Llamada',  svg: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12a19.79 19.79 0 0 1-3-8.59A2 2 0 0 1 3.12 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'store',    label: 'Tienda',   svg: '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="1.8"/><path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' },
+  { id: 'question', label: 'Ayuda',    svg: '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="17" r="0.8" fill="currentColor"/>' },
+];
+
+const FONT_OPTIONS = [
+  { id: 'default',  label: 'ORQO (Syne + Figtree)' },
+  { id: 'inter',    label: 'Inter — Moderno' },
+  { id: 'jakarta',  label: 'Plus Jakarta Sans — Amigable' },
+  { id: 'dm-sans',  label: 'DM Sans — Minimalista' },
+  { id: 'poppins',  label: 'Poppins — Redondeado' },
+];
+
+const RADIUS_OPTIONS = [
+  { value: 8,  label: 'Compacto' },
+  { value: 14, label: 'Estándar' },
+  { value: 20, label: 'Redondeado' },
+  { value: 28, label: 'Pill' },
 ];
 
 const CATEGORIES = ['Primeros pasos', 'Integraciones', 'Agentes', 'Planes', 'Seguridad', 'Otro'];
@@ -117,6 +163,7 @@ export default function WidgetPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newArt, setNewArt] = useState<Article>({ id: '', title: '', category: 'Primeros pasos', date: '', body: '' });
+  const [previewTheme, setPreviewTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
     fetch('/api/config/widget').then(r => r.json()).then(d => {
@@ -179,9 +226,15 @@ export default function WidgetPage() {
     });
   }
 
+  // Resolved icon for preview
   const resolvedPhoto = cfg.iconMode === 'photo'
     ? (AGENT_PHOTOS.find(p => p.id === cfg.agentPhoto)?.url ?? cfg.agentPhoto)
-    : cfg.iconMode === 'favicon' ? cfg.faviconUrl : '';
+    : '';
+
+  const previewBg      = previewTheme === 'dark' ? cfg.darkBg      : cfg.lightBg;
+  const previewSurface = previewTheme === 'dark' ? cfg.darkSurface  : cfg.lightSurface;
+  const previewText    = previewTheme === 'dark' ? '#F5F5F2'        : '#090F0A';
+  const previewSub     = previewTheme === 'dark' ? 'rgba(233,237,233,0.5)' : 'rgba(9,15,10,0.45)';
 
   return (
     <div className="dash-content">
@@ -226,9 +279,21 @@ export default function WidgetPage() {
               ))}
             </div>
             {cfg.iconMode === 'favicon' && (
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">URL del ícono (PNG/SVG/ICO — 48×48 recomendado)</label>
-                <input className="input" type="url" placeholder="https://midominio.com/favicon.png" value={cfg.faviconUrl} onChange={e => set('faviconUrl', e.target.value)} />
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
+                  {ICON_PRESETS.map(icon => (
+                    <button key={icon.id} onClick={() => { set('faviconPreset', icon.id); set('faviconUrl', ''); }}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '10px 4px', borderRadius: 'var(--radius-sm)', border: `1px solid ${cfg.faviconPreset === icon.id ? 'var(--acc)' : 'var(--g03)'}`, background: cfg.faviconPreset === icon.id ? 'var(--acc-g)' : 'var(--g02)', cursor: 'pointer', color: cfg.faviconPreset === icon.id ? 'var(--acc)' : 'var(--g06)' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      <span style={{ fontSize: 10, color: 'var(--g05)' }}>{icon.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">O URL personalizada (PNG/SVG/ICO — 48×48 recomendado)</label>
+                  <input className="input" type="url" placeholder="https://midominio.com/favicon.png" value={cfg.faviconUrl}
+                    onChange={e => { set('faviconUrl', e.target.value); set('faviconPreset', ''); }} />
+                </div>
               </div>
             )}
             {cfg.iconMode === 'photo' && (
@@ -261,7 +326,7 @@ export default function WidgetPage() {
               <ColorField label="Fondo modo claro" value={cfg.lightBg} onChange={v => set('lightBg', v)} />
               <ColorField label="Superficie clara" value={cfg.lightSurface} onChange={v => set('lightSurface', v)} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label className="label">Ventana — {Math.round(cfg.windowOpacity * 100)}%</label>
                 <input type="range" min={0.5} max={1} step={0.05} value={cfg.windowOpacity} onChange={e => set('windowOpacity', Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--acc)' }} />
@@ -271,18 +336,34 @@ export default function WidgetPage() {
                 <input type="range" min={0.5} max={1} step={0.05} value={cfg.buttonOpacity} onChange={e => set('buttonOpacity', Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--acc)' }} />
               </div>
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">Tipografía</label>
+                <select className="input" value={cfg.fontFamily} onChange={e => set('fontFamily', e.target.value)}>
+                  {FONT_OPTIONS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">Bordes</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {RADIUS_OPTIONS.map(r => (
+                    <button key={r.value} onClick={() => set('widgetRadius', r.value)}
+                      className={`btn btn-sm ${cfg.widgetRadius === r.value ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* 4. Posición */}
           <div className="card">
             <STitle>Posición</STitle>
-            <div className="position-grid">
-              {POSITIONS.map(p => (
-                <div key={p} className={`pos-opt ${cfg.position === p ? 'selected' : ''}`} onClick={() => set('position', p)}>
-                  {p.replace('-', ' ')}
-                </div>
-              ))}
-            </div>
+            <select className="input" value={cfg.position} onChange={e => set('position', e.target.value)}>
+              {POSITIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
           </div>
 
           {/* 5. Artículos */}
@@ -398,37 +479,63 @@ export default function WidgetPage() {
           <div className="card">
             <STitle>Vista previa</STitle>
 
-            {/* Mini mock */}
-            <div style={{ background: 'linear-gradient(135deg, #1a2e22 0%, #0B100D 100%)', borderRadius: 10, height: 240, position: 'relative', overflow: 'hidden', marginBottom: 14 }}>
-              {cfg.active && (
-                <div style={{ position: 'absolute', bottom: 62, right: cfg.position.includes('left') ? 'auto' : 12, left: cfg.position.includes('left') ? 12 : 'auto', width: 180, background: cfg.darkSurface, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9, padding: 10, opacity: cfg.windowOpacity }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
-                    {resolvedPhoto
-                      ? <img src={resolvedPhoto} width={22} height={22} style={{ borderRadius: '50%' }} alt="" />
-                      : <div style={{ width: 22, height: 22, borderRadius: '50%', background: cfg.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>O</div>
-                    }
-                    <div>
-                      <div style={{ fontSize: 9.5, fontWeight: 700, color: '#F5F5F2' }}>{cfg.title || 'Hola soy ORQO'}</div>
-                      <div style={{ fontSize: 7.5, color: 'rgba(233,237,233,0.5)' }}>{cfg.subtitle || 'Tu Asistente'}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 8.5, color: 'rgba(233,237,233,0.4)', background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '4px 6px' }}>
-                    {cfg.placeholder || '¿En qué te puedo ayudar?'}
-                  </div>
-                </div>
-              )}
-              <div style={{ position: 'absolute', bottom: cfg.position.includes('top') ? 'auto' : 12, top: cfg.position.includes('top') ? 12 : 'auto', right: cfg.position.includes('left') ? 'auto' : 12, left: cfg.position.includes('left') ? 12 : 'auto', width: 42, height: 42, borderRadius: '50%', background: cfg.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cfg.buttonOpacity, boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
-                {resolvedPhoto
-                  ? <img src={resolvedPhoto} width={42} height={42} style={{ borderRadius: '50%' }} alt="" />
-                  : <svg width="20" height="20" viewBox="0 0 72 72" fill="none"><path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#fff" strokeWidth="4.5" fill="none" strokeLinecap="round"/><line x1="59.5" y1="52" x2="66" y2="58" stroke="#fff" strokeWidth="4.5" strokeLinecap="round"/><circle cx="66" cy="58" r="5" fill="#fff"/></svg>
-                }
-              </div>
-              {!cfg.active && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', borderRadius: 10 }}>
-                  <span style={{ color: 'rgba(233,237,233,0.6)', fontSize: 12, fontWeight: 600 }}>Widget inactivo</span>
-                </div>
-              )}
+            {/* Dark / light toggle */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {(['dark', 'light'] as const).map(t => (
+                <button key={t} onClick={() => setPreviewTheme(t)}
+                  className={`btn btn-sm ${previewTheme === t ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
+                  {t === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
+                </button>
+              ))}
             </div>
+
+            {/* Mini mock */}
+            {(() => {
+              const isTop    = cfg.position.includes('top');
+              const isLeft   = cfg.position.includes('left');
+              const isCenter = cfg.position === 'center';
+              const hSide: React.CSSProperties = isCenter ? { left: '50%', transform: 'translateX(-50%)' }
+                : isLeft ? { left: 12 } : { right: 12 };
+              const btnV: React.CSSProperties = isCenter
+                ? { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }
+                : isTop ? { top: 12, ...hSide } : { bottom: 12, ...hSide };
+              const winV: React.CSSProperties = isCenter
+                ? { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }
+                : isTop ? { top: 62, ...hSide } : { bottom: 62, ...hSide };
+              return (
+                <div style={{ background: previewBg, borderRadius: 10, height: 240, position: 'relative', overflow: 'hidden', marginBottom: 14, transition: 'background 0.25s' }}>
+                  {cfg.active && (
+                    <div style={{ position: 'absolute', width: 180, background: previewSurface, border: `1px solid ${previewTheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, borderRadius: 9, padding: 10, opacity: cfg.windowOpacity, ...winV }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                        {resolvedPhoto
+                          ? <img src={resolvedPhoto} width={22} height={22} style={{ borderRadius: '50%' }} alt="" />
+                          : <div style={{ width: 22, height: 22, borderRadius: '50%', background: cfg.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>O</div>
+                        }
+                        <div>
+                          <div style={{ fontSize: 9.5, fontWeight: 700, color: previewText }}>{cfg.title || 'Hola soy ORQO'}</div>
+                          <div style={{ fontSize: 7.5, color: previewSub }}>{cfg.subtitle || 'Tu Asistente'}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 8.5, color: previewSub, background: previewTheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)', borderRadius: 4, padding: '4px 6px' }}>
+                        {cfg.placeholder || '¿En qué te puedo ayudar?'}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', width: 42, height: 42, borderRadius: '50%', background: cfg.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cfg.buttonOpacity, boxShadow: '0 4px 14px rgba(0,0,0,0.4)', ...btnV }}>
+                    {resolvedPhoto
+                      ? <img src={resolvedPhoto} width={42} height={42} style={{ borderRadius: '50%' }} alt="" />
+                      : <svg width="20" height="20" viewBox="0 0 72 72" fill="none"><path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#fff" strokeWidth="4.5" fill="none" strokeLinecap="round"/><line x1="59.5" y1="52" x2="66" y2="58" stroke="#fff" strokeWidth="4.5" strokeLinecap="round"/><circle cx="66" cy="58" r="5" fill="#fff"/></svg>
+                    }
+                  </div>
+                  {!cfg.active && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', borderRadius: 10 }}>
+                      <span style={{ color: 'rgba(233,237,233,0.6)', fontSize: 12, fontWeight: 600 }}>Widget inactivo</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Summary */}
             <div style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 2, marginBottom: 14 }}>
