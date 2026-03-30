@@ -114,8 +114,11 @@ export default function SettingsPage() {
   const [invRole, setInvRole]     = useState('viewer');
   const [inviting, setInviting]   = useState(false);
   const [invErr, setInvErr]       = useState('');
-  const [editingUser, setEditingUser] = useState<string | null>(null); // email
-  const [editUserRole, setEditUserRole] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserName, setEditUserName]   = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserRole, setEditUserRole]   = useState('');
+  const [editUserErr, setEditUserErr]     = useState('');
 
   // Roles
   const [roles, setRoles]             = useState<Role[]>([]);
@@ -179,14 +182,32 @@ export default function SettingsPage() {
     loadUsers();
   }
 
-  // ── Edit user role ─────────────────────────────────────────────────────────
-  async function saveUserRole(email: string) {
+  // ── Edit user ──────────────────────────────────────────────────────────────
+  function startEditUser(u: User) {
+    setEditingUser(u);
+    setEditUserName(u.name ?? '');
+    setEditUserEmail(u.email);
+    setEditUserRole(u.role ?? 'viewer');
+    setEditUserErr('');
+  }
+
+  async function saveUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditUserErr('');
+    const body: Record<string, string> = { email: editingUser.email };
+    if (editUserName  !== (editingUser.name  ?? ''))  body.name     = editUserName;
+    if (editUserEmail !== editingUser.email)           body.newEmail = editUserEmail;
+    if (editUserRole  !== (editingUser.role  ?? ''))   body.role     = editUserRole;
     const res = await fetch('/api/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role: editUserRole }),
+      body: JSON.stringify(body),
     });
-    if (res.ok) { setEditingUser(null); loadUsers(); }
+    const d = await res.json();
+    if (!res.ok) { setEditUserErr(d.error ?? 'Error al guardar'); return; }
+    setEditingUser(null);
+    loadUsers();
   }
 
   // ── Delete user ────────────────────────────────────────────────────────────
@@ -473,7 +494,7 @@ export default function SettingsPage() {
                       ) : users.length === 0 ? (
                         <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--g05)' }}>Sin usuarios</td></tr>
                       ) : users.map(u => (
-                        <tr key={u._id}>
+                        <tr key={u._id} style={{ background: editingUser?._id === u._id ? 'var(--g02)' : undefined }}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               {u.avatar
@@ -484,27 +505,14 @@ export default function SettingsPage() {
                             </div>
                           </td>
                           <td style={{ color: 'var(--g05)', fontSize: 12.5 }}>{u.email}</td>
-                          <td>
-                            {editingUser === u.email ? (
-                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                <select className="input" style={{ padding: '3px 8px', fontSize: 12 }}
-                                  value={editUserRole} onChange={e => setEditUserRole(e.target.value)}>
-                                  {roles.map(r => <option key={r.slug} value={r.slug}>{r.label}</option>)}
-                                </select>
-                                <button className="btn btn-primary btn-sm" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => saveUserRole(u.email)}>✓</button>
-                                <button className="btn btn-ghost btn-sm" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setEditingUser(null)}>✕</button>
-                              </div>
-                            ) : (
-                              <RoleBadge role={u.role}/>
-                            )}
-                          </td>
+                          <td><RoleBadge role={u.role}/></td>
                           <td style={{ color: 'var(--g05)', fontSize: 12 }}>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('es') : 'Nunca'}</td>
                           <td style={{ color: 'var(--g05)', fontSize: 12 }}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('es') : '—'}</td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '3px 10px' }}
-                                onClick={() => { setEditingUser(u.email); setEditUserRole(u.role ?? 'viewer'); }}>
-                                Editar
+                                onClick={() => editingUser?._id === u._id ? setEditingUser(null) : startEditUser(u)}>
+                                {editingUser?._id === u._id ? 'Cancelar' : 'Editar'}
                               </button>
                               <button className="btn btn-sm" style={{ fontSize: 11, padding: '3px 10px', background: 'rgba(239,68,68,0.08)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }}
                                 onClick={() => deleteUser(u.email, u.name)}>
@@ -518,6 +526,41 @@ export default function SettingsPage() {
                   </table>
                 </div>
               </div>
+
+              {/* Edit user panel — outside table so no overflow clipping */}
+              {editingUser && (
+                <div className="card" style={{ background: 'var(--g02)', border: '1px solid var(--acc)', borderRadius: 'var(--radius-lg)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--acc)' }}/>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--g07)' }}>
+                      Editando: {editingUser.name ?? editingUser.email}
+                    </span>
+                  </div>
+                  <form onSubmit={saveUser}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+                      <div className="field" style={{ marginBottom: 0 }}>
+                        <label className="label">Nombre</label>
+                        <input className="input" placeholder="Nombre del usuario" value={editUserName} onChange={e => setEditUserName(e.target.value)}/>
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}>
+                        <label className="label">Email</label>
+                        <input className="input" type="email" value={editUserEmail} onChange={e => setEditUserEmail(e.target.value)} required/>
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}>
+                        <label className="label">Rol</label>
+                        <select className="input" value={editUserRole} onChange={e => setEditUserRole(e.target.value)}>
+                          {roles.map(r => <option key={r.slug} value={r.slug}>{r.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {editUserErr && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{editUserErr}</p>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="submit" className="btn btn-primary btn-sm">Guardar cambios</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingUser(null)}>Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 

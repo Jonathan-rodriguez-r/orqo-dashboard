@@ -11,8 +11,12 @@ import { hasPermission } from '@/lib/rbac';
 export async function GET() {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasPermission(session.permissions, 'settings.roles'))
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  // Viewing roles is allowed to anyone who can manage users (for invite form dropdown)
+  // or who has settings.roles permission
+  if (
+    !hasPermission(session.permissions, 'settings.roles') &&
+    !hasPermission(session.permissions, 'settings.users')
+  ) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const db = await getDb();
   const roles = await db.collection('roles').find({}).sort({ createdAt: 1 }).toArray();

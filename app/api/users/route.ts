@@ -65,20 +65,32 @@ export async function PATCH(req: Request) {
   if (!hasPermission(session.permissions, 'settings.users'))
     return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { email, role } = await req.json();
-  if (!email || !role) return Response.json({ error: 'email y role son requeridos' }, { status: 400 });
-
-  if (email === session.email && role !== session.role)
-    return Response.json({ error: 'No puedes cambiar tu propio rol.' }, { status: 400 });
+  const { email, role, name, newEmail } = await req.json();
+  if (!email) return Response.json({ error: 'email es requerido' }, { status: 400 });
 
   if (role === 'owner' && session.role !== 'owner')
     return Response.json({ error: 'Solo el propietario puede asignar el rol Owner.' }, { status: 403 });
 
-  const db = await getDb();
-  const roleDoc = await db.collection('roles').findOne({ slug: role });
-  const permissions: string[] = roleDoc?.permissions ?? getDefaultPermissions(role);
+  if (email === session.email && role && role !== session.role)
+    return Response.json({ error: 'No puedes cambiar tu propio rol.' }, { status: 400 });
 
-  await db.collection('users').updateOne({ email }, { $set: { role, permissions } });
+  const db = await getDb();
+  const update: Record<string, any> = {};
+
+  if (name)     update.name     = name.trim();
+  if (newEmail) update.email    = newEmail.trim().toLowerCase();
+
+  if (role) {
+    const roleDoc = await db.collection('roles').findOne({ slug: role });
+    const permissions: string[] = roleDoc?.permissions ?? getDefaultPermissions(role);
+    update.role        = role;
+    update.permissions = permissions;
+  }
+
+  if (Object.keys(update).length === 0)
+    return Response.json({ error: 'Nada que actualizar' }, { status: 400 });
+
+  await db.collection('users').updateOne({ email }, { $set: update });
   return Response.json({ ok: true });
 }
 

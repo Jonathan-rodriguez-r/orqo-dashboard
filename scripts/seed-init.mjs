@@ -172,7 +172,8 @@ async function main() {
     const res = await db.collection('users').updateOne(
       { email: u.email },
       {
-        $setOnInsert: { ...u, permissions, createdAt: new Date(), lastLogin: null },
+        $set: { role: u.role, permissions, workspaceId: u.workspaceId },
+        $setOnInsert: { name: u.name, avatar: u.avatar, createdAt: new Date(), lastLogin: null },
       },
       { upsert: true }
     );
