@@ -220,7 +220,7 @@ export default function DocsPage() {
     level === 'error' ? 'var(--red)' : level === 'warn' ? 'var(--yellow)' : 'var(--g05)';
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 860 }}>
+    <div className="dash-content" style={{ maxWidth: 860 }}>
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 800, fontSize: 22, color: 'var(--g08)', letterSpacing: '-0.3px' }}>
           Centro de ayuda
