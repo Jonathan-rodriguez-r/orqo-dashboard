@@ -1,15 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 type Step = 'email' | 'sent' | 'error';
 
-export default function LoginPage() {
+// Separated because useSearchParams() requires Suspense boundary
+function Notice() {
   const params = useSearchParams();
   const reason = params.get('reason');
   const errorParam = params.get('error');
 
+  if (!reason && !errorParam) return null;
+
+  const msg = reason === 'timeout'
+    ? 'Tu sesión cerró por inactividad (5 min). Inicia sesión de nuevo.'
+    : errorParam === 'expired'
+    ? 'El enlace de acceso expiró. Solicita uno nuevo.'
+    : errorParam === 'noaccess'
+    ? 'Este correo no tiene acceso al dashboard.'
+    : 'Enlace inválido. Solicita uno nuevo.';
+
+  return (
+    <div style={{
+      background: 'var(--yellow-g)',
+      border: '1px solid var(--yellow)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '10px 14px',
+      marginBottom: '16px',
+      fontSize: '13px',
+      color: 'var(--yellow)',
+    }}>
+      {msg}
+    </div>
+  );
+}
+
+export default function LoginPage() {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,26 +93,10 @@ export default function LoginPage() {
           <div style={{color:'var(--g05)',fontSize:'13px',marginTop:'4px'}}>Dashboard</div>
         </div>
 
-        {/* Timeout / error notice */}
-        {(reason === 'timeout' || errorParam) && (
-          <div style={{
-            background: 'var(--yellow-g)',
-            border: '1px solid var(--yellow)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '10px 14px',
-            marginBottom: '16px',
-            fontSize: '13px',
-            color: 'var(--yellow)',
-          }}>
-            {reason === 'timeout'
-              ? 'Tu sesión cerró por inactividad (5 min). Inicia sesión de nuevo.'
-              : errorParam === 'expired'
-              ? 'El enlace de acceso expiró. Solicita uno nuevo.'
-              : errorParam === 'noaccess'
-              ? 'Este correo no tiene acceso al dashboard.'
-              : 'Enlace inválido. Solicita uno nuevo.'}
-          </div>
-        )}
+        {/* Notices from search params — needs Suspense */}
+        <Suspense fallback={null}>
+          <Notice />
+        </Suspense>
 
         {/* Card */}
         <div style={{
