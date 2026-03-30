@@ -1,4 +1,4 @@
-import Sidebar from '@/components/Sidebar';
+import DashboardNav from '@/components/DashboardNav';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
@@ -8,7 +8,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="dash-shell">
-      <Sidebar userEmail={session.sub} userName={session.name} />
+      <DashboardNav userEmail={session.sub} userName={session.name} />
       <div className="dash-main">
         {children}
       </div>

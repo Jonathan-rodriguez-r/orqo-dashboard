@@ -3,86 +3,50 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-const NAV = [
-  { href: '/dashboard', label: 'Resumen', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="1" y="1" width="6" height="6" rx="1.5"/>
-      <rect x="9" y="1" width="6" height="6" rx="1.5"/>
-      <rect x="1" y="9" width="6" height="6" rx="1.5"/>
-      <rect x="9" y="9" width="6" height="6" rx="1.5"/>
-    </svg>
-  )},
-  { href: '/dashboard/widget', label: 'Widget', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="8" cy="8" r="6.5"/>
-      <path d="M5.5 9.5s.8 1.5 2.5 1.5 2.5-1.5 2.5-1.5"/>
-      <circle cx="5.5" cy="6.5" r="0.75" fill="currentColor"/>
-      <circle cx="10.5" cy="6.5" r="0.75" fill="currentColor"/>
-    </svg>
-  )},
-  { href: '/dashboard/agents', label: 'Agentes', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/>
-      <path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/>
-    </svg>
-  )},
-  { href: '/dashboard/conversations', label: 'Conversaciones', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M1.5 3a1.5 1.5 0 0 1 1.5-1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/>
-    </svg>
-  )},
-  { href: '/dashboard/integrations', label: 'Integraciones', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="3.5" cy="8" r="2"/>
-      <circle cx="12.5" cy="3.5" r="2"/>
-      <circle cx="12.5" cy="12.5" r="2"/>
-      <path d="M5.5 8h3l2-4.5M8.5 8l2 4.5"/>
-    </svg>
-  )},
-  { href: '/dashboard/account', label: 'Cuenta', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="8" cy="4.5" r="2.5"/>
-      <path d="M2 13.5c0-3 2.686-5 6-5s6 2 6 5"/>
-    </svg>
-  )},
-  { href: '/dashboard/users', label: 'Accesos', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="6" cy="4" r="2.5"/>
-      <path d="M1 13.5c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
-      <path d="M11 2a2.5 2.5 0 0 1 0 5M15 13.5c0-2-1.343-3.716-3.194-4.378"/>
-    </svg>
-  )},
-  { href: '/dashboard/docs', label: 'Centro', icon: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M2 2h8l4 4v8H2z" strokeLinejoin="round"/>
-      <path d="M10 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5 8h6M5 11h4" strokeLinecap="round"/>
-    </svg>
-  )},
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const I = {
+  home: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 6.5 8 1.5l6.5 5V14a.5.5 0 0 1-.5.5H10v-4H6v4H2a.5.5 0 0 1-.5-.5V6.5Z" strokeLinejoin="round"/></svg>,
+  conv: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/></svg>,
+  agent: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
+  report: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
+  settings: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M11.89 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" strokeLinecap="round"/></svg>,
+  docs: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 2h8l4 4v8H2z" strokeLinejoin="round"/><path d="M10 2v4h4" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 8h6M5 11h4" strokeLinecap="round"/></svg>,
+  logout: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  external: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{width:14,height:14,flexShrink:0}}><path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4M9 1h5m0 0v5m0-5L7 9" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  sun: <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>,
+  moon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+};
+
+const NAV_MAIN = [
+  { href: '/dashboard', label: 'Vista General', icon: I.home, exact: true },
+  { href: '/dashboard/conversations', label: 'Conversaciones', icon: I.conv },
+  { href: '/dashboard/agents', label: 'Agentes', icon: I.agent },
+  { href: '/dashboard/reports', label: 'Informes', icon: I.report },
 ];
 
-type Props = { userEmail?: string; userName?: string };
+const NAV_SYSTEM = [
+  { href: '/dashboard/settings', label: 'Configuración', icon: I.settings },
+  { href: '/dashboard/docs', label: 'Centro de ayuda', icon: I.docs },
+];
 
-export default function Sidebar({ userEmail, userName }: Props) {
+type Props = {
+  userEmail?: string;
+  userName?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
+};
+
+export default function Sidebar({ userEmail, userName, isOpen = false, onClose }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
-  function isActive(href: string) {
-    if (href === '/dashboard') return pathname === '/dashboard';
-    return pathname.startsWith(href);
-  }
-
-  async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-  }
-
-  const [theme, setTheme] = useState<'dark'|'light'>('dark');
   useEffect(() => {
-    const saved = (localStorage.getItem('orqo_theme') as 'dark'|'light') || 'dark';
+    const saved = (localStorage.getItem('orqo_theme') as 'dark' | 'light') || 'dark';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
   }, []);
+
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
@@ -90,12 +54,28 @@ export default function Sidebar({ userEmail, userName }: Props) {
     localStorage.setItem('orqo_theme', next);
   }
 
+  function isActive(href: string, exact = false) {
+    if (exact) return pathname === href;
+    return pathname.startsWith(href);
+  }
+
+  function navigate(href: string) {
+    router.push(href);
+    onClose?.();
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  }
+
   const initials = (userName ?? userEmail ?? 'U').slice(0, 1).toUpperCase();
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${isOpen ? ' sidebar-mobile-open' : ''}`}>
+      {/* Logo */}
       <div className="sidebar-logo">
-        <svg width="28" height="28" viewBox="0 0 72 72" fill="none">
+        <svg width="26" height="26" viewBox="0 0 72 72" fill="none">
           <circle cx="36" cy="36" r="30" stroke="#2E4038" strokeWidth="2"/>
           <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#E9EDE9" strokeWidth="3" fill="none" strokeLinecap="round"/>
           <line x1="59.5" y1="52" x2="66" y2="58" stroke="#E9EDE9" strokeWidth="3" strokeLinecap="round"/>
@@ -104,12 +84,26 @@ export default function Sidebar({ userEmail, userName }: Props) {
         <span className="sidebar-logo-text">OR<span>QO</span></span>
       </div>
 
+      {/* Navigation */}
       <nav className="sidebar-nav">
-        {NAV.map(item => (
+        <div className="nav-section-label">Principal</div>
+        {NAV_MAIN.map(item => (
+          <button
+            key={item.href}
+            className={`sidebar-item${isActive(item.href, item.exact) ? ' active' : ''}`}
+            onClick={() => navigate(item.href)}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+
+        <div className="nav-section-label" style={{ marginTop: 12 }}>Sistema</div>
+        {NAV_SYSTEM.map(item => (
           <button
             key={item.href}
             className={`sidebar-item${isActive(item.href) ? ' active' : ''}`}
-            onClick={() => router.push(item.href)}
+            onClick={() => navigate(item.href)}
           >
             {item.icon}
             {item.label}
@@ -117,46 +111,36 @@ export default function Sidebar({ userEmail, userName }: Props) {
         ))}
       </nav>
 
+      {/* Footer */}
       <div className="sidebar-footer">
-        <div className="sidebar-user" style={{marginBottom:'10px'}}>
+        <div className="sidebar-user" style={{ marginBottom: 8 }}>
           <div className="sidebar-avatar">{initials}</div>
           <div className="sidebar-user-info">
             <div className="sidebar-user-name">{userName ?? userEmail ?? 'Usuario'}</div>
             <div className="sidebar-user-role">{userEmail}</div>
           </div>
-          <button className="theme-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
-            {theme === 'dark' ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8"/>
-                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
+          <button className="theme-btn" onClick={toggleTheme} title="Cambiar tema">
+            {theme === 'dark' ? I.sun : I.moon}
           </button>
         </div>
+
         <a
           href="https://orqo.io"
           target="_blank"
           rel="noopener"
           className="sidebar-item"
-          style={{width:'100%',color:'var(--g05)',textDecoration:'none',display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}
+          style={{ color: 'var(--g05)', textDecoration: 'none' }}
+          onClick={onClose}
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{width:14,height:14,flexShrink:0}}>
-            <path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4M9 1h5m0 0v5m0-5L7 9" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          {I.external}
           orqo.io
         </a>
         <button
           className="sidebar-item"
-          style={{width:'100%',color:'var(--g05)'}}
+          style={{ width: '100%', color: 'var(--g05)' }}
           onClick={logout}
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{width:14,height:14}}>
-            <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6"/>
-          </svg>
+          {I.logout}
           Cerrar sesión
         </button>
       </div>
