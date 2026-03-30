@@ -219,10 +219,10 @@ export default function LoginPage() {
             <a href="https://orqo.io" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               orqo.io
             </a>
-            <a href="https://orqo.io/Marca/orqo-manual-marca-final.html" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+            <a href="https://orqo.io/marca" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               Identidad de marca
             </a>
-            <a href="https://orqo.io/Landing_Page/changelog.html" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
+            <a href="https://orqo.io/changelog" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
               Changelog
             </a>
             <a href="https://orqo.io/privacy" target="_blank" rel="noopener" style={{fontSize:'12px',color:'var(--g05)',textDecoration:'none'}}>
