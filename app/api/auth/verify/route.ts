@@ -1,7 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
 import { getDefaultPermissions } from '@/lib/rbac';
-import { logSecurityEvent } from '@/lib/security-log';
+import { log, actorFromRequest } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -19,14 +19,22 @@ export async function GET(req: Request) {
 
     if (!record) {
       // Token doesn't exist or was already used — potential replay / brute-force
-      await logSecurityEvent(db, req, 'invalid_token', 'magic_link',
-        'Token de acceso inválido o ya utilizado');
+      await log(db, {
+        level: 'WARN', severity: 'HIGH',
+        category: 'security', action: 'UNAUTHORIZED_TOKEN_USE',
+        message: 'Token de acceso inválido o ya utilizado',
+        actor: actorFromRequest(req),
+      });
       redirectTo = '/login?error=unauthorized';
 
     } else if (record.expiresAt < Date.now()) {
       await db.collection('auth_tokens').deleteOne({ token });
-      await logSecurityEvent(db, req, 'expired_token', 'magic_link',
-        'Intento de uso de token expirado', record.email);
+      await log(db, {
+        level: 'WARN', severity: 'MEDIUM',
+        category: 'security', action: 'EXPIRED_TOKEN_USE',
+        message: `Intento de uso de token expirado (${record.email})`,
+        actor: actorFromRequest(req, { email: record.email }),
+      });
       redirectTo = '/login?error=expired';
 
     } else {
@@ -35,9 +43,12 @@ export async function GET(req: Request) {
       const user = await db.collection('users').findOne({ email: record.email });
 
       if (!user) {
-        // Token valid but email not in users — invitation revoked or tampered
-        await logSecurityEvent(db, req, 'unauthorized_email', 'magic_link',
-          'Token válido pero el correo no está registrado como usuario', record.email);
+        await log(db, {
+          level: 'WARN', severity: 'HIGH',
+          category: 'security', action: 'TOKEN_EMAIL_NOT_REGISTERED',
+          message: `Token válido pero correo sin registro de usuario: ${record.email}`,
+          actor: actorFromRequest(req, { email: record.email }),
+        });
         redirectTo = '/login?error=unauthorized';
 
       } else {
@@ -59,6 +70,13 @@ export async function GET(req: Request) {
           sameSite: 'lax',
           path:     '/',
           maxAge:   60 * 60 * 24 * SESSION_DAYS,
+        });
+
+        await log(db, {
+          level: 'INFO', severity: 'LOW',
+          category: 'auth', action: 'LOGIN_SUCCESS',
+          message: `${record.email} inició sesión via magic link`,
+          actor: actorFromRequest(req, { email: record.email, role: user.role }),
         });
 
         redirectTo = '/dashboard';

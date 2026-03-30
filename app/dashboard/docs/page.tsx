@@ -2,15 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-type Tab = 'manual' | 'faq' | 'diagnostico' | 'logs' | 'changelog';
-
-type LogEntry = {
-  ts: number;
-  level: 'info' | 'warn' | 'error';
-  source: string;
-  msg: string;
-  detail?: string;
-};
+type Tab = 'manual' | 'faq' | 'diagnostico' | 'changelog';
 
 type DiagResult = {
   label: string;
@@ -18,63 +10,237 @@ type DiagResult = {
   detail: string;
 };
 
-// ── FAQ data ──────────────────────────────────────────────────────────────────
-const FAQ = [
+// ── Manual sections ────────────────────────────────────────────────────────────
+const MANUAL = [
   {
-    q: '¿Por qué el widget no aplica mi configuración guardada?',
-    a: 'La causa más común es CORS: el middleware estaba redirigiendo /api/public/widget al login. Verifica en Diagnóstico que el endpoint público responde 200. Si no, revisa proxy.ts y asegúrate de que /api/public esté en la lista PUBLIC.',
+    title: '1. Primeros pasos — configura tu espacio de trabajo',
+    body: 'Al iniciar sesión por primera vez, tu cuenta se crea automáticamente como Propietario con acceso total. Desde Configuración → Accesos puedes invitar colaboradores asignándoles un rol antes de enviar la invitación.\n\nEl primer paso recomendado es ir a Configuración → Widget para personalizar el asistente antes de instalarlo en tu sitio.',
+    note: 'El enlace de invitación es válido 72 horas. Si expira, el administrador puede reenviar una nueva invitación desde la misma pantalla.',
   },
   {
-    q: '¿Por qué el tema claro/oscuro no funciona en el widget?',
-    a: 'Si loadWidgetConfig() usa element.style.setProperty() para --g00/--g01, los inline styles anulan los selectores CSS [data-theme]. La solución es inyectar un <style> tag en lugar de estilos inline. Esto ya está corregido en la versión actual.',
+    title: '2. Instala el widget en tu sitio web',
+    body: 'WordPress / WooCommerce: ve a Plugins → Añadir nuevo, busca "ORQO", instala y activa. Copia el token de Configuración → Integraciones → WordPress y pégalo en Ajustes → ORQO.\n\nCualquier sitio web: ve a Configuración → Integraciones → Código de integración. Copia el snippet de una línea y pégalo antes del </body> de tu HTML. El widget cargará la configuración del dashboard en tiempo real.',
+    note: 'El widget solo se muestra si el switch "Widget activo" está en ON en Configuración → Widget.',
   },
   {
-    q: '¿Qué pasa si MongoDB falla al guardar la configuración?',
-    a: 'El endpoint POST /api/config/widget devuelve { error: "..." } con status 500. El dashboard mostrará un alert. El error también queda en activity_logs. Revisa la cadena de conexión MONGODB_URI en las variables de entorno de Vercel.',
+    title: '3. Personaliza el widget',
+    body: 'En Configuración → Widget puedes cambiar:\n• Nombre y subtítulo del asistente\n• Colores de acento y fondo\n• Icono (10 presets o foto de agente real)\n• Posición en pantalla (5 opciones)\n• Tipografía y radio de bordes\n• Límite de interacciones por sesión\n• Artículos de ayuda (hasta 6, con título y URL)\n• Mensaje de bienvenida y placeholder\n\nGuarda los cambios y presiona "Guardar y abrir" para ver la vista previa en orqo.io.',
   },
   {
-    q: '¿Cómo sé si el widget está activo en mi sitio?',
-    a: 'Ve a Diagnóstico → "Widget público API". Si devuelve { active: true }, el widget debería verse. Si devuelve defaults (_defaults: true), la config no se encontró en MongoDB — guarda los cambios desde la sección Widget.',
+    title: '4. Conecta WhatsApp Business',
+    body: 'Ve a Configuración → Integraciones → WhatsApp Business. Haz clic en "Conectar número" e inicia sesión con tu cuenta Meta Business. Selecciona o registra el número, verifica con SMS/voz y configura el mensaje de bienvenida.\n\nUna vez conectado, las conversaciones de WhatsApp aparecerán en la sección Conversaciones con el ícono de WhatsApp.',
+    note: 'Si el número ya está en la app de WhatsApp Business (no API), debes desvincularlo antes de conectarlo. Este proceso elimina el historial previo del número.',
   },
   {
-    q: '¿Por qué el contador de interacciones siempre muestra 20/20?',
-    a: 'TOTAL_INT era una constante hardcodeada en 20. La config de interactionLimit de la API se asignaba a window._ORQO_INT_LIMIT pero nunca se leía. Corregido: ahora TOTAL_INT es let y se actualiza desde loadWidgetConfig().',
+    title: '5. Crea y activa agentes IA',
+    body: 'Ve a Agentes → Nuevo agente. Define:\n• Objetivo en lenguaje natural (ej: "Atiende consultas de soporte sobre pedidos en WooCommerce")\n• Proveedor de IA y modelo (Anthropic, OpenAI, Google)\n• Skills disponibles (máx. 8 por agente)\n• Canales donde debe operar (Widget, WhatsApp, Instagram, etc.)\n\nActívalo con el switch. El agente comenzará a responder en los canales seleccionados de inmediato.',
   },
   {
-    q: '¿Cómo integro el widget en una web que no es WordPress?',
-    a: 'Copia el snippet de integración desde la sección Integraciones. Pégalo antes del </body> de tu HTML. El script lee tu API key, obtiene la config del dashboard y renderiza el widget automáticamente.',
+    title: '6. Gestiona conversaciones',
+    body: 'En Conversaciones puedes ver el historial completo de interacciones. Cada fila muestra:\n• Canal de origen (WhatsApp, Instagram, Widget web, etc.)\n• Modelo de IA que atendió la conversación\n• Tokens estimados (total · ↑ entrada · ↓ salida)\n• ID único de conversación (útil para auditorías)\n• Duración y número de mensajes\n\nUsa los filtros por canal, estado, modelo y búsqueda de texto para encontrar conversaciones específicas.',
   },
   {
-    q: '¿Cómo funciona el magic link de login?',
-    a: 'Al ingresar tu correo, el servidor genera un JWT firmado con SESSION_SECRET, lo embebe en un enlace y lo envía via Resend. El enlace expira en 15 min. Al hacer clic, el token se verifica y se crea una cookie de sesión httpOnly.',
+    title: '7. Analiza el rendimiento en Informes',
+    body: 'La sección Informes muestra métricas de rendimiento con selector de período (7, 30 o 90 días):\n• Tasa de resolución (conversaciones cerradas sin escalar)\n• Tasa de desvío a humano\n• Tiempo promedio de respuesta\n• Estimación de ROI (horas de trabajo ahorradas)\n• Tabla de rendimiento diario\n\nLa Vista General muestra las métricas más importantes en gráficas interactivas: tendencia diaria, distribución por canal y horas pico.',
   },
   {
-    q: '¿Por qué el footer daba 404 en Identidad de marca y Changelog?',
-    a: 'El vercel.json tiene outputDirectory: "Landing_Page". Los archivos fuera de esa carpeta no son accesibles. Solución: mover los archivos dentro de Landing_Page/ y usar rutas relativas simples (/marca, /changelog).',
+    title: '8. Gestiona el equipo (Propietarios y Administradores)',
+    body: 'En Configuración → Accesos puedes:\n• Invitar usuarios ingresando su correo y asignando un rol\n• Cambiar el rol o nombre de un usuario existente\n• Eliminar accesos (no puedes eliminarte a ti mismo)\n\nEn Configuración → Roles puedes ver los permisos de cada rol y modificar los roles personalizados. Los roles del sistema (Propietario, Administrador, Analista, Observador, Operaciones, Gestor de Agentes) no se pueden eliminar.',
+  },
+  {
+    title: '9. Auditoría y logs del sistema',
+    body: 'La sección Logs & Auditoría (visible solo para roles con permiso admin.logs) muestra un registro completo de todas las acciones del sistema:\n• Inicios de sesión exitosos y fallidos\n• Invitaciones y cambios de usuario\n• Modificaciones de roles y permisos\n• Intentos de acceso no autorizados\n• Errores del sistema\n\nPuedes filtrar por nivel (INFO/WARN/ERROR/FATAL), categoría, fecha y buscar por texto. Cada entrada es expandible para ver los datos completos incluyendo antes/después de cambios.',
+    note: 'Los logs se retienen según la variable de entorno LOG_RETENTION_DAYS (por defecto 90 días). Se eliminan automáticamente al vencer.',
+  },
+  {
+    title: '10. Diagnóstico del sistema',
+    body: 'En el tab Diagnóstico de esta misma sección puedes verificar:\n• Estado de la API pública del widget (CORS)\n• Si hay configuración guardada en MongoDB\n• Si el widget está activo\n• Si el endpoint privado responde (sesión activa)\n\nUsa esta herramienta si el widget no aparece en tu sitio o si ves comportamientos inesperados.',
+  },
+];
+
+// ── FAQ by role ────────────────────────────────────────────────────────────────
+const FAQ_GROUPS = [
+  {
+    role: 'Propietario',
+    slug: 'owner',
+    color: '#2CB978',
+    items: [
+      {
+        q: '¿Qué puede hacer el Propietario que los demás no pueden?',
+        a: 'El Propietario tiene acceso total al sistema, incluyendo facturación, asignación del rol "Propietario" a otros usuarios, y eliminación de cualquier tipo de cuenta. Solo el Propietario puede modificar el rol owner en la sección de Roles.',
+      },
+      {
+        q: '¿Cómo invito al primer colaborador?',
+        a: 'Ve a Configuración → Accesos → Invitar usuario. Ingresa el correo, selecciona el rol y haz clic en Invitar. Se enviará un correo con un enlace de activación válido 72 horas. El enlace también aparece en pantalla para que lo copies manualmente si el correo tarda.',
+      },
+      {
+        q: '¿Puedo cambiar mi propio rol?',
+        a: 'No. El sistema impide que cambies tu propio rol para evitar que el Propietario se bloquee el acceso accidentalmente. Si necesitas cambiar tu rol, otro Propietario debe hacerlo.',
+      },
+      {
+        q: '¿Los logs de auditoría son permanentes?',
+        a: 'No, los logs tienen un tiempo de retención configurable (variable LOG_RETENTION_DAYS, por defecto 90 días). Se eliminan automáticamente de MongoDB cuando vence su fecha de expiración. Para retención permanente, aumenta este valor antes de desplegar.',
+      },
+    ],
+  },
+  {
+    role: 'Administrador',
+    slug: 'admin',
+    color: '#60A5FA',
+    items: [
+      {
+        q: '¿Qué no puede hacer el Administrador?',
+        a: 'El Administrador no puede: acceder a Facturación, crear/eliminar roles del sistema, ni asignar el rol de Propietario. Tiene acceso total al resto del sistema incluyendo gestión de usuarios, agentes, configuración del widget e integraciones.',
+      },
+      {
+        q: '¿Puedo modificar los permisos de un rol del sistema?',
+        a: 'Solo si eres Propietario o si tienes el permiso "settings.roles". Los Administradores normalmente no tienen este permiso por defecto. Para cambiar esto, el Propietario debe modificar el rol admin en Configuración → Roles.',
+      },
+      {
+        q: '¿Cómo creo un rol personalizado?',
+        a: 'Ve a Configuración → Roles → Nuevo rol. Define un nombre, ID (slug) y descripción. Luego asigna los permisos específicos usando las casillas por módulo. Los roles personalizados se pueden eliminar, los del sistema no.',
+      },
+      {
+        q: '¿El Administrador puede ver los logs de auditoría?',
+        a: 'Sí, por defecto el rol admin incluye el permiso "admin.logs" que da acceso a Logs & Auditoría. Si este permiso fue removido manualmente, el Propietario debe restaurarlo en Configuración → Roles.',
+      },
+    ],
+  },
+  {
+    role: 'Analista',
+    slug: 'analyst',
+    color: '#A78BFA',
+    items: [
+      {
+        q: '¿Qué puede ver el Analista?',
+        a: 'El Analista tiene acceso de solo lectura a Conversaciones e Informes. Puede ver métricas, gráficas y tablas de rendimiento, pero no puede modificar configuraciones, agentes ni usuarios.',
+      },
+      {
+        q: '¿El Analista puede exportar datos?',
+        a: 'Depende de la configuración. El permiso "conversations.export" permite descargar conversaciones. Por defecto el rol Analista incluye este permiso. El Propietario o Administrador puede quitarlo en Configuración → Roles si es necesario restringir las exportaciones.',
+      },
+      {
+        q: '¿Por qué no veo la sección de Configuración?',
+        a: 'El rol Analista no incluye permisos de Configuración. Si necesitas acceso a alguna configuración específica, solicita al Administrador que cambie tu rol o cree un rol personalizado con los permisos necesarios.',
+      },
+      {
+        q: '¿Puedo filtrar conversaciones por modelo de IA?',
+        a: 'Sí. En la sección Conversaciones usa el filtro "Modelo" para ver solo las conversaciones atendidas por un modelo específico (Claude Sonnet, GPT-4o, Gemini, etc.). También puedes buscar por texto, canal, estado y fecha.',
+      },
+    ],
+  },
+  {
+    role: 'Observador',
+    slug: 'viewer',
+    color: '#94A3B8',
+    items: [
+      {
+        q: '¿Qué puede ver el Observador?',
+        a: 'El Observador tiene acceso de solo lectura al Dashboard (Vista General) y a las Conversaciones. No puede ver Informes, Agentes, Configuración ni Logs. Es el rol con menos privilegios del sistema.',
+      },
+      {
+        q: '¿Por qué no puedo ver Informes ni Agentes?',
+        a: 'El rol Observador está diseñado para personas que solo necesitan monitorear el estado general sin acceso a configuraciones ni análisis detallados. Solicita al Administrador que te asigne el rol Analista si necesitas ver informes.',
+      },
+      {
+        q: '¿Puedo exportar conversaciones como Observador?',
+        a: 'No. El rol Observador solo tiene "dashboard.view" y "conversations.view". La exportación requiere el permiso "conversations.export" que pertenece al Analista o roles superiores.',
+      },
+    ],
+  },
+  {
+    role: 'Operaciones e Infraestructura',
+    slug: 'operations',
+    color: '#FB923C',
+    items: [
+      {
+        q: '¿Cuál es el enfoque del rol Operaciones?',
+        a: 'Operaciones está diseñado para personal técnico que gestiona integraciones, canales y configuración operativa del sistema, sin necesidad de acceder a análisis de negocio ni gestión de usuarios. Incluye permisos sobre Widget, Integraciones y Agentes.',
+      },
+      {
+        q: '¿El rol Operaciones puede conectar integraciones (WhatsApp, WordPress, etc.)?',
+        a: 'Sí, el permiso "settings.integrations" permite conectar y configurar todos los canales disponibles. Si este permiso no aparece habilitado, el Propietario debe habilitarlo en Configuración → Roles → operations.',
+      },
+      {
+        q: '¿Operaciones puede crear o eliminar agentes?',
+        a: 'Sí, con el permiso "agents.manage" que viene incluido en este rol. Puede crear, editar, activar y desactivar agentes. No puede ver los Informes de rendimiento ni gestionar usuarios.',
+      },
+      {
+        q: '¿Por qué el equipo de infraestructura debería usar este rol y no admin?',
+        a: 'El principio de mínimo privilegio reduce el riesgo. El rol Operaciones da acceso solo a lo que necesita el equipo técnico (integraciones, agentes, widget) sin exponer datos sensibles de negocio, usuarios o facturación.',
+      },
+    ],
   },
 ];
 
 // ── Changelog data ────────────────────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: 'v1.2',
+    date: 'Mar 2026',
+    label: 'Actual',
+    items: [
+      'Sistema de observabilidad y auditoría completo — audit_logs con TTL en MongoDB',
+      'Logs & Auditoría: UI con filtros combinables (nivel, categoría, fecha, texto), acordeón expandible con JSON before/after',
+      'LoggerService centralizado (lib/logger.ts) — schema ECS-inspired con correlationId, severity, actor/target, diff',
+      'Auto-log de todos los eventos: inicios de sesión, invitaciones, cambios de usuario/rol, intentos no autorizados',
+      'Conversaciones: columna de Modelo (badge por proveedor), Tokens (↑/↓), ID de conversación, duración',
+      'Datos de demostración enriquecidos: 60 conversaciones con modelos variados (Claude, GPT-4o, Gemini)',
+      'Fix: empty state en Vista General, Informes y Conversaciones ya muestra el botón de datos demo',
+      'Fix: correo no autorizado muestra "No autorizado" con log de seguridad WARN/HIGH',
+      'Roles del sistema protegidos de eliminación: owner, admin, analyst, agent_manager, viewer, operations',
+      'Link de activación copiable en pantalla al invitar usuario (además del correo)',
+    ],
+  },
+  {
+    version: 'v1.1',
+    date: 'Mar 2026',
+    label: null,
+    items: [
+      'Google OAuth 2.0 (SSO) — inicio de sesión con cuenta Google via Authorization Code Flow',
+      'JWT con permisos embebidos — SessionPayload con sub, email, role, permissions[], jti, provider',
+      'UI Enterprise de Login — Google SSO como primario + magic link en acordeón',
+      'RBAC completo: 15 módulos, 5 roles predeterminados, Edge Middleware sub-ms en Vercel',
+      'PermissionGate + usePermissions — componente y hook para UI reactiva por permisos',
+      'API RBAC: GET/POST/DELETE /api/users, GET/PATCH /api/roles, POST /api/seed/rbac',
+      'Tabla de usuarios con avatar Google, badge de rol y último acceso',
+    ],
+  },
+  {
+    version: 'v1.0',
+    date: 'Mar 2026',
+    label: null,
+    items: [
+      'Dashboard Mobile-First — sidebar off-canvas con hamburguesa, overlay y animación fluida',
+      'Vista General con métricas de ROI — AreaChart, PieChart, BarChart con recharts',
+      'Página de Informes — análisis de rendimiento con selector de período (7/30/90 días)',
+      'Configuración consolidada — 4 pestañas: Widget, Integraciones, Accesos y Cuenta',
+      'Catálogo de integraciones MCP — Meta, bases de datos, fuentes de datos y sistemas core',
+      'Iconos de canal en Conversaciones — filtros en pills por WhatsApp, Instagram, FB, etc.',
+      'MongoDB analytics_daily + seed de 30 días y 60 conversaciones mock',
+      'API /api/analytics con agregación de totales, tendencia y distribución por canal',
+    ],
+  },
+  {
     version: 'v0.9',
     date: 'Mar 2026',
+    label: null,
     items: [
       'Fix CORS: /api/public/widget exento del middleware de auth (307 → 200)',
       'Fix tema claro/oscuro: inyección de <style> en lugar de inline styles',
       'Posiciones arriba-centro y abajo-centro en el widget',
       'Contador de interacciones actualizado desde config de API',
-      'Footer: Changelog y Marca corregidos (outputDirectory Vercel)',
-      'Logs de actividad: activity_logs en MongoDB',
-      'Nueva página: Centro de ayuda & Diagnóstico en dashboard',
+      'Logs de actividad en activity_logs (MongoDB)',
+      'Centro de ayuda & Diagnóstico en dashboard',
       'Landing: sección Implementación en 3 pasos y Perfiles & Skills',
     ],
   },
   {
     version: 'v0.8',
-    date: 'Mar 2026',
+    date: 'Feb 2026',
+    label: null,
     items: [
-      'Widget embebable: widget.js + API key + endpoint /api/public/widget',
+      'Widget embebible: widget.js + API key + endpoint /api/public/widget',
       'Sección Integraciones con código embed y botón copiar',
       'Página de identidad de marca adaptada con nav/footer',
       'Footer consistente en login, index y manual de marca',
@@ -84,6 +250,7 @@ const CHANGELOG = [
   {
     version: 'v0.7',
     date: 'Feb 2026',
+    label: null,
     items: [
       'Dashboard widget: preview dark/light, posición como select',
       'Favicon presets: 10 iconos SVG seleccionables',
@@ -94,7 +261,8 @@ const CHANGELOG = [
   },
   {
     version: 'v0.6',
-    date: 'Feb 2026',
+    date: 'Ene 2026',
+    label: null,
     items: [
       'Auth magic link con JWT y Resend',
       'Middleware de sesión (proxy.ts)',
@@ -106,6 +274,7 @@ const CHANGELOG = [
   {
     version: 'v0.5',
     date: 'Ene 2026',
+    label: null,
     items: [
       'Proyecto inicial Next.js + MongoDB Atlas',
       'Widget de chat ORQO en landing page',
@@ -117,34 +286,10 @@ const CHANGELOG = [
 
 export default function DocsPage() {
   const [tab, setTab] = useState<Tab>('manual');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
   const [diagResults, setDiagResults] = useState<DiagResult[]>([]);
   const [diagRunning, setDiagRunning] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [clearingLogs, setClearingLogs] = useState(false);
-
-  async function loadLogs() {
-    setLogsLoading(true);
-    try {
-      const res = await fetch('/api/admin/logs?limit=100');
-      if (res.ok) setLogs(await res.json());
-    } finally {
-      setLogsLoading(false);
-    }
-  }
-
-  async function clearLogs() {
-    if (!confirm('¿Eliminar todos los logs?')) return;
-    setClearingLogs(true);
-    await fetch('/api/admin/logs', { method: 'DELETE' });
-    setLogs([]);
-    setClearingLogs(false);
-  }
-
-  useEffect(() => {
-    if (tab === 'logs') loadLogs();
-  }, [tab]);
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [openGroup, setOpenGroup] = useState<string>('owner');
 
   async function runDiag() {
     setDiagRunning(true);
@@ -156,7 +301,6 @@ export default function DocsPage() {
     ];
     setDiagResults([...results]);
 
-    // Test 1: Public API CORS + response
     try {
       const t0 = Date.now();
       const res = await fetch('/api/public/widget', { cache: 'no-store' });
@@ -164,15 +308,13 @@ export default function DocsPage() {
       if (res.ok) {
         const data = await res.json();
         results[0] = { label: results[0].label, status: 'ok', detail: `HTTP 200 en ${ms}ms · CORS OK` };
-        // Test 2: config in MongoDB
         if (data._defaults) {
           results[1] = { label: results[1].label, status: 'warn', detail: 'No hay config guardada — sirviendo defaults. Guarda cambios en Widget.' };
         } else {
           results[1] = { label: results[1].label, status: 'ok', detail: `Config encontrada · title: "${data.title ?? '?'}" · updatedAt: ${data.updatedAt ? new Date(data.updatedAt).toLocaleString('es') : '?'}` };
         }
-        // Test 3: widget active
         if (data.active === false) {
-          results[2] = { label: results[2].label, status: 'warn', detail: 'Widget marcado como INACTIVO en la config. El widget no se mostrará.' };
+          results[2] = { label: results[2].label, status: 'warn', detail: 'Widget marcado como INACTIVO. No se mostrará en orqo.io.' };
         } else {
           results[2] = { label: results[2].label, status: 'ok', detail: 'Widget activo — visible en orqo.io' };
         }
@@ -187,7 +329,6 @@ export default function DocsPage() {
       results[2] = { label: results[2].label, status: 'error', detail: 'No se pudo verificar' };
     }
 
-    // Test 4: private config endpoint (auth required)
     try {
       const res = await fetch('/api/config/widget', { cache: 'no-store' });
       if (res.ok) {
@@ -204,20 +345,16 @@ export default function DocsPage() {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'manual', label: 'Manual' },
-    { id: 'faq', label: 'FAQ' },
+    { id: 'manual',      label: 'Manual' },
+    { id: 'faq',         label: 'FAQ por rol' },
     { id: 'diagnostico', label: 'Diagnóstico' },
-    { id: 'logs', label: 'Logs' },
-    { id: 'changelog', label: 'Changelog' },
+    { id: 'changelog',   label: 'Changelog' },
   ];
 
   const statusColor = (s: DiagResult['status']) =>
     s === 'ok' ? 'var(--acc)' : s === 'warn' ? 'var(--yellow)' : s === 'error' ? 'var(--red)' : 'var(--g05)';
   const statusIcon = (s: DiagResult['status']) =>
     s === 'ok' ? '✓' : s === 'warn' ? '⚠' : s === 'error' ? '✕' : '…';
-
-  const logColor = (level: LogEntry['level']) =>
-    level === 'error' ? 'var(--red)' : level === 'warn' ? 'var(--yellow)' : 'var(--g05)';
 
   return (
     <div className="dash-content" style={{ maxWidth: 860 }}>
@@ -226,7 +363,7 @@ export default function DocsPage() {
           Centro de ayuda
         </div>
         <div style={{ color: 'var(--g05)', fontSize: 13, marginTop: 4 }}>
-          Manual · FAQ · Diagnóstico · Logs · Changelog
+          Manual · FAQ por rol · Diagnóstico · Changelog
         </div>
       </div>
 
@@ -251,37 +388,14 @@ export default function DocsPage() {
 
       {/* ── MANUAL ── */}
       {tab === 'manual' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {[
-            {
-              title: '1. Conecta tu número de WhatsApp Business',
-              body: 'Ve a Integraciones → WhatsApp. Haz clic en "Conectar número" e inicia sesión con tu cuenta Meta Business. Selecciona o registra el número, verifica con SMS y configura el mensaje de bienvenida.',
-              note: 'Si el número ya está en WhatsApp Business App, debes desvincularlo antes de conectarlo a la API.',
-            },
-            {
-              title: '2. Instala ORQO en tu sitio web',
-              body: 'WordPress: ve a Plugins → Añadir nuevo → busca "ORQO" → Instalar y Activar. Copia el token de Integraciones → WordPress y pégalo en Ajustes → ORQO.\n\nCualquier web: copia el snippet de Integraciones y pégalo antes del </body> de tu HTML.',
-            },
-            {
-              title: '3. Configura el widget',
-              body: 'En la sección Widget puedes personalizar: nombre del asistente, colores, posición, icono, límite de interacciones, artículos de ayuda y más. Guarda y los cambios se reflejan en orqo.io en segundos.',
-            },
-            {
-              title: '4. Crea y activa tus agentes',
-              body: 'Ve a Agentes → Nuevo agente. Define el objetivo en lenguaje natural, las skills disponibles y los canales donde debe operar. Actívalo con el switch. ORQO comenzará a responder de inmediato.',
-            },
-            {
-              title: '5. Revisa conversaciones y ajusta',
-              body: 'En Conversaciones puedes ver el historial completo de interacciones. Usa los logs de actividad para detectar errores de configuración o fallas de integración.',
-              note: 'El límite de interacciones se configura en Widget → Límite. Por defecto es 20 para el modo demo.',
-            },
-          ].map((step, i) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {MANUAL.map((step, i) => (
             <div key={i} style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
               <div style={{ fontWeight: 700, color: 'var(--g08)', fontSize: 14, marginBottom: 8 }}>{step.title}</div>
               <div style={{ color: 'var(--g05)', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{step.body}</div>
               {step.note && (
-                <div style={{ marginTop: 10, background: 'var(--yellow-g)', border: '1px solid var(--yellow)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: 'var(--yellow)' }}>
-                  {step.note}
+                <div style={{ marginTop: 10, background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: 'var(--yellow)' }}>
+                  ⚠ {step.note}
                 </div>
               )}
             </div>
@@ -289,25 +403,44 @@ export default function DocsPage() {
         </div>
       )}
 
-      {/* ── FAQ ── */}
+      {/* ── FAQ POR ROL ── */}
       {tab === 'faq' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {FAQ.map((item, i) => (
-            <div key={i} style={{ background: 'var(--g01)', border: `1px solid ${openFaq === i ? 'var(--acc)' : 'var(--g03)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', transition: 'border-color 0.15s' }}>
-              <button
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left' }}
-              >
-                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--g08)', lineHeight: 1.4 }}>{item.q}</span>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--g05)' }}>
-                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              {openFaq === i && (
-                <div style={{ padding: '0 18px 16px', fontSize: 13, color: 'var(--g05)', lineHeight: 1.7, borderTop: '1px solid var(--g03)' }}>
-                  {item.a}
-                </div>
-              )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {FAQ_GROUPS.map((group) => (
+            <div key={group.slug}>
+              {/* Group header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: group.color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--g07)' }}>{group.role}</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--g03)' }} />
+                <span style={{ fontFamily: 'var(--f-mono)', fontSize: 10, color: 'var(--g04)', letterSpacing: '0.08em' }}>{group.slug}</span>
+              </div>
+
+              {/* Questions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {group.items.map((item, i) => {
+                  const key = `${group.slug}-${i}`;
+                  const isOpen = openFaq === key;
+                  return (
+                    <div key={key} style={{ background: 'var(--g01)', border: `1px solid ${isOpen ? group.color + '44' : 'var(--g03)'}`, borderRadius: 10, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                      <button
+                        onClick={() => setOpenFaq(isOpen ? null : key)}
+                        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left' }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--g07)', lineHeight: 1.4 }}>{item.q}</span>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--g05)' }}>
+                          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                      {isOpen && (
+                        <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--g05)', lineHeight: 1.7, borderTop: '1px solid var(--g03)' }}>
+                          {item.a}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -345,65 +478,35 @@ export default function DocsPage() {
 
           {diagResults.length > 0 && (
             <div style={{ marginTop: 20, background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--g06)', marginBottom: 10 }}>Posibles causas de error</div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--g06)', marginBottom: 10 }}>Causas comunes de error</div>
               <ul style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 2, paddingLeft: 16, margin: 0 }}>
                 <li><strong style={{ color: 'var(--g06)' }}>CORS 307:</strong> /api/public/widget no está en la lista PUBLIC del middleware (proxy.ts)</li>
                 <li><strong style={{ color: 'var(--g06)' }}>Config defaults:</strong> No se ha guardado config o MongoDB no puede escribir. Revisa MONGODB_URI en Vercel.</li>
-                <li><strong style={{ color: 'var(--g06)' }}>Widget inactivo:</strong> El switch de activo/inactivo en Widget está en OFF.</li>
+                <li><strong style={{ color: 'var(--g06)' }}>Widget inactivo:</strong> El switch de activo/inactivo en Configuración → Widget está en OFF.</li>
                 <li><strong style={{ color: 'var(--g06)' }}>Theme override:</strong> Si los colores no cambian con el tema, verifica que no haya inline styles sobreescribiendo CSS.</li>
-                <li><strong style={{ color: 'var(--g06)' }}>Contador fijo en 20:</strong> TOTAL_INT no actualizado desde la API. Verifica loadWidgetConfig() en index.html.</li>
               </ul>
             </div>
           )}
         </div>
       )}
 
-      {/* ── LOGS ── */}
-      {tab === 'logs' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <button className="btn btn-ghost btn-sm" onClick={loadLogs} disabled={logsLoading}>
-              {logsLoading ? 'Cargando…' : '↻ Actualizar'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={clearLogs} disabled={clearingLogs} style={{ color: 'var(--red)' }}>
-              Limpiar logs
-            </button>
-            <span style={{ fontSize: 11, color: 'var(--g04)', marginLeft: 'auto' }}>{logs.length} entradas</span>
-          </div>
-
-          {logs.length === 0 && !logsLoading && (
-            <div style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: 24, color: 'var(--g05)', fontSize: 13 }}>
-              No hay logs. Interactúa con el widget o guarda configuración para generar entradas.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {logs.map((log, i) => (
-              <div key={i} style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'flex-start', fontFamily: 'var(--f-mono)', fontSize: 11 }}>
-                <span style={{ color: 'var(--g04)', flexShrink: 0 }}>{new Date(log.ts).toLocaleString('es', { hour12: false })}</span>
-                <span style={{ color: logColor(log.level), fontWeight: 600, flexShrink: 0, width: 40 }}>{log.level.toUpperCase()}</span>
-                <span style={{ color: 'var(--g06)', flexShrink: 0 }}>[{log.source}]</span>
-                <span style={{ color: 'var(--g07)' }}>{log.msg}</span>
-                {log.detail && <span style={{ color: 'var(--g04)', marginLeft: 'auto', flexShrink: 0 }}>{log.detail}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── CHANGELOG ── */}
       {tab === 'changelog' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {CHANGELOG.map((v, i) => (
-            <div key={i} style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div key={i} style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: '18px 22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <span style={{ fontFamily: 'var(--f-mono)', fontWeight: 700, fontSize: 13, color: 'var(--acc)' }}>{v.version}</span>
                 <span style={{ fontSize: 11, color: 'var(--g04)' }}>{v.date}</span>
-                {i === 0 && <span style={{ fontSize: 10, background: 'var(--acc-g)', color: 'var(--acc)', border: '1px solid rgba(44,185,120,0.3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>Actual</span>}
+                {v.label && (
+                  <span style={{ fontSize: 10, background: 'rgba(44,185,120,0.1)', color: 'var(--acc)', border: '1px solid rgba(44,185,120,0.3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>
+                    {v.label}
+                  </span>
+                )}
               </div>
-              <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {v.items.map((item, j) => (
-                  <li key={j} style={{ fontSize: 12.5, color: 'var(--g05)', lineHeight: 1.5 }}>{item}</li>
+                  <li key={j} style={{ fontSize: 12.5, color: 'var(--g05)', lineHeight: 1.55 }}>{item}</li>
                 ))}
               </ul>
             </div>

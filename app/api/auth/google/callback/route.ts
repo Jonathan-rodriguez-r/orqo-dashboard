@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getDb } from '@/lib/mongodb';
 import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
 import { getDefaultPermissions } from '@/lib/rbac';
-import { logSecurityEvent } from '@/lib/security-log';
+import { log, actorFromRequest } from '@/lib/logger';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
@@ -32,8 +32,12 @@ export async function GET(req: Request) {
 
   if (!storedState || storedState !== state) {
     const db = await getDb();
-    await logSecurityEvent(db, req, 'csrf_violation', 'google',
-      'OAuth state no coincide — posible ataque CSRF');
+    await log(db, {
+      level: 'WARN', severity: 'HIGH',
+      category: 'security', action: 'CSRF_VIOLATION',
+      message: 'OAuth state mismatch — posible ataque CSRF en flujo Google',
+      actor: actorFromRequest(req),
+    });
     redirect('/login?error=invalid_state');
   }
 
@@ -78,9 +82,12 @@ export async function GET(req: Request) {
     let user = await col.findOne({ email: profile.email });
 
     if (!user && userCount > 0) {
-      // Not a registered user and workspace already has members
-      await logSecurityEvent(db, req, 'google_noaccess', 'google',
-        'Inicio con Google rechazado — correo no autorizado', profile.email);
+      await log(db, {
+        level: 'WARN', severity: 'HIGH',
+        category: 'security', action: 'GOOGLE_AUTH_BLOCKED',
+        message: `Inicio con Google rechazado — correo no autorizado: ${profile.email}`,
+        actor: actorFromRequest(req, { email: profile.email }),
+      });
       redirect('/login?error=unauthorized');
     }
 
@@ -129,6 +136,13 @@ export async function GET(req: Request) {
       sameSite: 'lax',
       path:     '/',
       maxAge:   60 * 60 * 24 * SESSION_DAYS,
+    });
+
+    await log(db, {
+      level: 'INFO', severity: 'LOW',
+      category: 'auth', action: 'GOOGLE_AUTH_SUCCESS',
+      message: `${profile.email} inició sesión via Google OAuth`,
+      actor: actorFromRequest(req, { email: profile.email, role: user!.role }),
     });
 
   } catch (e) {

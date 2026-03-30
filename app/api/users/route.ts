@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission, getDefaultPermissions } from '@/lib/rbac';
+import { log, actorFromRequest, computeDiff } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 
@@ -70,14 +71,13 @@ export async function POST(req: Request) {
   await db.collection('auth_tokens').insertOne({
     token,
     email:     cleanEmail,
-    expiresAt: Date.now() + 72 * 60 * 60 * 1000, // 72 hours
+    expiresAt: Date.now() + 72 * 60 * 60 * 1000,
     used:      false,
     type:      'invitation',
   });
 
   const inviteLink = `${APP_URL}/api/auth/verify?token=${token}`;
 
-  // Dev: always log the link
   if (process.env.NODE_ENV !== 'production') {
     console.log('\n\x1b[32m[ORQO DEV] Invitación para', cleanEmail, ':\x1b[0m');
     console.log('\x1b[36m' + inviteLink + '\x1b[0m\n');
@@ -136,6 +136,15 @@ export async function POST(req: Request) {
     console.error('[users/invite] email error:', e);
   }
 
+  await log(db, {
+    level: 'INFO', severity: 'LOW',
+    category: 'users', action: 'USER_INVITED',
+    message: `${session.email} invitó a ${cleanEmail} con rol ${assignedRole}`,
+    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'user', email: cleanEmail, label: displayName },
+    metadata: { after: { email: cleanEmail, name: displayName, role: assignedRole }, extra: { emailSent } },
+  });
+
   return Response.json({ ok: true, emailSent, inviteLink });
 }
 
@@ -155,8 +164,11 @@ export async function PATCH(req: Request) {
     return Response.json({ error: 'No puedes cambiar tu propio rol.' }, { status: 400 });
 
   const db = await getDb();
-  const update: Record<string, any> = {};
 
+  // Capture before-state for audit diff
+  const existing = await db.collection('users').findOne({ email });
+
+  const update: Record<string, any> = {};
   if (name)     update.name  = name.trim();
   if (newEmail) update.email = newEmail.trim().toLowerCase();
 
@@ -171,6 +183,25 @@ export async function PATCH(req: Request) {
     return Response.json({ ok: true, message: 'Sin cambios' });
 
   await db.collection('users').updateOne({ email }, { $set: update });
+
+  const beforeSnap: Record<string, unknown> = {
+    name: existing?.name, email: existing?.email, role: existing?.role,
+  };
+  const afterSnap: Record<string, unknown> = {
+    name: update.name ?? existing?.name,
+    email: update.email ?? existing?.email,
+    role: update.role ?? existing?.role,
+  };
+
+  await log(db, {
+    level: 'INFO', severity: 'LOW',
+    category: 'users', action: 'USER_UPDATED',
+    message: `${session.email} actualizó al usuario ${email}`,
+    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'user', email },
+    metadata: { before: beforeSnap, after: afterSnap, diff: computeDiff(beforeSnap, afterSnap) },
+  });
+
   return Response.json({ ok: true });
 }
 
@@ -186,6 +217,17 @@ export async function DELETE(req: Request) {
     return Response.json({ error: 'No puedes eliminar tu propio usuario' }, { status: 400 });
 
   const db = await getDb();
+  const existing = await db.collection('users').findOne({ email });
   await db.collection('users').deleteOne({ email });
+
+  await log(db, {
+    level: 'WARN', severity: 'MEDIUM',
+    category: 'users', action: 'USER_DELETED',
+    message: `${session.email} eliminó al usuario ${email}`,
+    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'user', email, label: existing?.name },
+    metadata: { before: { email, name: existing?.name, role: existing?.role } },
+  });
+
   return Response.json({ ok: true });
 }

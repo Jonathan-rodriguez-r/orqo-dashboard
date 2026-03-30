@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/mongodb';
-import { logSecurityEvent } from '@/lib/security-log';
+import { log, actorFromRequest } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 
@@ -18,8 +18,12 @@ export async function POST(req: Request) {
     const user      = await db.collection('users').findOne({ email });
 
     if (userCount > 0 && !user) {
-      await logSecurityEvent(db, req, 'login_blocked', 'magic_link',
-        'Intento de inicio de sesión con correo no autorizado', email);
+      await log(db, {
+        level: 'WARN', severity: 'MEDIUM',
+        category: 'auth', action: 'LOGIN_BLOCKED',
+        message: `Intento de inicio de sesión con correo no autorizado: ${email}`,
+        actor: actorFromRequest(req, { email }),
+      });
       return Response.json({ error: 'Este correo no tiene acceso al dashboard.' }, { status: 403 });
     }
 
@@ -84,6 +88,13 @@ export async function POST(req: Request) {
         </body>
         </html>
       `,
+    });
+
+    await log(db, {
+      level: 'INFO', severity: 'LOW',
+      category: 'auth', action: 'MAGIC_LINK_SENT',
+      message: `Magic link enviado a ${email}`,
+      actor: actorFromRequest(req, { email }),
     });
 
     return Response.json({ ok: true });

@@ -167,10 +167,12 @@ export const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: Permission 
   { pattern: /^\/dashboard\/settings\/users/,        permission: 'settings.users' },
   { pattern: /^\/dashboard\/settings\/integrations/, permission: 'settings.integrations' },
   { pattern: /^\/dashboard\/settings/,               permission: 'settings.widget' },
+  { pattern: /^\/dashboard\/logs/,                   permission: 'admin.logs' },
   { pattern: /^\/dashboard\/reports/,                permission: 'reports.view' },
   { pattern: /^\/dashboard\/agents/,                 permission: 'agents.view' },
   { pattern: /^\/dashboard\/conversations/,          permission: 'conversations.view' },
   { pattern: /^\/dashboard/,                         permission: 'dashboard.view' },
+  { pattern: /^\/api\/logs/,                         permission: 'admin.logs' },
   { pattern: /^\/api\/analytics/,                    permission: 'reports.view' },
   { pattern: /^\/api\/seed/,                         permission: 'admin.seed' },
 ];

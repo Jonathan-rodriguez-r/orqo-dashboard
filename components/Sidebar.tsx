@@ -7,6 +7,7 @@ import { useSession } from '@/hooks/usePermissions';
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const I = {
   home:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 6.5 8 1.5l6.5 5V14a.5.5 0 0 1-.5.5H10v-4H6v4H2a.5.5 0 0 1-.5-.5V6.5Z" strokeLinejoin="round"/></svg>,
+  logs:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 7.5h9M2 11h6" strokeLinecap="round"/></svg>,
   conv:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/></svg>,
   agent:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
   report:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
@@ -27,8 +28,9 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings', label: 'Configuración', icon: I.settings, permission: 'settings.widget' },
-  { href: '/dashboard/docs',     label: 'Centro de ayuda', icon: I.docs,   permission: null },
+  { href: '/dashboard/settings', label: 'Configuración',   icon: I.settings, permission: 'settings.widget' },
+  { href: '/dashboard/logs',     label: 'Logs & Auditoría', icon: I.logs,    permission: 'admin.logs'      },
+  { href: '/dashboard/docs',     label: 'Centro de ayuda', icon: I.docs,     permission: null              },
 ] as const;
 
 type Props = {
@@ -46,11 +48,22 @@ export default function Sidebar({ userEmail, userName, isOpen = false, onClose }
   const isLoading = session === undefined;
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [customLogo, setCustomLogo] = useState('');
+  const [sidebarName, setSidebarName] = useState('');
 
   useEffect(() => {
     const saved = (localStorage.getItem('orqo_theme') as 'dark' | 'light') || 'dark';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/account').then(r => r.json()).then(d => {
+      if (d && !d.error) {
+        if (d.logo_url) setCustomLogo(d.logo_url);
+        if (d.sidebar_name || d.business_name) setSidebarName(d.sidebar_name || d.business_name);
+      }
+    }).catch(() => {});
   }, []);
 
   function toggleTheme() {
@@ -96,13 +109,25 @@ export default function Sidebar({ userEmail, userName, isOpen = false, onClose }
     <aside className={`sidebar${isOpen ? ' sidebar-mobile-open' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
-        <svg width="26" height="26" viewBox="0 0 72 72" fill="none">
-          <circle cx="36" cy="36" r="30" stroke="#2E4038" strokeWidth="2"/>
-          <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#E9EDE9" strokeWidth="3" fill="none" strokeLinecap="round"/>
-          <line x1="59.5" y1="52" x2="66" y2="58" stroke="#E9EDE9" strokeWidth="3" strokeLinecap="round"/>
-          <circle cx="66" cy="58" r="3.5" fill="#2CB978"/>
-        </svg>
-        <span className="sidebar-logo-text">OR<span>QO</span></span>
+        {customLogo ? (
+          <img
+            src={customLogo}
+            alt={sidebarName || 'Logo'}
+            style={{ height: 26, maxWidth: 100, objectFit: 'contain', flexShrink: 0 }}
+          />
+        ) : (
+          <svg width="26" height="26" viewBox="0 0 72 72" fill="none">
+            <circle cx="36" cy="36" r="30" stroke="#2E4038" strokeWidth="2"/>
+            <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#E9EDE9" strokeWidth="3" fill="none" strokeLinecap="round"/>
+            <line x1="59.5" y1="52" x2="66" y2="58" stroke="#E9EDE9" strokeWidth="3" strokeLinecap="round"/>
+            <circle cx="66" cy="58" r="3.5" fill="#2CB978"/>
+          </svg>
+        )}
+        {(!customLogo || sidebarName) && (
+          <span className="sidebar-logo-text">
+            {sidebarName ? sidebarName : <>OR<span>QO</span></>}
+          </span>
+        )}
       </div>
 
       {/* Navigation */}
