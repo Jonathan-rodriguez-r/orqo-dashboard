@@ -46,6 +46,13 @@ export async function proxy(req: NextRequest) {
   }
 
   // Route-level permission check — runs at Edge, no DB query
+  // Guard: old tokens without permissions → force re-login
+  if (!Array.isArray(session.permissions)) {
+    const res = redirectToLogin(req, 'expired');
+    res.cookies.delete('orqo_session');
+    return res;
+  }
+
   for (const { pattern, permission } of ROUTE_PERMISSIONS) {
     if (pattern.test(pathname)) {
       if (!session.permissions.includes(permission)) {
