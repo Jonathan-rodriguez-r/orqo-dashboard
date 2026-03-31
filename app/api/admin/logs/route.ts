@@ -15,6 +15,40 @@ export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
     const db = await getDb();
     const doc: LogEntry = { ts: Date.now(), ...entry };
     await db.collection('activity_logs').insertOne(doc as any);
+    // Mirror to audit_logs so /dashboard/logs can show operational runtime events.
+    const createdAt = new Date(doc.ts);
+    const retentionDays = Math.max(1, parseInt(process.env.LOG_RETENTION_DAYS ?? '90', 10));
+    const expiresAt = new Date(createdAt.getTime() + retentionDays * 24 * 60 * 60 * 1000);
+
+    const levelUpper = doc.level.toUpperCase();
+    const level = levelUpper === 'WARN' || levelUpper === 'ERROR' ? levelUpper : 'INFO';
+    const severity =
+      level === 'ERROR' ? 'HIGH' :
+      level === 'WARN' ? 'MEDIUM' :
+      'LOW';
+
+    const src = (doc.source || '').toLowerCase();
+    const category =
+      src.includes('auth') ? 'auth' :
+      src.includes('agent') ? 'agent' :
+      src.includes('widget') || src.includes('conversation') ? 'conversation' :
+      src.includes('security') ? 'security' :
+      'system';
+
+    const action = `RUNTIME_${src.replace(/[^a-z0-9]+/g, '_').toUpperCase() || 'EVENT'}`;
+
+    await db.collection('audit_logs').insertOne({
+      correlationId: `rt-${doc.ts}-${Math.random().toString(36).slice(2, 8)}`,
+      level,
+      severity,
+      category,
+      action,
+      message: doc.msg,
+      metadata: doc.detail ? { extra: { detail: doc.detail, source: doc.source } } : { extra: { source: doc.source } },
+      createdAt,
+      expiresAt,
+    } as any);
+
     // Keep only last 500 entries
     const count = await db.collection('activity_logs').countDocuments();
     if (count > 500) {

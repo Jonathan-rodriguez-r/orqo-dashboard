@@ -114,16 +114,17 @@ npm run dev
 - Production deployment: Vercel (auto deploy from primary branch)
 - Domain: `dashboard.orqo.io`
 
-## Wiki (In-Repo)
+## Wiki and Projects
 
-This section acts as the project wiki index:
+Internal wiki index:
+- [Wiki Home](./docs/wiki/Home.md)
+- [Architecture](./docs/wiki/Architecture.md)
+- [Operational Runbooks](./docs/wiki/Runbooks.md)
+- [Release Process](./docs/wiki/Release-Process.md)
+- [Roadmap](./docs/wiki/Roadmap.md)
 
-- Architecture Overview: this README -> `Architecture`
-- Runtime Flows: this README -> `Runtime Flows`
-- Security Model: this README -> `Security and Governance`
-- Operational Release Notes: `CHANGELOG.md`
-
-For external documentation expansion, keep long-form docs under `docs/` and link them here.
+Projects board seed:
+- [Backlog](./docs/projects/Backlog.md)
 
 ## Changelog
 
