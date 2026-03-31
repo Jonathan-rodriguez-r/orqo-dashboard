@@ -9,6 +9,10 @@ const DEFAULTS = {
   business_name: '',
   email: '',
   website: '',
+  active_domain: '',
+  widget_page_url: '',
+  widget_last_seen_at: 0,
+  widget_seen_domains: [],
   timezone: 'America/Bogota',
   language: 'es',
   api_key: '',
@@ -60,6 +64,10 @@ export async function POST(req: Request) {
     delete body.interactions_period_key;
     delete body.interactions_previous_period_key;
     delete body.interactions_previous_period_used;
+    delete body.active_domain;
+    delete body.widget_page_url;
+    delete body.widget_last_seen_at;
+    delete body.widget_seen_domains;
     const db = await getDb();
     await db.collection('config').updateOne(
       { _id: 'account' as any },

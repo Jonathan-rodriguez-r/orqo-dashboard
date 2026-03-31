@@ -61,6 +61,9 @@ export default function DashboardNav({ userEmail, userName }: Props) {
           root.style.setProperty('--acc', accent);
           root.style.setProperty('--acc-g', toRgba(accent, 0.12, 'rgba(44,185,120,0.12)'));
           root.style.setProperty('--acc-g2', toRgba(accent, 0.06, 'rgba(44,185,120,0.06)'));
+          root.style.setProperty('--portal-brand-glow-1', toRgba(accent, 0.2, 'rgba(44,185,120,0.2)'));
+          root.style.setProperty('--portal-brand-glow-2', toRgba(accent, 0.08, 'rgba(44,185,120,0.08)'));
+          root.style.setProperty('--portal-brand-shadow', toRgba(accent, 0.18, 'rgba(44,185,120,0.18)'));
           root.style.setProperty('--portal-brand-gradient', `linear-gradient(135deg, ${toRgba(accent, 0.22, 'rgba(44,185,120,0.22)')}, ${toRgba(secondary, 0.2, 'rgba(11,16,13,0.2)')})`);
         }
       } catch {
