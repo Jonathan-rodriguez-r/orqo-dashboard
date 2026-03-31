@@ -18,6 +18,13 @@ All notable changes to this dashboard are documented in this file.
 - `public/widget.js` now sends `agentId/agentToken` to public config endpoint for agent-level visual overrides.
 - `public/widget.js` now applies widget light/dark theme mode without forcing host site theme.
 
+## [1.6.1] - 2026-03-31
+
+### Fixed
+
+- `proxy.ts`: marked `/api/widget/*` as public to avoid auth redirect to `/login`.
+- Restored `POST /api/widget/reply` availability for `orqo.io` widget traffic.
+
 ## [1.6.0] - 2026-03-31
 
 ### Added
