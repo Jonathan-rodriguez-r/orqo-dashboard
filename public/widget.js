@@ -30,8 +30,9 @@
 .o-hd-av img { width:100%; height:100%; object-fit:cover; }
 .o-hd-name { font-weight:700; font-size:14px; color:var(--orqo-g08); }
 .o-hd-status { font-size:11px; color:var(--orqo-acc); }
-.o-hd-close { margin-left:auto; background:none; border:none; cursor:pointer; color:var(--orqo-g06); padding:4px; border-radius:6px; display:flex; align-items:center; justify-content:center; }
-.o-hd-close:hover { background:rgba(255,255,255,0.06); }
+.o-hd-actions { margin-left:auto; display:flex; align-items:center; gap:4px; }
+.o-hd-btn { background:none; border:none; cursor:pointer; color:var(--orqo-g06); padding:4px; border-radius:6px; display:flex; align-items:center; justify-content:center; }
+.o-hd-btn:hover { background:rgba(255,255,255,0.06); }
 .o-msgs { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
 .o-bub { max-width:82%; padding:9px 13px; border-radius:14px; font-size:13.5px; line-height:1.55; }
 .o-bub.bot { background:var(--orqo-g02); color:var(--orqo-g07); border-radius:14px 14px 14px 4px; }
@@ -102,7 +103,10 @@
         '<div class="o-hd">' +
           '<div class="o-hd-av">' + avatarHtml + '</div>' +
           '<div><div class="o-hd-name">' + esc(title) + '</div><div class="o-hd-status">● En línea</div></div>' +
-          '<button class="o-hd-close" id="orqo-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
+          '<div class="o-hd-actions">' +
+            '<button class="o-hd-btn" id="orqo-reset" title="Borrar historial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M5 4l.6 9h4.8L11 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+            '<button class="o-hd-btn" id="orqo-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
+          '</div>' +
         '</div>' +
         '<div class="o-msgs" id="orqo-msgs">' +
           '<div class="o-bub bot">' + esc(welcomeMsg) + '</div>' +
@@ -152,10 +156,14 @@
     var widgetEl = document.getElementById('orqo-w');
     var winEl = document.getElementById('orqo-win');
     var btn = document.getElementById('orqo-btn');
+    var resetBtn = document.getElementById('orqo-reset');
     var closeBtn = document.getElementById('orqo-close');
     var ta = document.getElementById('orqo-ta');
     var sendBtn = document.getElementById('orqo-send');
     var msgs = document.getElementById('orqo-msgs');
+    var greetingMsg = cfg.title
+      ? '\u00a1Hola! Soy ' + cfg.title + '. \u00bfEn qu\u00e9 puedo ayudarte hoy?'
+      : '\u00a1Hola! \u00bfEn qu\u00e9 puedo ayudarte hoy?';
 
     var mode = String(cfg.themeMode || 'auto').toLowerCase();
     if (mode === 'auto') {
@@ -193,6 +201,7 @@
     }
     btn.addEventListener('click', toggle);
     closeBtn.addEventListener('click', function() { open = false; winEl.classList.add('o-hide'); });
+    if (resetBtn) resetBtn.addEventListener('click', clearConversation);
 
     function autoResize() {
       ta.style.height = 'auto';
@@ -212,15 +221,15 @@
     var syncing    = false;
 
     // Get or create persistent visitor ID
-    function getVisitorId() {
-      var id = localStorage.getItem(LS_VISITOR);
+    function getVisitorId(forceNew) {
+      var id = forceNew ? '' : localStorage.getItem(LS_VISITOR);
       if (!id) {
         id = 'v_' + Math.random().toString(36).slice(2) + '_' + Date.now();
         localStorage.setItem(LS_VISITOR, id);
       }
       return id;
     }
-    var visitorId = getVisitorId();
+    var visitorId = getVisitorId(false);
 
     // Load conversation from localStorage
     function loadLocal() {
@@ -243,6 +252,27 @@
       try {
         localStorage.setItem(LS_CONV, JSON.stringify({ messages: history, convId: convId, ts: Date.now() }));
       } catch(e) {}
+    }
+
+    function clearRemoteConversation(vId) {
+      fetch(API_BASE + '/api/widget/conversations', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitorId: vId, agentId: cfg.agentId || 'default' }),
+      }).catch(function() {});
+    }
+
+    function clearConversation() {
+      if (!window.confirm('\u00bfBorrar conversaciones anteriores en este dispositivo?')) return;
+      var previousVisitorId = visitorId;
+      history = [];
+      convId = null;
+      try { localStorage.removeItem(LS_CONV); } catch(e) {}
+      try { localStorage.removeItem('orqo_prechat_' + (cfg.agentId || 'default')); } catch(e) {}
+      visitorId = getVisitorId(true);
+      msgs.innerHTML = '';
+      addBub('bot', greetingMsg);
+      clearRemoteConversation(previousVisitorId);
     }
 
     // Sync a single message to API (fire and forget)
