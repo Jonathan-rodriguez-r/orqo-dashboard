@@ -9,7 +9,7 @@ import WidgetPage from '../widget/page';
 import AccountPage from '../account/page';
 
 // â”€â”€ Tab types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-type Tab = 'orchestration' | 'widget' | 'integrations' | 'access' | 'account';
+type Tab = 'orchestration' | 'widget' | 'access' | 'account';
 type AccessSubTab = 'users' | 'roles' | 'alerts';
 
 // â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -169,7 +169,7 @@ export default function SettingsPage() {
     const tabParam = (searchParams.get('tab') ?? '').toLowerCase();
     const subParam = (searchParams.get('sub') ?? '').toLowerCase();
 
-    if (tabParam && ['orchestration', 'widget', 'integrations', 'access', 'account'].includes(tabParam)) {
+    if (tabParam && ['orchestration', 'widget', 'access', 'account'].includes(tabParam)) {
       setTab(tabParam as Tab);
     }
 
@@ -301,7 +301,6 @@ export default function SettingsPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: 'orchestration', label: 'Orquestación IA' },
     { id: 'widget',        label: 'Widget' },
-    { id: 'integrations',  label: 'Integraciones' },
     { id: 'access',        label: 'Accesos' },
     { id: 'account',       label: 'Cuenta' },
   ];
@@ -318,7 +317,7 @@ export default function SettingsPage() {
     <div className="dash-content">
       <div className="page-header">
         <h1 className="page-title">Configuración</h1>
-        <p className="page-sub">Orquestación IA, widget, integraciones, accesos y cuenta</p>
+        <p className="page-sub">Orquestación IA, widget, accesos y cuenta</p>
       </div>
 
       {/* Main tab nav */}
@@ -417,44 +416,6 @@ export default function SettingsPage() {
                 <code style={{ fontSize: 11, color: 'var(--acc)', wordBreak: 'break-all' }}>{'<script src="https://dashboard.orqo.io/widget.js"></script>'}</code>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* â”€â”€ Integrations tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {tab === 'integrations' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-          {Object.entries(INTEGRATIONS).map(([group, items]) => (
-            <div key={group}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--g05)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>{group}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-                {items.map(int => (
-                  <div key={int.id} className="card card-sm" style={{ opacity: int.status === 'coming_soon' ? 0.7 : 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: int.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{int.icon}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--g07)', marginBottom: 2 }}>{int.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 1.4 }}>{int.desc}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <StatusBadge status={int.status}/>
-                      {int.status !== 'coming_soon' && (
-                        <button className={`btn btn-sm ${int.status === 'connected' ? 'btn-danger' : 'btn-ghost'}`}>
-                          {int.status === 'connected' ? 'Desconectar' : 'Conectar'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="card" style={{ textAlign: 'center', padding: '28px', borderStyle: 'dashed' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>🔌</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--g07)', marginBottom: 6 }}>¿Necesitas otra integración?</div>
-            <p style={{ fontSize: 13, color: 'var(--g05)', marginBottom: 14 }}>Cualquier sistema con API o servidor MCP puede conectarse a ORQO.</p>
-            <a href="mailto:hello@orqo.io" className="btn btn-primary btn-sm">Solicitar integración</a>
           </div>
         </div>
       )}
