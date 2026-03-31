@@ -57,7 +57,7 @@ export type ProviderAttempt = {
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
   aiProviders: {
-    google: { apiKey: '', model: 'gemini-2.0-flash', enabled: false },
+    google: { apiKey: '', model: 'gemini-2.5-flash', enabled: false },
     openai: { apiKey: '', model: 'gpt-4o', enabled: false },
     grok: { apiKey: '', model: 'grok-3', enabled: false },
     anthropic: { apiKey: '', model: 'claude-sonnet-4-6', enabled: false },
@@ -172,13 +172,14 @@ export async function generateAgentReply(args: {
       fallbackUsed: true,
       fallbackType: 'free_model' as const,
       errors,
-      attempts: [...attempts, { provider: 'openrouter-free', model: freeFallback.model, status: 'ok' as const }],
-      errorSummary: summarizeAttemptErrors(attempts),
+      attempts: [...attempts, ...freeFallback.attempts],
+      errorSummary: summarizeAttemptErrors([...attempts, ...freeFallback.attempts]),
     };
   }
 
   if (freeFallback.error) {
     errors.push(`openrouter-free: ${freeFallback.error}`);
+    attempts.push(...freeFallback.attempts);
     await emitWorkspaceAlert({
       db: args.db,
       workspaceId,
@@ -355,7 +356,7 @@ async function tryFreeFallback(args: {
   message: string;
   responseLength: string;
 }) {
-  if (!args.settings.fallback.useFreeModels) return { ok: false as const };
+  if (!args.settings.fallback.useFreeModels) return { ok: false as const, attempts: [] as ProviderAttempt[] };
 
   const apiKey =
     args.settings.fallback.freeProviderApiKey?.trim() ||
@@ -363,12 +364,39 @@ async function tryFreeFallback(args: {
     process.env.ORQO_FREE_OPENROUTER_API_KEY?.trim() ||
     '';
 
-  if (!apiKey) return { ok: false as const, error: 'No hay API key para OpenRouter free fallback.' };
+  if (!apiKey) {
+    return {
+      ok: false as const,
+      error: 'No hay API key para OpenRouter free fallback.',
+      attempts: [{
+        provider: 'openrouter-free',
+        model: '(sin-modelo)',
+        status: 'error',
+        reason: 'No hay API key para OpenRouter free fallback.',
+        errorType: 'auth',
+        isQuotaOrTokens: false,
+      }] as ProviderAttempt[],
+    };
+  }
 
   const models = (args.settings.fallback.freeModels ?? []).filter((m) => m?.trim());
-  if (models.length === 0) return { ok: false as const, error: 'No hay modelos gratuitos configurados.' };
+  if (models.length === 0) {
+    return {
+      ok: false as const,
+      error: 'No hay modelos gratuitos configurados.',
+      attempts: [{
+        provider: 'openrouter-free',
+        model: '(sin-modelo)',
+        status: 'error',
+        reason: 'No hay modelos gratuitos configurados.',
+        errorType: 'invalid_request',
+        isQuotaOrTokens: false,
+      }] as ProviderAttempt[],
+    };
+  }
 
   const errors: string[] = [];
+  const attempts: ProviderAttempt[] = [];
   for (const model of models) {
     try {
       const reply = await callOpenRouterFree({
@@ -379,13 +407,24 @@ async function tryFreeFallback(args: {
         message: args.message,
         responseLength: args.responseLength,
       });
-      return { ok: true as const, reply, model };
+      attempts.push({ provider: 'openrouter-free', model, status: 'ok' });
+      return { ok: true as const, reply, model, attempts };
     } catch (error: any) {
-      errors.push(`${model}: ${error?.message ?? 'error desconocido'}`);
+      const reason = error?.message ?? 'error desconocido';
+      const errorType = classifyProviderError(reason);
+      errors.push(`${model}: ${reason}`);
+      attempts.push({
+        provider: 'openrouter-free',
+        model,
+        status: 'error',
+        reason,
+        errorType,
+        isQuotaOrTokens: errorType === 'quota',
+      });
     }
   }
 
-  return { ok: false as const, error: errors.join(' | ') };
+  return { ok: false as const, error: errors.join(' | '), attempts };
 }
 
 function buildSystemPrompt(agent: AgentRuntime): string {
