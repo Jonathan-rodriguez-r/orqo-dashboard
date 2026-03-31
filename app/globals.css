@@ -283,6 +283,7 @@ tr:hover td{background:var(--g02);}
 
   /* Grids collapse to single column */
   .grid-2,.grid-3{grid-template-columns:1fr;}
+  .field-row{flex-direction:column;gap:0;}
 
   /* Stats grid 2 cols on mobile */
   .stats-grid{grid-template-columns:repeat(2,1fr);}

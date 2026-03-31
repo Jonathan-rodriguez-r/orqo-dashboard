@@ -25,6 +25,9 @@ type AccountCfg = {
   operations_owner: string;
   report_recipients: string;
   sla_first_response_min: number;
+  escalation_email: string;
+  incident_whatsapp: string;
+  report_footer_note: string;
 };
 
 const DEFAULTS: AccountCfg = {
@@ -50,6 +53,9 @@ const DEFAULTS: AccountCfg = {
   operations_owner: '',
   report_recipients: '',
   sla_first_response_min: 15,
+  escalation_email: '',
+  incident_whatsapp: '',
+  report_footer_note: '',
 };
 
 const INDUSTRIES = [
@@ -57,6 +63,46 @@ const INDUSTRIES = [
   'Bienes RaÃ­ces', 'Hospitalidad y Turismo', 'TecnologÃ­a / SaaS', 'LogÃ­stica y Transporte',
   'Manufactura', 'ConsultorÃ­a y Servicios Profesionales', 'Entretenimiento y Medios', 'Otro',
 ];
+
+const COLOR_PRESETS = [
+  { name: 'ORQO', primary: '#2CB978', secondary: '#0B100D' },
+  { name: 'Emerald', primary: '#10B981', secondary: '#0F172A' },
+  { name: 'Ocean', primary: '#0EA5E9', secondary: '#082F49' },
+  { name: 'Graphite', primary: '#22C55E', secondary: '#111827' },
+  { name: 'Sunset', primary: '#F97316', secondary: '#1F2937' },
+];
+
+function normalizeHex(value: string, fallback: string) {
+  const raw = String(value || '').trim();
+  const withHash = raw.startsWith('#') ? raw : `#${raw}`;
+  return /^#[0-9a-fA-F]{6}$/.test(withHash) ? withHash.toUpperCase() : fallback;
+}
+
+function hexToRgb(value: string) {
+  const hex = normalizeHex(value, '#000000').slice(1);
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function luminance(value: string) {
+  const { r, g, b } = hexToRgb(value);
+  const map = [r, g, b].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * map[0] + 0.7152 * map[1] + 0.0722 * map[2];
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const l1 = luminance(foreground);
+  const l2 = luminance(background);
+  const bright = Math.max(l1, l2);
+  const dark = Math.min(l1, l2);
+  return (bright + 0.05) / (dark + 0.05);
+}
 
 export default function AccountPage() {
   const [cfg, setCfg] = useState<AccountCfg>(DEFAULTS);
@@ -132,6 +178,21 @@ export default function AccountPage() {
   const usagePct = cfg.interactions_limit > 0
     ? Math.min(100, Math.round((cfg.interactions_used / cfg.interactions_limit) * 100))
     : 0;
+  const primary = normalizeHex(cfg.brand_primary_color, '#2CB978');
+  const secondary = normalizeHex(cfg.brand_secondary_color, '#0B100D');
+  const contrast = contrastRatio(primary, secondary);
+  const contrastState = contrast >= 4.5 ? 'OK' : contrast >= 3 ? 'WARN' : 'LOW';
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--acc', primary);
+    root.style.setProperty('--acc-g', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.12)`);
+    root.style.setProperty('--acc-g2', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.06)`);
+    root.style.setProperty(
+      '--portal-brand-gradient',
+      `linear-gradient(135deg, rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.22), rgba(${hexToRgb(secondary).r}, ${hexToRgb(secondary).g}, ${hexToRgb(secondary).b}, 0.2))`
+    );
+  }, [primary, secondary]);
 
   return (
     <div className="dash-content">
@@ -306,6 +367,82 @@ export default function AccountPage() {
           <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: -4 }}>
             Estos colores aplican para el portal y para la exportacion de informes. No modifican la configuracion del widget.
           </div>
+
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {COLOR_PRESETS.map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '6px 10px' }}
+                onClick={() => {
+                  set('brand_primary_color', preset.primary);
+                  set('brand_secondary_color', preset.secondary);
+                }}
+              >
+                <span style={{ width: 11, height: 11, borderRadius: '50%', background: preset.primary, border: `1px solid ${preset.secondary}` }} />
+                {preset.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{ background: 'rgba(44,185,120,0.12)', color: 'var(--acc)', border: '1px solid rgba(44,185,120,0.35)' }}
+              onClick={() => {
+                set('brand_primary_color', '#2CB978');
+                set('brand_secondary_color', '#0B100D');
+              }}
+            >
+              Restablecer ORQO
+            </button>
+          </div>
+
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className={`badge ${contrastState === 'OK' ? 'badge-green' : contrastState === 'WARN' ? 'badge-yellow' : 'badge-red'}`}>
+              Contraste {contrastState}
+            </span>
+            <span style={{ fontSize: 11.5, color: 'var(--g05)' }}>
+              Ratio actual: {contrast.toFixed(2)}:1 (recomendado {'>='} 4.5:1 para texto pequeno).
+            </span>
+          </div>
+
+          <div style={{ marginTop: 14, border: '1px solid var(--g03)', borderRadius: 12, background: 'var(--g00)', overflow: 'hidden' }}>
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${primary}33, ${secondary}CC)`,
+                borderBottom: '1px solid var(--g03)',
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+              }}
+            >
+              <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, color: 'var(--g08)', fontSize: 13 }}>
+                Vista previa del portal
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: primary }} />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: secondary }} />
+              </div>
+            </div>
+            <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10 }}>
+              <div style={{ border: '1px solid var(--g03)', borderRadius: 10, background: secondary, minHeight: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ height: 12, borderRadius: 6, background: `${primary}AA` }} />
+                <div style={{ height: 9, borderRadius: 6, background: 'rgba(255,255,255,0.18)' }} />
+                <div style={{ height: 9, borderRadius: 6, width: '80%', background: 'rgba(255,255,255,0.15)' }} />
+                <div style={{ marginTop: 'auto', height: 24, borderRadius: 7, background: `${primary}CC` }} />
+              </div>
+              <div style={{ border: '1px solid var(--g03)', borderRadius: 10, background: 'var(--g01)', padding: 8, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div style={{ height: 12, borderRadius: 6, background: `${primary}44`, border: `1px solid ${primary}66` }} />
+                <div style={{ height: 8, borderRadius: 6, width: '68%', background: 'var(--g03)' }} />
+                <div style={{ marginTop: 'auto', display: 'flex', gap: 7 }}>
+                  <div style={{ flex: 1, height: 26, borderRadius: 8, background: primary }} />
+                  <div style={{ flex: 1, height: 26, borderRadius: 8, border: `1px solid ${primary}66`, background: `${primary}22` }} />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* â”€â”€ API Key â”€â”€ */}
@@ -435,6 +572,46 @@ export default function AccountPage() {
               onChange={e => set('report_recipients', e.target.value)}
               placeholder="ops@cliente.com, gerencia@cliente.com"
             />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label className="label">Email de escalamiento critico</label>
+              <input
+                className="input"
+                type="email"
+                value={cfg.escalation_email}
+                onChange={e => set('escalation_email', e.target.value)}
+                placeholder="alertas@cliente.com"
+              />
+            </div>
+            <div className="field">
+              <label className="label">WhatsApp de incidentes</label>
+              <input
+                className="input"
+                value={cfg.incident_whatsapp}
+                onChange={e => set('incident_whatsapp', e.target.value)}
+                placeholder="+57 300 000 0000"
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label className="label">Nota fija en reportes PDF</label>
+            <textarea
+              className="input"
+              value={cfg.report_footer_note}
+              onChange={e => set('report_footer_note', e.target.value)}
+              placeholder="Ejemplo: Este reporte fue generado para revision gerencial y puede contener datos sensibles."
+              maxLength={280}
+            />
+            <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 4 }}>
+              {cfg.report_footer_note.length}/280 caracteres
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span className="badge badge-green">SLA objetivo: {cfg.sla_first_response_min || 0} min</span>
+            <span className="badge badge-gray">Owner ops: {cfg.operations_owner?.trim() || 'No definido'}</span>
+            <span className="badge badge-gray">Escalamiento: {cfg.escalation_email?.trim() || 'Pendiente'}</span>
           </div>
         </div>
 
