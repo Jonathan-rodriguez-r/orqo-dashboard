@@ -2,6 +2,18 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.7.2] - 2026-03-31
+
+### Fixed
+
+- `Settings > Cuenta` now renders the full enhanced Account module instead of the previous static placeholder view.
+- Brand controls (presets, contrast indicator, live preview) and operational fields are now visible in the exact configuration tab used by users.
+
+### Changed
+
+- `app/dashboard/account/page.tsx` now supports embedded rendering mode to reuse the same Account experience inside `Settings`.
+- `app/dashboard/settings/page.tsx` now delegates the account tab to the unified Account component for consistency.
+
 ## [1.7.1] - 2026-03-31
 
 ### Added
