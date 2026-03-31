@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
+import { actorFromRequest, log } from '@/lib/logger';
 
 /**
  * GET /api/logs
@@ -107,6 +108,69 @@ export async function GET(req: Request) {
       pages: Math.ceil(total / limit),
       items,
       stats: { byLevel, byCategory },
+    });
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/logs?days=30
+ *
+ * Deletes logs older than `days` from:
+ * - audit_logs (createdAt)
+ * - activity_logs (ts)
+ *
+ * Requires: admin.logs permission.
+ */
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasPermission(session.permissions, 'admin.logs'))
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const days = Math.min(3650, Math.max(1, Number(searchParams.get('days') ?? 30)));
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const cutoffTs = cutoff.getTime();
+
+    const db = await getDb();
+    const [auditDelete, runtimeDelete] = await Promise.all([
+      db.collection('audit_logs').deleteMany({ createdAt: { $lt: cutoff } }),
+      db.collection('activity_logs').deleteMany({ ts: { $lt: cutoffTs } }),
+    ]);
+
+    await log(db, {
+      level: 'WARN',
+      severity: 'MEDIUM',
+      category: 'system',
+      action: 'LOGS_PRUNED',
+      message: `${session.email} depuro logs antiguos (${days} dias)`,
+      actor: actorFromRequest(req, { id: session.sub, email: session.email, role: session.role }),
+      metadata: {
+        extra: {
+          days,
+          cutoff: cutoff.toISOString(),
+          deletedAuditLogs: auditDelete.deletedCount ?? 0,
+          deletedActivityLogs: runtimeDelete.deletedCount ?? 0,
+        },
+      },
+      http: {
+        method: 'DELETE',
+        path: '/api/logs',
+        statusCode: 200,
+      },
+    });
+
+    return Response.json({
+      ok: true,
+      deleted: {
+        audit_logs: auditDelete.deletedCount ?? 0,
+        activity_logs: runtimeDelete.deletedCount ?? 0,
+      },
+      cutoff: cutoff.toISOString(),
+      days,
     });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });

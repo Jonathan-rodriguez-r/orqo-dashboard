@@ -226,6 +226,9 @@ export default function LogsPage() {
   const [stats, setStats]     = useState<Stats>({ byLevel: {}, byCategory: {} });
   const [loading, setLoading] = useState(true);
   const [page, setPage]       = useState(1);
+  const [pruning, setPruning] = useState(false);
+  const [pruneDays, setPruneDays] = useState(90);
+  const [pruneMsg, setPruneMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Filters
   const [q, setQ]                   = useState('');
@@ -271,6 +274,34 @@ export default function LogsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function pruneOldLogs() {
+    const ok = window.confirm(`Se eliminaran logs con mas de ${pruneDays} dias. Esta accion no se puede deshacer.`);
+    if (!ok) return;
+
+    setPruning(true);
+    setPruneMsg(null);
+    try {
+      const res = await fetch(`/api/logs?days=${pruneDays}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'No fue posible depurar logs.');
+
+      const deletedAudit = Number(data?.deleted?.audit_logs ?? 0);
+      const deletedActivity = Number(data?.deleted?.activity_logs ?? 0);
+      setPruneMsg({
+        ok: true,
+        text: `Depuracion completada: audit=${deletedAudit}, runtime=${deletedActivity}.`,
+      });
+
+      setPage(1);
+      load();
+    } catch (e: any) {
+      setPruneMsg({ ok: false, text: e?.message || 'Error al depurar logs.' });
+    } finally {
+      setPruning(false);
+      setTimeout(() => setPruneMsg(null), 4500);
+    }
+  }
+
   function resetFilters() {
     setQ(''); setDebouncedQ(''); setLevel(''); setCategory(''); setPreset('24h'); setPage(1);
   }
@@ -298,7 +329,28 @@ export default function LogsPage() {
           <h1 className="page-title">Logs &amp; Auditoría</h1>
           <p className="page-sub">Registro completo de actividad del sistema — retención {retentionDays} días</p>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <select
+            className="input"
+            value={pruneDays}
+            onChange={(e) => setPruneDays(Number(e.target.value))}
+            style={{ width: 118 }}
+          >
+            <option value={30}>30 dias</option>
+            <option value={60}>60 dias</option>
+            <option value={90}>90 dias</option>
+            <option value={180}>180 dias</option>
+          </select>
+          <button className="btn btn-ghost btn-sm" onClick={pruneOldLogs} disabled={pruning}>
+            {pruning ? 'Depurando...' : `Borrar > ${pruneDays}d`}
+          </button>
+        </div>
       </div>
+      {pruneMsg && (
+        <div style={{ marginBottom: 12, fontSize: 12.5, color: pruneMsg.ok ? 'var(--acc)' : 'var(--red)' }}>
+          {pruneMsg.text}
+        </div>
+      )}
 
       {/* Permission error */}
       {forbidden && (

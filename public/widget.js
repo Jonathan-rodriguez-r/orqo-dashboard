@@ -60,14 +60,69 @@ let recordingChunks = [];
 let isRecordingVoice = false;
 let dragDepth = 0;
 
+function currentUsagePeriodKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function legacyInteractionsFromConvs(convs) {
+  return (Array.isArray(convs) ? convs : []).reduce((n, c) => {
+    const userMsgs = (c?.messages || []).filter((m) => m?.role === 'user').length;
+    return n + userMsgs;
+  }, 0);
+}
+
+function normalizeUsageState(data) {
+  const periodKey = currentUsagePeriodKey();
+  const raw = data?.interactionUsage;
+
+  if (raw && typeof raw === 'object') {
+    const key = String(raw.periodKey || '').trim();
+    let used = Number(raw.used || 0);
+    if (!Number.isFinite(used) || used < 0) used = 0;
+    if (key === periodKey) return { periodKey, used: Math.floor(used) };
+    return { periodKey, used: 0 };
+  }
+
+  return {
+    periodKey,
+    used: legacyInteractionsFromConvs(data?.conversations || []),
+  };
+}
+
 const S = {
   load: () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } },
   save: d => localStorage.setItem(STORAGE_KEY, JSON.stringify(d)),
+  ensureUsage: () => {
+    const d = S.load();
+    const usage = normalizeUsageState(d);
+    const raw = d?.interactionUsage;
+    const changed =
+      !raw ||
+      String(raw?.periodKey || '') !== usage.periodKey ||
+      Number(raw?.used || 0) !== usage.used;
+    if (changed) {
+      d.interactionUsage = usage;
+      S.save(d);
+    }
+    return usage;
+  },
   convs: () => S.load().conversations || [],
   saveConvs: cs => { const d = S.load(); d.conversations = cs; S.save(d); },
   disclaimerOk: () => !!S.load().disclaimerAccepted,
   acceptDisclaimer: () => { const d = S.load(); d.disclaimerAccepted = true; S.save(d); },
-  usedInt: () => S.convs().reduce((n, c) => n + (c.messages || []).filter(m => m.role === 'user').length, 0),
+  usedInt: () => S.ensureUsage().used,
+  incInt: (count = 1) => {
+    const d = S.load();
+    const usage = normalizeUsageState(d);
+    const by = Math.max(0, Math.floor(Number(count || 0)));
+    usage.used += by;
+    d.interactionUsage = usage;
+    S.save(d);
+    return usage.used;
+  },
   remaining: () => Math.max(0, TOTAL_INT - S.usedInt()),
 };
 
@@ -587,6 +642,7 @@ function sendMessage(override) {
   conv.messages.push(m);
   if (conv.messages.filter(x => x.role === 'user').length === 1) conv.title = contentForStore.slice(0, 42);
   S.saveConvs(convs);
+  S.incInt(1);
   appendBubble('user', text, m.timestamp, true, attachments);
   ta.value = ''; ta.style.height = 'auto';
   pendingAttachments = [];

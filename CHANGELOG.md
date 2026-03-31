@@ -2,6 +2,33 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.7] - 2026-03-31
+
+### Added
+
+- Persistent interaction metering service (`lib/usage-meter.ts`) with monthly accumulator, daily summaries, and per-event trace (`usage_events`).
+- New endpoint `GET /api/account/interactions` to inspect interaction usage by period (totals, channels, providers, top conversations, recent events).
+- Dashboard home now includes interaction detail panel (channels/providers/recent events) for period traceability.
+
+### Changed
+
+- `POST /api/widget/reply` now records one interaction event per successful AI reply, decoupled from conversation deletion.
+- Account usage (`GET /api/account`) now reads the active monthly accumulator instead of mutable conversation counts.
+- Plan usage in `dashboard/page.tsx` now uses persisted monthly usage, so deleting conversations does not reduce consumed interactions.
+
+## [1.6.6] - 2026-03-31
+
+### Added
+
+- `DELETE /api/logs?days=N` to prune old logs by retention window (audit + runtime).
+- Logs dashboard now includes a retention action (`Borrar > Nd`) for cleaning old records manually.
+
+### Changed
+
+- Widget interaction counter now uses a persistent per-period accumulator (`interactionUsage`) instead of counting current conversations.
+- Deleting conversations in widget no longer reduces consumed interactions within the active period.
+- Interaction usage auto-resets only when a new monthly period starts.
+
 ## [1.6.5] - 2026-03-31
 
 ### Added
