@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types ────────────────────────────────────────────────────────────────────
 type Article = {
   id: string;
   title: string;
@@ -42,8 +42,8 @@ const DEFAULTS: WidgetCfg = {
   active: true,
   themeMode: 'auto',
   title: 'Hola soy ORQO',
-  subtitle: 'Tu Asistente de OrquestaciÃ³n',
-  placeholder: 'Â¿En quÃ© te puedo ayudar?',
+  subtitle: 'Tu Asistente de Orquestación',
+  placeholder: '¿En qué te puedo ayudar?',
   accentColor: '#2CB978',
   position: 'bottom-right',
   darkBg: '#0B100D',
@@ -66,33 +66,33 @@ const DEFAULTS: WidgetCfg = {
 };
 
 const POSITIONS = [
-  { value: 'bottom-right',  label: 'Abajo â€” Derecha' },
-  { value: 'bottom-left',   label: 'Abajo â€” Izquierda' },
-  { value: 'bottom-center', label: 'Abajo â€” Centro' },
-  { value: 'top-right',     label: 'Arriba â€” Derecha' },
-  { value: 'top-left',      label: 'Arriba â€” Izquierda' },
-  { value: 'top-center',    label: 'Arriba â€” Centro' },
+  { value: 'bottom-right',  label: 'Abajo — Derecha' },
+  { value: 'bottom-left',   label: 'Abajo — Izquierda' },
+  { value: 'bottom-center', label: 'Abajo — Centro' },
+  { value: 'top-right',     label: 'Arriba — Derecha' },
+  { value: 'top-left',      label: 'Arriba — Izquierda' },
+  { value: 'top-center',    label: 'Arriba — Centro' },
 ];
 
-// â”€â”€ Real human agent portraits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Real human agent portraits ─────────────────────────────────────────────
 const AGENT_PHOTOS = [
   { id: 'w1', label: 'Laura',   url: 'https://randomuser.me/api/portraits/women/44.jpg' },
   { id: 'w2', label: 'Camila',  url: 'https://randomuser.me/api/portraits/women/65.jpg' },
-  { id: 'w3', label: 'SofÃ­a',   url: 'https://randomuser.me/api/portraits/women/90.jpg' },
+  { id: 'w3', label: 'Sofía',   url: 'https://randomuser.me/api/portraits/women/90.jpg' },
   { id: 'w4', label: 'Valeria', url: 'https://randomuser.me/api/portraits/women/29.jpg' },
   { id: 'm1', label: 'Carlos',  url: 'https://randomuser.me/api/portraits/men/32.jpg' },
-  { id: 'm2', label: 'AndrÃ©s',  url: 'https://randomuser.me/api/portraits/men/43.jpg' },
+  { id: 'm2', label: 'Andrés',  url: 'https://randomuser.me/api/portraits/men/43.jpg' },
   { id: 'm3', label: 'Miguel',  url: 'https://randomuser.me/api/portraits/men/75.jpg' },
   { id: 'm4', label: 'Daniel',  url: 'https://randomuser.me/api/portraits/men/91.jpg' },
 ];
 
-// â”€â”€ 10 icon presets for favicon mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 10 icon presets for favicon mode ──────────────────────────────────────
 const ICON_PRESETS = [
   { id: 'chat',     label: 'Chat',     svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
   { id: 'support',  label: 'Soporte',  svg: '<path d="M3 11a9 9 0 1 1 18 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M21 11v4a2 2 0 0 1-2 2h-1M3 11v4a2 2 0 0 0 2 2h1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
   { id: 'robot',    label: 'IA',       svg: '<rect x="3" y="9" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="9" cy="14" r="1.5" fill="currentColor"/><circle cx="15" cy="14" r="1.5" fill="currentColor"/><path d="M9 18h6M12 9V6m-3 0h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
   { id: 'spark',    label: 'Magia',    svg: '<path d="M12 2l1.5 4H18l-3.5 2.5 1.5 4L12 10l-4 2.5 1.5-4L6 6h4.5z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M19 15l1 2-2 1 2 1-1 2-1-2-2 1 1-2-2-1 2-1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/>' },
-  { id: 'bolt',     label: 'RÃ¡pido',   svg: '<path d="M13 2L4.5 13H12l-1 9L21 11H14z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
+  { id: 'bolt',     label: 'Rápido',   svg: '<path d="M13 2L4.5 13H12l-1 9L21 11H14z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
   { id: 'heart',    label: 'Cercano',  svg: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
   { id: 'star',     label: 'Calidad',  svg: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
   { id: 'phone',    label: 'Llamada',  svg: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12a19.79 19.79 0 0 1-3-8.59A2 2 0 0 1 3.12 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
@@ -102,15 +102,15 @@ const ICON_PRESETS = [
 
 const FONT_OPTIONS = [
   { id: 'default',  label: 'ORQO (Syne + Figtree)' },
-  { id: 'inter',    label: 'Inter â€” Moderno' },
-  { id: 'jakarta',  label: 'Plus Jakarta Sans â€” Amigable' },
-  { id: 'dm-sans',  label: 'DM Sans â€” Minimalista' },
-  { id: 'poppins',  label: 'Poppins â€” Redondeado' },
+  { id: 'inter',    label: 'Inter — Moderno' },
+  { id: 'jakarta',  label: 'Plus Jakarta Sans — Amigable' },
+  { id: 'dm-sans',  label: 'DM Sans — Minimalista' },
+  { id: 'poppins',  label: 'Poppins — Redondeado' },
 ];
 
 const RADIUS_OPTIONS = [
   { value: 8,  label: 'Compacto' },
-  { value: 14, label: 'EstÃ¡ndar' },
+  { value: 14, label: 'Estándar' },
   { value: 20, label: 'Redondeado' },
   { value: 28, label: 'Pill' },
 ];
@@ -119,7 +119,7 @@ const CATEGORIES = ['Ayuda', 'FAQ', 'Integraciones', 'Planes'];
 
 function newArtId() { return 'art-' + Math.random().toString(36).slice(2, 9); }
 
-// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sub-components ────────────────────────────────────────────────────────────
 function ToggleRow({ title, desc, checked, onChange }: {
   title: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
 }) {
@@ -160,7 +160,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main page ─────────────────────────────────────────────────────────────────
 type WidgetPageProps = { embedded?: boolean };
 
 export default function WidgetPage({ embedded = false }: WidgetPageProps) {
@@ -256,7 +256,9 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
     ? (AGENT_PHOTOS.find(p => p.id === cfg.agentPhoto)?.url ?? cfg.agentPhoto)
     : '';
 
-  const previewBg      = previewTheme === 'dark' ? cfg.darkBg      : cfg.lightBg;
+  const previewBg      = previewTheme === 'dark'
+    ? cfg.darkBg
+    : `linear-gradient(180deg, #0D1A12 0%, #152018 58%, ${cfg.lightSurface || '#FFFFFF'} 78%, ${cfg.lightSurface || '#FFFFFF'} 100%)`;
   const previewSurface = previewTheme === 'dark' ? cfg.darkSurface  : cfg.lightSurface;
   const previewText    = previewTheme === 'dark' ? '#F5F5F2'        : '#090F0A';
   const previewSub     = previewTheme === 'dark' ? 'rgba(233,237,233,0.5)' : 'rgba(9,15,10,0.45)';
@@ -272,13 +274,13 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
 
       <div className="widget-layout" style={{ display: 'grid', gap: 22, alignItems: 'start' }}>
 
-        {/* â”€â”€ Left: Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Left: Settings ───────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
           {/* 1. General */}
           <div className="card">
             <STitle>General</STitle>
-            <ToggleRow title="Widget activo" desc="Cuando estÃ¡ inactivo el chat no aparece en tu sitio" checked={cfg.active} onChange={v => set('active', v)} />
+            <ToggleRow title="Widget activo" desc="Cuando está inactivo el chat no aparece en tu sitio" checked={cfg.active} onChange={v => set('active', v)} />
             <div className="field" style={{ marginTop: 12 }}>
               <label className="label">Tema del widget</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -300,16 +302,16 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
             </div>
             <div style={{ paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">TÃ­tulo principal</label>
+                <label className="label">Título principal</label>
                 <input className="input" value={cfg.title} placeholder="Hola soy ORQO" onChange={e => set('title', e.target.value)} />
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">SubtÃ­tulo / label</label>
-                <input className="input" value={cfg.subtitle} placeholder="Tu Asistente de OrquestaciÃ³n" onChange={e => set('subtitle', e.target.value)} />
+                <label className="label">Subtítulo / label</label>
+                <input className="input" value={cfg.subtitle} placeholder="Tu Asistente de Orquestación" onChange={e => set('subtitle', e.target.value)} />
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label className="label">Placeholder del input de chat</label>
-                <input className="input" value={cfg.placeholder} placeholder="Â¿En quÃ© te puedo ayudar?" onChange={e => set('placeholder', e.target.value)} />
+                <input className="input" value={cfg.placeholder} placeholder="¿En qué te puedo ayudar?" onChange={e => set('placeholder', e.target.value)} />
               </div>
             </div>
           </div>
@@ -336,7 +338,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                   ))}
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
-                  <label className="label">O URL personalizada (PNG/SVG/ICO â€” 48Ã—48 recomendado)</label>
+                  <label className="label">O URL personalizada (PNG/SVG/ICO — 48×48 recomendado)</label>
                   <input className="input" type="url" placeholder="https://midominio.com/favicon.png" value={cfg.faviconUrl}
                     onChange={e => { set('faviconUrl', e.target.value); set('faviconPreset', ''); }} />
                 </div>
@@ -374,17 +376,17 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 16 }}>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">Ventana â€” {Math.round(cfg.windowOpacity * 100)}%</label>
+                <label className="label">Ventana — {Math.round(cfg.windowOpacity * 100)}%</label>
                 <input type="range" min={0.5} max={1} step={0.05} value={cfg.windowOpacity} onChange={e => set('windowOpacity', Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--acc)' }} />
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">BotÃ³n â€” {Math.round(cfg.buttonOpacity * 100)}%</label>
+                <label className="label">Botón — {Math.round(cfg.buttonOpacity * 100)}%</label>
                 <input type="range" min={0.5} max={1} step={0.05} value={cfg.buttonOpacity} onChange={e => set('buttonOpacity', Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--acc)' }} />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">TipografÃ­a</label>
+                <label className="label">Tipografía</label>
                 <select className="input" value={cfg.fontFamily} onChange={e => set('fontFamily', e.target.value)}>
                   {FONT_OPTIONS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                 </select>
@@ -404,26 +406,26 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
             </div>
           </div>
 
-          {/* 4. PosiciÃ³n */}
+          {/* 4. Posición */}
           <div className="card">
-            <STitle>PosiciÃ³n</STitle>
+            <STitle>Posición</STitle>
             <select className="input" value={cfg.position} onChange={e => set('position', e.target.value)}>
               {POSITIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
           </div>
 
-          {/* 5. ArtÃ­culos */}
+          {/* 5. Artículos */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <STitle>ArtÃ­culos de ayuda</STitle>
+              <STitle>Artículos de ayuda</STitle>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowAdd(v => !v)}>
-                {showAdd ? 'âœ• Cancelar' : '+ Agregar'}
+                {showAdd ? '✕ Cancelar' : '+ Agregar'}
               </button>
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--g05)', background: 'var(--g02)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: 14, lineHeight: 1.6 }}>
-              <strong style={{ color: 'var(--g06)' }}>Estructura:</strong> id Â· tÃ­tulo Â· categorÃ­a Â· fecha Â· cuerpo HTML.{' '}
-              Marca con <strong>â˜… Inicio</strong> los que aparecen en la pantalla principal (mÃ¡x. 6).
+              <strong style={{ color: 'var(--g06)' }}>Estructura:</strong> id · título · categoría · fecha · cuerpo HTML.{' '}
+              Marca con <strong>★ Inicio</strong> los que aparecen en la pantalla principal (máx. 6).
             </div>
 
             {/* Add form */}
@@ -435,25 +437,25 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                     <input className="input" placeholder="mi-articulo" value={newArt.id} onChange={e => setNewArt(p => ({ ...p, id: e.target.value }))} />
                   </div>
                   <div className="field" style={{ marginBottom: 0 }}>
-                    <label className="label">CategorÃ­a</label>
+                    <label className="label">Categoría</label>
                     <select className="input" value={newArt.category} onChange={e => setNewArt(p => ({ ...p, category: e.target.value }))}>
                       {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
-                  <label className="label">TÃ­tulo</label>
-                  <input className="input" placeholder="TÃ­tulo del artÃ­culo" value={newArt.title} onChange={e => setNewArt(p => ({ ...p, title: e.target.value }))} />
+                  <label className="label">Título</label>
+                  <input className="input" placeholder="Título del artículo" value={newArt.title} onChange={e => setNewArt(p => ({ ...p, title: e.target.value }))} />
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label className="label">Fecha</label>
-                  <input className="input" placeholder="Actualizado hace 2 dÃ­as" value={newArt.date} onChange={e => setNewArt(p => ({ ...p, date: e.target.value }))} />
+                  <input className="input" placeholder="Actualizado hace 2 días" value={newArt.date} onChange={e => setNewArt(p => ({ ...p, date: e.target.value }))} />
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label className="label">Cuerpo (HTML)</label>
-                  <textarea className="input input-mono" rows={5} placeholder="<p>Contenidoâ€¦</p>" value={newArt.body} onChange={e => setNewArt(p => ({ ...p, body: e.target.value }))} style={{ fontSize: 12 }} />
+                  <textarea className="input input-mono" rows={5} placeholder="<p>Contenido…</p>" value={newArt.body} onChange={e => setNewArt(p => ({ ...p, body: e.target.value }))} style={{ fontSize: 12 }} />
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={addArt} style={{ alignSelf: 'flex-end' }}>Agregar artÃ­culo</button>
+                <button className="btn btn-primary btn-sm" onClick={addArt} style={{ alignSelf: 'flex-end' }}>Agregar artículo</button>
               </div>
             )}
 
@@ -464,25 +466,25 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.title}</div>
-                      <div style={{ fontSize: 11, color: 'var(--g05)' }}>{art.category} Â· {art.date}</div>
+                      <div style={{ fontSize: 11, color: 'var(--g05)' }}>{art.category} · {art.date}</div>
                     </div>
                     <button className={`btn btn-sm ${cfg.homeArticles.includes(art.id) ? 'btn-primary' : 'btn-ghost'}`} onClick={() => toggleHomeArt(art.id)} style={{ fontSize: 11, padding: '4px 8px' }}>
-                      {cfg.homeArticles.includes(art.id) ? 'â˜…' : 'â˜†'} Inicio
+                      {cfg.homeArticles.includes(art.id) ? '★' : '☆'} Inicio
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(editingId === art.id ? null : art.id)}>
                       {editingId === art.id ? 'Cerrar' : 'Editar'}
                     </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => deleteArt(art.id)} style={{ padding: '5px 9px' }}>âœ•</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteArt(art.id)} style={{ padding: '5px 9px' }}>✕</button>
                   </div>
                   {editingId === art.id && (
                     <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--g03)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ paddingTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
                         <div className="field" style={{ marginBottom: 0 }}>
-                          <label className="label">TÃ­tulo</label>
+                          <label className="label">Título</label>
                           <input className="input" value={art.title} onChange={e => updateArt(art.id, 'title', e.target.value)} />
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}>
-                          <label className="label">CategorÃ­a</label>
+                          <label className="label">Categoría</label>
                           <select className="input" value={art.category} onChange={e => updateArt(art.id, 'category', e.target.value)}>
                             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                           </select>
@@ -502,7 +504,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
               ))}
               {cfg.articles.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 20, color: 'var(--g05)', fontSize: 13 }}>
-                  Sin artÃ­culos. Guarda para cargar los predeterminados.
+                  Sin artículos. Guarda para cargar los predeterminados.
                 </div>
               )}
             </div>
@@ -512,16 +514,16 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
           <div className="card">
             <STitle>Comportamiento</STitle>
             <div className="field">
-              <label className="label">LÃ­mite de interacciones por usuario</label>
+              <label className="label">Límite de interacciones por usuario</label>
               <input className="input" type="number" min={1} max={500} value={cfg.interactionLimit} onChange={e => set('interactionLimit', Number(e.target.value))} style={{ maxWidth: 120 }} />
             </div>
-            <ToggleRow title='Mostrar "powered by ORQO"' desc="Muestra el crÃ©dito en el footer del widget" checked={cfg.showBranding} onChange={v => set('showBranding', v)} />
-            <ToggleRow title="Sonido de respuesta" desc="Reproduce un tono suave cada vez que el agente envÃ­a un mensaje" checked={cfg.soundEnabled} onChange={v => set('soundEnabled', v)} />
+            <ToggleRow title='Mostrar "powered by ORQO"' desc="Muestra el crédito en el footer del widget" checked={cfg.showBranding} onChange={v => set('showBranding', v)} />
+            <ToggleRow title="Sonido de respuesta" desc="Reproduce un tono suave cada vez que el agente envía un mensaje" checked={cfg.soundEnabled} onChange={v => set('soundEnabled', v)} />
           </div>
 
         </div>
 
-        {/* â”€â”€ Right: Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Right: Preview ───────────────────────────────────────── */}
         <div className="widget-preview-col" style={{ position: 'sticky', top: 28 }}>
           <div className="card">
             <STitle>Vista previa</STitle>
@@ -532,7 +534,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                 <button key={t} onClick={() => setPreviewTheme(t)}
                   className={`btn btn-sm ${previewTheme === t ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
-                  {t === 'dark' ? 'ðŸŒ™ Oscuro' : 'â˜€ï¸ Claro'}
+                  {t === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
                 </button>
               ))}
             </div>
@@ -561,7 +563,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                         </div>
                       </div>
                       <div style={{ fontSize: 8.5, color: previewSub, background: previewTheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)', borderRadius: 4, padding: '4px 6px' }}>
-                        {cfg.placeholder || 'Â¿En quÃ© te puedo ayudar?'}
+                        {cfg.placeholder || '¿En qué te puedo ayudar?'}
                       </div>
                     </div>
                   )}
@@ -583,18 +585,18 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
             {/* Summary */}
             <div style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 2, marginBottom: 14 }}>
               <div><strong style={{ color: 'var(--g07)' }}>Acento:</strong> <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: cfg.accentColor, marginRight: 4, verticalAlign: 'middle' }} />{cfg.accentColor}</div>
-              <div><strong style={{ color: 'var(--g07)' }}>PosiciÃ³n:</strong> {cfg.position}</div>
+              <div><strong style={{ color: 'var(--g07)' }}>Posición:</strong> {cfg.position}</div>
               <div><strong style={{ color: 'var(--g07)' }}>Tema:</strong> {cfg.themeMode}</div>
-              <div><strong style={{ color: 'var(--g07)' }}>ArtÃ­culos:</strong> {cfg.articles.length} ({cfg.homeArticles.length} en inicio)</div>
+              <div><strong style={{ color: 'var(--g07)' }}>Artículos:</strong> {cfg.articles.length} ({cfg.homeArticles.length} en inicio)</div>
               <div><strong style={{ color: 'var(--g07)' }}>Estado:</strong> <span style={{ color: cfg.active ? 'var(--acc)' : 'var(--red)' }}>{cfg.active ? 'Activo' : 'Inactivo'}</span></div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button className="btn btn-primary" onClick={doSave} style={{ justifyContent: 'center' }} disabled={saving}>
-                {saving ? 'Guardandoâ€¦' : saved ? 'âœ“ Guardado' : 'Guardar cambios'}
+                {saving ? 'Guardando…' : saved ? '✓ Guardado' : 'Guardar cambios'}
               </button>
               <button className="btn btn-ghost" onClick={saveAndPreview} style={{ justifyContent: 'center' }}>
-                Guardar y abrir vista previa â†’
+                Guardar y abrir vista previa →
               </button>
               <a
                 href="https://dashboard.orqo.io/api/public/widget"
@@ -603,7 +605,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                 className="btn btn-ghost"
                 style={{ justifyContent: 'center', fontSize: 11, color: 'var(--g04)' }}
               >
-                Ver respuesta API â†’
+                Ver respuesta API →
               </a>
             </div>
           </div>
@@ -627,5 +629,3 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
     </div>
   );
 }
-
-
