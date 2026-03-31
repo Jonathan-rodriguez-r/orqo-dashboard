@@ -2,6 +2,18 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.4] - 2026-03-31
+
+### Added
+
+- New `DELETE /api/conversations/[id]` endpoint for per-conversation deletion from dashboard.
+- Conversation deletion now writes audit trail entries (`CONVERSATION_DELETED`) to `audit_logs`.
+
+### Changed
+
+- Dashboard `Conversaciones` table now shows an explicit `Borrar` action per row.
+- Widget conversation delete control is now visually stronger (trash icon + high-contrast style) for better discoverability.
+
 ## [1.6.3] - 2026-03-31
 
 ### Added

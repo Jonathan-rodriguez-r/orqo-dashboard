@@ -542,7 +542,7 @@ function renderMsgsList() {
   el.innerHTML = convs.map(c => {
     const last = c.messages[c.messages.length - 1];
     const prev = last ? last.content.slice(0, 48) + (last.content.length > 48 ? '…' : '') : '—';
-    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span><button title="Borrar conversación" onclick="event.stopPropagation();deleteConversation('${c.id}')" style="margin-left:0.4rem;width:26px;height:26px;border-radius:7px;border:1px solid rgba(233,237,233,0.12);background:transparent;color:rgba(233,237,233,0.55);cursor:pointer;line-height:1;">x</button></div>`;
+    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span><button title="Borrar conversación" aria-label="Borrar conversación" onclick="event.stopPropagation();deleteConversation('${c.id}')" style="margin-left:0.42rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(220,72,72,0.45);background:rgba(220,72,72,0.14);color:rgba(255,153,153,0.95);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg></button></div>`;
   }).join('');
 }
 

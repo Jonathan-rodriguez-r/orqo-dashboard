@@ -50,6 +50,17 @@ function WidgetIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14h10l1-14" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 const CHANNEL_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   whatsapp: { label: 'WhatsApp', color: '#25D366', icon: <WhatsAppIcon /> },
   instagram: { label: 'Instagram', color: '#E1306C', icon: <InstagramIcon /> },
@@ -182,6 +193,7 @@ export default function ConversationsPage() {
   const [search, setSearch] = useState('');
   const [channel, setChannel] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState('');
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
 
@@ -262,6 +274,36 @@ export default function ConversationsPage() {
       setDetailError(e?.message ?? 'Error cargando detalle');
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function deleteConversation(conv: Conv) {
+    const label = conv.conv_id || conv.user_name || 'esta conversación';
+    const ok = window.confirm(`¿Seguro que quieres borrar ${label}? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+
+    setDeletingId(conv._id);
+    try {
+      const res = await fetch(`/api/conversations/${conv._id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'No fue posible borrar la conversación');
+
+      if (detailConv?._id === conv._id) {
+        setDetailOpen(false);
+        setDetailConv(null);
+        setDetailMessages([]);
+      }
+
+      const nextPage = convs.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) {
+        setPage(nextPage);
+      } else {
+        load(nextPage, search, channel);
+      }
+    } catch (e: any) {
+      window.alert(e?.message || 'Error al borrar conversación');
+    } finally {
+      setDeletingId('');
     }
   }
 
@@ -350,18 +392,19 @@ export default function ConversationsPage() {
                 <th className="hide-md" style={{ width: 64 }}>Msgs</th>
                 <th>Estado</th>
                 <th style={{ width: 60 }}>Hace</th>
+                <th style={{ width: 90 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', color: 'var(--g05)', padding: 40 }}>
+                  <td colSpan={11} style={{ textAlign: 'center', color: 'var(--g05)', padding: 40 }}>
                     Cargando...
                   </td>
                 </tr>
               ) : convs.length === 0 ? (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <div className="empty">
                       <div className="empty-icon">Chat</div>
                       <div className="empty-text">Sin conversaciones para estos filtros</div>
@@ -450,6 +493,25 @@ export default function ConversationsPage() {
 
                     <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--g05)' }}>
                       {relTime(c.updatedAt ?? Date.now())}
+                    </td>
+
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => deleteConversation(c)}
+                        disabled={deletingId === c._id}
+                        title="Borrar conversación"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          color: 'var(--red)',
+                          borderColor: 'rgba(255,107,107,0.25)',
+                        }}
+                      >
+                        <TrashIcon />
+                        {deletingId === c._id ? '...' : 'Borrar'}
+                      </button>
                     </td>
                   </tr>
                 ))

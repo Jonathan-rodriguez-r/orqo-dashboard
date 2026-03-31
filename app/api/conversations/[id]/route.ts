@@ -1,5 +1,8 @@
 import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { actorFromRequest, log } from '@/lib/logger';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -125,6 +128,67 @@ export async function GET(_req: Request, ctx: RouteContext) {
       messages,
       source,
     });
+  } catch (e: any) {
+    return Response.json({ error: e?.message ?? 'Internal error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request, ctx: RouteContext) {
+  const session = await getSession();
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasPermission(session.permissions, 'conversations.delete')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  try {
+    const { id } = await ctx.params;
+    if (!ObjectId.isValid(id)) {
+      return Response.json({ error: 'Invalid id' }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const _id = new ObjectId(id);
+    const existing = await db.collection('conversations').findOne({ _id });
+
+    if (!existing) {
+      return Response.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    const result = await db.collection('conversations').deleteOne({ _id });
+    if (!result.deletedCount) {
+      return Response.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    await log(db, {
+      level: 'WARN',
+      severity: 'MEDIUM',
+      category: 'conversation',
+      action: 'CONVERSATION_DELETED',
+      message: `${session.email} elimino la conversacion ${existing?.conv_id ?? id}`,
+      actor: actorFromRequest(req, { id: session.sub, email: session.email, role: session.role }),
+      target: {
+        type: 'conversation',
+        id,
+        label: String(existing?.conv_id ?? id),
+      },
+      metadata: {
+        before: {
+          conv_id: existing?.conv_id ?? null,
+          user_name: existing?.user_name ?? null,
+          user_email: existing?.user_email ?? null,
+          channel: existing?.channel ?? null,
+          status: existing?.status ?? null,
+          updatedAt: existing?.updatedAt ?? null,
+        },
+      },
+      http: {
+        method: 'DELETE',
+        path: `/api/conversations/${id}`,
+        statusCode: 200,
+      },
+    });
+
+    return Response.json({ ok: true });
   } catch (e: any) {
     return Response.json({ error: e?.message ?? 'Internal error' }, { status: 500 });
   }
