@@ -2,6 +2,17 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.5] - 2026-03-31
+
+### Added
+
+- Drag and drop support in web widget chat (`screen-chat`) for files, images, and audio attachments.
+- Visual drop overlay hint inside chat while dragging files.
+
+### Changed
+
+- Attachment picker now auto-detects dropped file type (`image`, `audio`, `file`) and enforces a max of 8 pending attachments per message.
+
 ## [1.6.4] - 2026-03-31
 
 ### Added
