@@ -51,6 +51,7 @@ export type ProviderAttempt = {
   model: string;
   status: 'ok' | 'error';
   reason?: string;
+  errorType?: 'auth' | 'quota' | 'model_not_found' | 'invalid_request' | 'server' | 'network' | 'unknown';
   isQuotaOrTokens?: boolean;
 };
 
@@ -126,16 +127,19 @@ export async function generateAgentReply(args: {
         fallbackType: 'none' as const,
         errors,
         attempts: [...attempts, { provider: candidate.provider, model: candidate.model, status: 'ok' as const }],
+        errorSummary: summarizeAttemptErrors(attempts),
       };
     } catch (err: any) {
       const reason = err?.message ?? 'error desconocido';
+      const errorType = classifyProviderError(reason);
       errors.push(`${candidate.provider}/${candidate.model}: ${reason}`);
       attempts.push({
         provider: candidate.provider,
         model: candidate.model,
         status: 'error',
         reason,
-        isQuotaOrTokens: isQuotaOrTokenError(reason),
+        errorType,
+        isQuotaOrTokens: errorType === 'quota',
       });
     }
   }
@@ -169,6 +173,7 @@ export async function generateAgentReply(args: {
       fallbackType: 'free_model' as const,
       errors,
       attempts: [...attempts, { provider: 'openrouter-free', model: freeFallback.model, status: 'ok' as const }],
+      errorSummary: summarizeAttemptErrors(attempts),
     };
   }
 
@@ -194,6 +199,7 @@ export async function generateAgentReply(args: {
       fallbackType: 'safe_message' as const,
       errors,
       attempts,
+      errorSummary: summarizeAttemptErrors(attempts),
     };
   }
 
@@ -210,6 +216,62 @@ function isQuotaOrTokenError(message: string) {
     m.includes('credits') ||
     m.includes('token')
   );
+}
+
+function classifyProviderError(message: string): ProviderAttempt['errorType'] {
+  const m = String(message || '').toLowerCase();
+  if (
+    m.includes('unauthorized') ||
+    m.includes('invalid api key') ||
+    m.includes('api key not valid') ||
+    m.includes('incorrect api key') ||
+    m.includes('authentication')
+  ) return 'auth';
+
+  if (isQuotaOrTokenError(m)) return 'quota';
+
+  if (
+    m.includes('not found') ||
+    m.includes('does not exist') ||
+    m.includes('not supported for generatecontent') ||
+    m.includes('model not found')
+  ) return 'model_not_found';
+
+  if (
+    m.includes('invalid request') ||
+    m.includes('bad request') ||
+    m.includes('unsupported') ||
+    m.includes('parameter')
+  ) return 'invalid_request';
+
+  if (
+    m.includes('timeout') ||
+    m.includes('network') ||
+    m.includes('fetch failed') ||
+    m.includes('connection')
+  ) return 'network';
+
+  if (
+    m.includes('internal server error') ||
+    m.includes('service unavailable') ||
+    m.includes('503') ||
+    m.includes('500')
+  ) return 'server';
+
+  return 'unknown';
+}
+
+function summarizeAttemptErrors(attempts: ProviderAttempt[]) {
+  const failed = attempts.filter((a) => a.status === 'error');
+  const byType: Record<string, number> = {};
+  for (const f of failed) {
+    const key = f.errorType || 'unknown';
+    byType[key] = (byType[key] || 0) + 1;
+  }
+  return {
+    failedAttempts: failed.length,
+    byType,
+  };
 }
 
 async function readWorkspaceSettings(db: Db, workspaceId?: string): Promise<WorkspaceSettings> {

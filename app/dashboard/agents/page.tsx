@@ -223,6 +223,19 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
+  function summarizeAttempts(attempts: any[]) {
+    if (!Array.isArray(attempts) || attempts.length === 0) return '';
+    const failed = attempts.filter((a) => a?.status === 'error');
+    if (failed.length === 0) return '';
+    const byType: Record<string, number> = {};
+    for (const f of failed) {
+      const t = String(f?.errorType || 'unknown');
+      byType[t] = (byType[t] || 0) + 1;
+    }
+    const parts = Object.entries(byType).map(([k, v]) => `${k}:${v}`);
+    return `fallos(${parts.join(', ')})`;
+  }
+
   useEffect(() => {
     setMessages([{ role: 'assistant', content: greeting }]);
     setInput('');
@@ -269,7 +282,7 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
         {
           role: 'assistant',
           content: data.reply || 'No hubo respuesta del modelo.',
-          meta: `${data.provider || 'n/a'} / ${data.model || 'n/a'}`,
+          meta: `${data.provider || 'n/a'} / ${data.model || 'n/a'}${summarizeAttempts(data.attempts) ? ` · ${summarizeAttempts(data.attempts)}` : ''}`,
         },
       ]);
     } catch (err: any) {
