@@ -2,6 +2,18 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.3] - 2026-03-31
+
+### Added
+
+- Widget chat now supports pending attachments for images, files, and voice notes (`MediaRecorder`) with inline attachment chips.
+- Messages list now includes per-conversation delete (`x`) to remove chats one by one from widget runtime history.
+
+### Changed
+
+- `POST /api/widget/reply` now accepts and sanitizes `attachments`, and injects attachment context into inference payloads.
+- Widget conversation persistence now stores attachment metadata on user turns in `conversations`.
+
 ## [1.6.2] - 2026-03-31
 
 ### Added

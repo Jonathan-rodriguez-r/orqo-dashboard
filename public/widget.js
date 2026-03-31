@@ -53,6 +53,11 @@ let isOpen = false, isMax = false;
 let curTab = 'home', curScreen = 'home';
 let activeConvId = null;
 let pendingSugg = '';
+let pendingAttachments = [];
+let mediaRecorder = null;
+let recordingStream = null;
+let recordingChunks = [];
+let isRecordingVoice = false;
 
 const S = {
   load: () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } },
@@ -65,6 +70,181 @@ const S = {
   remaining: () => Math.max(0, TOTAL_INT - S.usedInt()),
 };
 
+function bytesToLabel(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function makeAttachment(file, kind) {
+  return {
+    kind: kind || 'file',
+    name: String(file?.name || `adjunto-${Date.now()}`),
+    type: String(file?.type || 'application/octet-stream'),
+    size: Number(file?.size || 0),
+  };
+}
+
+function describeAttachments(attachments) {
+  if (!attachments || !attachments.length) return '';
+  const names = attachments.map(a => a.name).join(', ');
+  return `Adjuntos: ${names}`;
+}
+
+function attachmentBadge(attachment) {
+  const icon = attachment.kind === 'image' ? '[IMG]' : attachment.kind === 'audio' ? '[AUD]' : '[FILE]';
+  return `<div style="display:flex;align-items:center;gap:0.42rem;padding:0.38rem 0.55rem;border-radius:8px;background:rgba(233,237,233,0.06);border:1px solid rgba(233,237,233,0.08);max-width:100%;">
+    <span style="font-size:0.76rem;line-height:1;">${icon}</span>
+    <span style="font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">${escHtml(attachment.name)}</span>
+    <span style="font-size:0.62rem;opacity:0.65;white-space:nowrap;">${escHtml(bytesToLabel(attachment.size))}</span>
+  </div>`;
+}
+
+function getPendingWrap() {
+  let wrap = document.getElementById('chat-attachments');
+  if (wrap) return wrap;
+  const box = document.querySelector('.chat-box');
+  if (!box) return null;
+  wrap = document.createElement('div');
+  wrap.id = 'chat-attachments';
+  wrap.style.display = 'none';
+  wrap.style.gap = '0.35rem';
+  wrap.style.flexWrap = 'wrap';
+  wrap.style.padding = '0.55rem 0.7rem 0.15rem';
+  wrap.style.alignItems = 'center';
+  wrap.style.borderBottom = '1px solid rgba(233,237,233,0.08)';
+  box.insertBefore(wrap, box.firstChild);
+  return wrap;
+}
+
+function renderPendingAttachments() {
+  const wrap = getPendingWrap();
+  if (!wrap) return;
+  if (!pendingAttachments.length) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = pendingAttachments.map((a, idx) => `
+    <div style="display:flex;align-items:center;gap:0.35rem;padding:0.35rem 0.5rem;border-radius:8px;background:rgba(44,185,120,0.10);border:1px solid rgba(44,185,120,0.25);max-width:100%;">
+      <span style="font-size:0.66rem;">${a.kind === 'image' ? '[IMG]' : a.kind === 'audio' ? '[AUD]' : '[FILE]'}</span>
+      <span style="font-size:0.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:145px;">${escHtml(a.name)}</span>
+      <button type="button" onclick="removePendingAttachment(${idx})" title="Quitar" style="background:none;border:none;color:inherit;opacity:0.8;cursor:pointer;padding:0 0.2rem;font-size:0.75rem;line-height:1;">x</button>
+    </div>
+  `).join('');
+}
+
+function removePendingAttachment(index) {
+  if (index < 0 || index >= pendingAttachments.length) return;
+  pendingAttachments.splice(index, 1);
+  renderPendingAttachments();
+}
+
+async function deleteConversation(convId) {
+  const convs = S.convs();
+  const conv = convs.find(c => c.id === convId);
+  if (!conv) return;
+  const ok = window.confirm(`¿Borrar la conversación "${conv.title}"?`);
+  if (!ok) return;
+
+  const next = convs.filter(c => c.id !== convId);
+  S.saveConvs(next);
+
+  try {
+    await fetch(API_BASE + '/api/widget/conversations', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visitorId: convId, agentId: scriptAgentId || 'default' }),
+    });
+  } catch (_) {}
+
+  if (activeConvId === convId) {
+    activeConvId = null;
+    const chatMsgs = document.getElementById('chat-msgs');
+    if (chatMsgs) chatMsgs.innerHTML = '';
+    showScreen('messages', false);
+    hlTab('messages');
+  }
+
+  if (!next.length) {
+    const badge = document.getElementById('t-badge');
+    if (badge) badge.style.display = 'none';
+    const dot = document.getElementById('tab-msgs-dot');
+    if (dot) dot.style.display = 'none';
+  }
+
+  renderHome();
+  renderMsgsList();
+  updateTokenUI();
+}
+
+function onPickFiles(files, kind) {
+  const list = Array.from(files || []);
+  if (!list.length) return;
+  list.slice(0, 5).forEach((f) => {
+    pendingAttachments.push(makeAttachment(f, kind));
+  });
+  renderPendingAttachments();
+}
+
+function openFilePicker(accept, kind) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  if (accept) input.accept = accept;
+  input.multiple = true;
+  input.onchange = () => onPickFiles(input.files, kind);
+  input.click();
+}
+
+async function toggleVoiceRecording() {
+  const voiceBtn = document.getElementById('chat-att-voice');
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    window.alert('Tu navegador no soporta grabación de voz.');
+    return;
+  }
+
+  if (!isRecordingVoice) {
+    try {
+      recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(recordingStream);
+      recordingChunks = [];
+      mediaRecorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) recordingChunks.push(ev.data);
+      };
+      mediaRecorder.onstop = () => {
+        const size = recordingChunks.reduce((n, c) => n + (c.size || 0), 0);
+        pendingAttachments.push({
+          kind: 'audio',
+          name: `voz-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`,
+          type: 'audio/webm',
+          size,
+        });
+        renderPendingAttachments();
+        if (recordingStream) {
+          recordingStream.getTracks().forEach(t => t.stop());
+          recordingStream = null;
+        }
+        mediaRecorder = null;
+        recordingChunks = [];
+      };
+      mediaRecorder.start();
+      isRecordingVoice = true;
+      if (voiceBtn) voiceBtn.style.color = '#2CB978';
+    } catch {
+      window.alert('No fue posible iniciar la grabación de voz.');
+    }
+    return;
+  }
+
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecordingVoice = false;
+  if (voiceBtn) voiceBtn.style.color = '';
+}
+
 function toggleWidget() {
   isOpen = !isOpen;
   const win = document.getElementById('orqo-window');
@@ -75,6 +255,7 @@ function toggleWidget() {
     document.getElementById('t-badge').style.display = 'none';
     renderHome(); renderHomeArticles(); renderMsgsList(); updateTokenUI();
   } else {
+    if (isRecordingVoice) toggleVoiceRecording();
     win.classList.add('w-hidden');
     btn.classList.remove('open');
   }
@@ -93,6 +274,10 @@ function clearAllChats() {
 
   activeConvId = null;
   pendingSugg = '';
+  pendingAttachments = [];
+  renderPendingAttachments();
+  if (isRecordingVoice && mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  isRecordingVoice = false;
 
   const chatMsgs = document.getElementById('chat-msgs');
   if (chatMsgs) chatMsgs.innerHTML = '';
@@ -109,8 +294,8 @@ function clearAllChats() {
   hlTab('messages');
 }
 
-document.getElementById('btn-close').onclick = () => { isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
-document.getElementById('btn-min').onclick  = () => { isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
+document.getElementById('btn-close').onclick = () => { if (isRecordingVoice) toggleVoiceRecording(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
+document.getElementById('btn-min').onclick  = () => { if (isRecordingVoice) toggleVoiceRecording(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
 document.getElementById('btn-clear').onclick = () => { clearAllChats(); };
 document.getElementById('btn-max').onclick  = () => {
   isMax = !isMax;
@@ -166,6 +351,7 @@ function acceptDisclaimer() {
 
 function declineDisclaimer() {
   pendingSugg = '';
+  if (isRecordingVoice) toggleVoiceRecording();
   // Close the widget entirely
   isOpen = false;
   document.getElementById('orqo-window').classList.add('w-hidden');
@@ -190,6 +376,8 @@ function startNewConv(initial) {
 
 function openConv(id, initial) {
   activeConvId = id;
+  pendingAttachments = [];
+  renderPendingAttachments();
   renderChatMsgs(id);
   showScreen('chat', true, 'ORQO Agent');
   hlTab('messages');
@@ -208,19 +396,23 @@ function renderChatMsgs(convId) {
   const c = document.getElementById('chat-msgs');
   c.innerHTML = '';
   if (!conv) return;
-  conv.messages.forEach(m => appendBubble(m.role, m.content, m.timestamp, false));
+  conv.messages.forEach(m => appendBubble(m.role, m.content, m.timestamp, false, m.attachments || []));
   scrollMsgs();
 }
 
-function appendBubble(role, content, ts, anim) {
+function appendBubble(role, content, ts, anim, attachments) {
   const c = document.getElementById('chat-msgs');
   const w = document.createElement('div');
   w.className = 'bub-wrap ' + role;
   const t = ts ? new Date(ts).toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'}) : '';
+  const filesHtml = Array.isArray(attachments) && attachments.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:${content ? '0.45rem' : '0'};">${attachments.map(attachmentBadge).join('')}</div>`
+    : '';
+  const textHtml = content ? `<div class="bub">${escHtml(content)}</div>` : '';
   if (role === 'bot') {
-    w.innerHTML = `<div class="bub-av">${NOTCH_SM}</div><div><div class="bub">${escHtml(content)}</div><div class="bub-time">${t}</div></div>`;
+    w.innerHTML = `<div class="bub-av">${NOTCH_SM}</div><div>${textHtml}${filesHtml}<div class="bub-time">${t}</div></div>`;
   } else {
-    w.innerHTML = `<div><div class="bub">${escHtml(content)}</div><div class="bub-time">${t}</div></div>`;
+    w.innerHTML = `<div>${textHtml}${filesHtml}<div class="bub-time">${t}</div></div>`;
   }
   c.appendChild(w);
   if (anim) scrollMsgs();
@@ -273,7 +465,8 @@ function scrollMsgs() { const c = document.getElementById('chat-msgs'); if (c) s
 function sendMessage(override) {
   const ta = document.getElementById('chat-ta');
   const text = override || ta.value.trim();
-  if (!text || !activeConvId) return;
+  const attachments = pendingAttachments.slice();
+  if ((!text && !attachments.length) || !activeConvId) return;
   if (S.remaining() <= 0) {
     addBotMsg(activeConvId, 'Has alcanzado el límite de interacciones. Contáctanos al +57 301 321 1669 para continuar.');
     return;
@@ -281,24 +474,27 @@ function sendMessage(override) {
   const convs = S.convs();
   const conv = convs.find(c => c.id === activeConvId);
   if (!conv) return;
-  const m = { role: 'user', content: text, timestamp: new Date().toISOString() };
+  const contentForStore = text || describeAttachments(attachments);
+  const m = { role: 'user', content: contentForStore, timestamp: new Date().toISOString(), attachments };
   conv.messages.push(m);
-  if (conv.messages.filter(x => x.role === 'user').length === 1) conv.title = text.slice(0, 42);
+  if (conv.messages.filter(x => x.role === 'user').length === 1) conv.title = contentForStore.slice(0, 42);
   S.saveConvs(convs);
-  appendBubble('user', text, m.timestamp, true);
+  appendBubble('user', text, m.timestamp, true, attachments);
   ta.value = ''; ta.style.height = 'auto';
+  pendingAttachments = [];
+  renderPendingAttachments();
   updateTokenUI(); showTyping();
   (async () => {
-    const reply = await getBotReplyFromApi(activeConvId, text, conv.messages);
+    const reply = await getBotReplyFromApi(activeConvId, contentForStore, conv.messages, attachments);
     removeTyping();
-    addBotMsg(activeConvId, reply || getBotReply(text));
+    addBotMsg(activeConvId, reply || getBotReply(text || contentForStore));
     updateTokenUI(); renderHome();
     const dot = document.getElementById('tab-msgs-dot');
     if (dot) dot.style.display = 'none';
   })();
 }
 
-async function getBotReplyFromApi(convId, userText, messages) {
+async function getBotReplyFromApi(convId, userText, messages, attachments) {
   try {
     const history = (messages || [])
       .slice(0, -1)
@@ -316,6 +512,7 @@ async function getBotReplyFromApi(convId, userText, messages) {
         agentToken: scriptAgentToken || '',
         message: userText,
         history,
+        attachments: Array.isArray(attachments) ? attachments : [],
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -345,7 +542,7 @@ function renderMsgsList() {
   el.innerHTML = convs.map(c => {
     const last = c.messages[c.messages.length - 1];
     const prev = last ? last.content.slice(0, 48) + (last.content.length > 48 ? '…' : '') : '—';
-    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span></div>`;
+    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span><button title="Borrar conversación" onclick="event.stopPropagation();deleteConversation('${c.id}')" style="margin-left:0.4rem;width:26px;height:26px;border-radius:7px;border:1px solid rgba(233,237,233,0.12);background:transparent;color:rgba(233,237,233,0.55);cursor:pointer;line-height:1;">x</button></div>`;
   }).join('');
 }
 
@@ -525,6 +722,21 @@ const chatTa = document.getElementById('chat-ta');
 chatTa.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 96) + 'px'; });
 chatTa.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
+const attBtns = Array.from(document.querySelectorAll('.chat-actions .chat-att'));
+if (attBtns[0]) {
+  attBtns[0].id = 'chat-att-file';
+  attBtns[0].onclick = () => openFilePicker('', 'file');
+}
+if (attBtns[1]) {
+  attBtns[1].id = 'chat-att-image';
+  attBtns[1].onclick = () => openFilePicker('image/*', 'image');
+}
+if (attBtns[2]) {
+  attBtns[2].id = 'chat-att-voice';
+  attBtns[2].onclick = () => { toggleVoiceRecording(); };
+}
+renderPendingAttachments();
+
 // Expose handlers used by inline onclick attributes in embedded HTML.
 window.toggleWidget = toggleWidget;
 window.switchTab = switchTab;
@@ -535,6 +747,8 @@ window.startWithSugg = startWithSugg;
 window.sendMessage = sendMessage;
 window.openConv = openConv;
 window.goToArticle = goToArticle;
+window.deleteConversation = deleteConversation;
+window.removePendingAttachment = removePendingAttachment;
 
 updateTokenUI();
 if (S.convs().length > 0) {
@@ -716,3 +930,4 @@ if (S.convs().length > 0) {
   }
 })();
 })();
+

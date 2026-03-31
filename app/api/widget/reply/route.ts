@@ -14,12 +14,20 @@ type PersistedWidgetMessage = {
   role: 'user' | 'assistant';
   content: string;
   ts: number;
+  attachments?: WidgetAttachment[];
 };
 
 type UsageStats = {
   input: number;
   output: number;
   total: number;
+};
+
+type WidgetAttachment = {
+  kind: 'image' | 'file' | 'audio';
+  name: string;
+  type: string;
+  size: number;
 };
 
 export async function OPTIONS() {
@@ -40,6 +48,48 @@ function sanitizeHistory(historyRaw: any[]): ChatTurn[] {
     .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
     .map((m: any) => ({ role: m.role, content: String(m.content) }))
     .slice(-12);
+}
+
+function sanitizeAttachments(raw: any[]): WidgetAttachment[] {
+  return (raw || [])
+    .filter((a: any) => a && typeof a === 'object')
+    .map((a: any) => {
+      const kind: WidgetAttachment['kind'] =
+        a?.kind === 'audio' ? 'audio' : a?.kind === 'image' ? 'image' : 'file';
+      return {
+        kind,
+        name: String(a?.name ?? 'adjunto').slice(0, 200),
+        type: String(a?.type ?? 'application/octet-stream').slice(0, 120),
+        size: Number.isFinite(Number(a?.size)) ? Math.max(0, Number(a.size)) : 0,
+      };
+    })
+    .slice(0, 8);
+}
+
+function attachmentSummary(attachments: WidgetAttachment[]) {
+  if (!attachments.length) return '';
+  const byType = {
+    image: attachments.filter((a) => a.kind === 'image').length,
+    file: attachments.filter((a) => a.kind === 'file').length,
+    audio: attachments.filter((a) => a.kind === 'audio').length,
+  };
+  return [
+    'Adjuntos del usuario:',
+    byType.image ? `- imagenes: ${byType.image}` : '',
+    byType.file ? `- archivos: ${byType.file}` : '',
+    byType.audio ? `- notas de voz: ${byType.audio}` : '',
+    ...attachments.map((a) => `- ${a.kind}: ${a.name} (${a.type}, ${a.size} bytes)`),
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildMessageForInference(message: string, attachments: WidgetAttachment[]) {
+  const cleanMessage = String(message || '').trim();
+  if (!attachments.length) return cleanMessage;
+  const summary = attachmentSummary(attachments);
+  if (!cleanMessage) return summary;
+  return `${cleanMessage}\n\n${summary}`;
 }
 
 function historyForInference(history: ChatTurn[], message: string) {
@@ -102,8 +152,11 @@ export async function POST(req: Request) {
     const agentToken = String(body?.agentToken ?? '').trim();
     const message = String(body?.message ?? '').trim();
     const historyRaw = Array.isArray(body?.history) ? body.history : [];
+    const attachmentsRaw = Array.isArray(body?.attachments) ? body.attachments : [];
+    const attachments = sanitizeAttachments(attachmentsRaw);
+    const messageForModel = buildMessageForInference(message, attachments);
 
-    if (!message) return Response.json({ error: 'message is required' }, { status: 400, headers: CORS });
+    if (!messageForModel) return Response.json({ error: 'message is required' }, { status: 400, headers: CORS });
 
     const db = await getDb();
     const account = await db.collection('config').findOne({ _id: 'account' as any });
@@ -132,7 +185,7 @@ export async function POST(req: Request) {
     }
 
     const history = sanitizeHistory(historyRaw);
-    const modelHistory = historyForInference(history, message);
+    const modelHistory = historyForInference(history, messageForModel);
 
     let agentDoc: any = null;
     if (agentId && agentId !== 'default' && ObjectId.isValid(agentId)) {
@@ -172,7 +225,7 @@ export async function POST(req: Request) {
       db,
       workspaceId,
       agent,
-      message,
+      message: messageForModel,
       history: modelHistory,
     });
 
@@ -199,7 +252,7 @@ export async function POST(req: Request) {
     const usage = buildUsageEstimate({
       agent,
       history: modelHistory,
-      message,
+      message: messageForModel,
       reply: result.reply,
     });
 
@@ -211,7 +264,7 @@ export async function POST(req: Request) {
       const safeAgentId = agentId || 'default';
       const convId = `W-${visitorId.slice(0, 12)}-${safeAgentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '');
       const newTurns: PersistedWidgetMessage[] = [
-        { role: 'user', content: message, ts: nowMs },
+        { role: 'user', content: messageForModel, ts: nowMs, ...(attachments.length ? { attachments } : {}) },
         { role: 'assistant', content: result.reply, ts: nowMs + 1 },
       ];
 
