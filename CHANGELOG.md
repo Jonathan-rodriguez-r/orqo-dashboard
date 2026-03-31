@@ -12,6 +12,7 @@ All notable changes to this dashboard are documented in this file.
 - Agent web widget token lifecycle (`webWidgetToken`) for stronger embedding linkage.
 - Embed-script modal in Agents UI with `data-key`, `data-agent-id`, `data-agent-token` snippet.
 - Optional script-level agent binding in `public/widget.js` (`data-agent-id`, `data-agent-token`).
+- In-repo technical wiki bootstrap under `docs/wiki` and markdown project board under `docs/projects`.
 
 ### Changed
 
