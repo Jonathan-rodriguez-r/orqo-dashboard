@@ -12,6 +12,13 @@ type Settings = {
     multiModel: boolean; strategy: 'failover' | 'roundrobin' | 'single';
     concurrentMessages: number; activeProviders: string[];
   };
+  fallback: {
+    useFreeModels: boolean;
+    freeProviderApiKey: string;
+    freeModels: string[];
+    safeReplyEnabled: boolean;
+    safeReplyMessage: string;
+  };
 };
 
 const DEFAULT: Settings = {
@@ -22,6 +29,13 @@ const DEFAULT: Settings = {
     anthropic: { apiKey: '', model: 'claude-sonnet-4-6', enabled: false },
   },
   orchestration: { multiModel: false, strategy: 'failover', concurrentMessages: 50, activeProviders: [] },
+  fallback: {
+    useFreeModels: false,
+    freeProviderApiKey: '',
+    freeModels: ['meta-llama/llama-3.3-70b-instruct:free'],
+    safeReplyEnabled: true,
+    safeReplyMessage: 'Estoy con alta demanda y no pude procesar tu mensaje ahora mismo. Intenta nuevamente en unos minutos.',
+  },
 };
 
 type ProviderKey = 'google' | 'openai' | 'grok' | 'anthropic';
@@ -59,6 +73,7 @@ export default function OrchestrationPage({ embedded = false }: { embedded?: boo
         setSettings(prev => ({
           aiProviders: { ...prev.aiProviders, ...data.aiProviders },
           orchestration: { ...prev.orchestration, ...data.orchestration },
+          fallback: { ...prev.fallback, ...data.fallback },
         }));
       }
     }).catch(() => {});
@@ -69,6 +84,9 @@ export default function OrchestrationPage({ embedded = false }: { embedded?: boo
   }
   function setOrch<K extends keyof Settings['orchestration']>(field: K, value: Settings['orchestration'][K]) {
     setSettings(s => ({ ...s, orchestration: { ...s.orchestration, [field]: value } }));
+  }
+  function setFallback<K extends keyof Settings['fallback']>(field: K, value: Settings['fallback'][K]) {
+    setSettings(s => ({ ...s, fallback: { ...s.fallback, [field]: value } }));
   }
 
   const enabledProviders = PROVIDER_DEFS.filter(p => settings.aiProviders[p.id].enabled);
@@ -204,6 +222,77 @@ export default function OrchestrationPage({ embedded = false }: { embedded?: boo
             <label className="label">Mensajes concurrentes</label>
             <input className="input" type="number" min={1} max={500} value={settings.orchestration.concurrentMessages} onChange={e => setOrch('concurrentMessages', Number(e.target.value))} style={{ maxWidth: 120 }}/>
           </div>
+        </div>
+      </div>
+
+      {/* Section 3 — Fallback y resiliencia */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-title">Fallback y Resiliencia</div>
+        <p style={{ fontSize: 13, color: 'var(--g05)', margin: '4px 0 16px' }}>
+          Evita caidas del chat usando modelos gratuitos y un mensaje seguro cuando todos los proveedores fallan.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <ToggleRow
+            title="Usar fallback de modelos gratuitos (OpenRouter)"
+            desc="Se intentan modelos free cuando fallan los proveedores principales."
+            checked={settings.fallback.useFreeModels}
+            onChange={(v) => setFallback('useFreeModels', v)}
+          />
+
+          {settings.fallback.useFreeModels && (
+            <div style={{ paddingLeft: 16, borderLeft: '2px solid var(--acc)' }}>
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label className="label">API Key OpenRouter (fallback)</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={settings.fallback.freeProviderApiKey}
+                  onChange={(e) => setFallback('freeProviderApiKey', e.target.value)}
+                  placeholder="sk-or-..."
+                />
+                <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>
+                  Opcional si defines `OPENROUTER_API_KEY` o `ORQO_FREE_OPENROUTER_API_KEY` en servidor.
+                </div>
+              </div>
+              <div className="field">
+                <label className="label">Modelos gratuitos (uno por linea)</label>
+                <textarea
+                  className="input"
+                  style={{ minHeight: 88, resize: 'vertical' }}
+                  value={settings.fallback.freeModels.join('\n')}
+                  onChange={(e) =>
+                    setFallback(
+                      'freeModels',
+                      e.target.value
+                        .split('\n')
+                        .map((x) => x.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="meta-llama/llama-3.3-70b-instruct:free"
+                />
+              </div>
+            </div>
+          )}
+
+          <ToggleRow
+            title="Respuesta segura si todo falla"
+            desc="En lugar de error tecnico, responde un mensaje operativo controlado."
+            checked={settings.fallback.safeReplyEnabled}
+            onChange={(v) => setFallback('safeReplyEnabled', v)}
+          />
+
+          {settings.fallback.safeReplyEnabled && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label className="label">Mensaje de contingencia</label>
+              <textarea
+                className="input"
+                style={{ minHeight: 84, resize: 'vertical' }}
+                value={settings.fallback.safeReplyMessage}
+                onChange={(e) => setFallback('safeReplyMessage', e.target.value)}
+              />
+            </div>
+          )}
         </div>
       </div>
 

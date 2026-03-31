@@ -31,6 +31,15 @@ export async function POST(req: Request) {
       history,
     });
 
+    if (result.fallbackUsed || (Array.isArray(result.errors) && result.errors.length > 0)) {
+      await writeLog({
+        level: 'warn',
+        source: 'agent-preview',
+        msg: `Preview con degradacion (${result.fallbackType ?? 'none'})`,
+        detail: (result.errors ?? []).slice(-4).join(' | '),
+      });
+    }
+
     await writeLog({
       level: 'info',
       source: 'agent-preview',

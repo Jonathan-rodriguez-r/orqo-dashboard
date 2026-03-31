@@ -90,6 +90,15 @@ export async function POST(req: Request) {
       history,
     });
 
+    if (result.fallbackUsed || (Array.isArray(result.errors) && result.errors.length > 0)) {
+      await writeLog({
+        level: 'warn',
+        source: 'widget-reply',
+        msg: `Reply con degradacion (${result.fallbackType ?? 'none'})`,
+        detail: (result.errors ?? []).slice(-4).join(' | '),
+      }).catch(() => {});
+    }
+
     // Persist lightweight operational conversation for dashboard list.
     if (visitorId) {
       const now = new Date();

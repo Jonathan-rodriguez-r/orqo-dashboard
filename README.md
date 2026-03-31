@@ -40,7 +40,15 @@ Responsibilities:
 - Apply orchestration strategy (single/failover/round-robin)
 - Compose agent runtime prompt context
 - Call provider APIs (OpenAI, Anthropic, Gemini, Grok)
+- Execute resilient fallback chain (free models + safe reply)
 - Return normalized reply metadata (`provider`, `model`, `reply`)
+
+### Alerts and Observability
+
+- `lib/alerts.ts`: alert domain service with throttling and role-targeting
+- `app/api/settings/alerts`: workspace alert settings (events, recipients, dedup window)
+- `app/api/notifications`: role-filtered in-app notifications
+- `app/dashboard/settings/alerts`: operational alert control center for owners/ops
 
 ## Security and Governance
 
@@ -99,6 +107,7 @@ APP_URL=https://dashboard.orqo.io
 EMAIL_FROM=ORQO <noreply@orqo.io>
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
+OPENROUTER_API_KEY=... # optional free fallback for chat continuity
 ```
 
 ### Run
