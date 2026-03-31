@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
+import { randomBytes } from 'crypto';
 
 const DEFAULT_AGENT = {
   name: 'Asistente Informativo',
@@ -55,7 +56,13 @@ export async function GET() {
     // Seed default informative agent for new workspaces
     if (agents.length === 0) {
       const now = new Date();
-      const doc = { workspaceId: session.workspaceId, ...DEFAULT_AGENT, createdAt: now, updatedAt: now };
+      const doc = {
+        workspaceId: session.workspaceId,
+        ...DEFAULT_AGENT,
+        webWidgetToken: 'awt_' + randomBytes(18).toString('hex'),
+        createdAt: now,
+        updatedAt: now,
+      };
       const result = await db.collection('agents_v2').insertOne(doc);
       return Response.json([{
         _id: result.insertedId.toString(),
@@ -89,6 +96,7 @@ export async function POST(req: Request) {
         whatsapp: false, instagram: false, messenger: false,
         web: true, woocommerce: false, shopify: false,
       },
+      webWidgetToken: (body.channels?.web ?? true) ? ('awt_' + randomBytes(18).toString('hex')) : '',
       profile: body.profile ?? {
         systemPrompt: '', personality: 'professional',
         languages: ['auto'], responseLength: 'standard',
