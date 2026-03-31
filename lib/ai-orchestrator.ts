@@ -46,6 +46,14 @@ type ProviderCandidate = {
   apiKey: string;
 };
 
+export type ProviderAttempt = {
+  provider: string;
+  model: string;
+  status: 'ok' | 'error';
+  reason?: string;
+  isQuotaOrTokens?: boolean;
+};
+
 const DEFAULT_SETTINGS: WorkspaceSettings = {
   aiProviders: {
     google: { apiKey: '', model: 'gemini-2.0-flash', enabled: false },
@@ -83,6 +91,7 @@ export async function generateAgentReply(args: {
   const system = buildSystemPrompt(args.agent);
   const history = (args.history ?? []).slice(-12);
   const errors: string[] = [];
+  const attempts: ProviderAttempt[] = [];
 
   if (providers.length === 0) {
     errors.push('No hay proveedores de IA activos con API key configurada.');
@@ -116,9 +125,18 @@ export async function generateAgentReply(args: {
         fallbackUsed: false,
         fallbackType: 'none' as const,
         errors,
+        attempts: [...attempts, { provider: candidate.provider, model: candidate.model, status: 'ok' as const }],
       };
     } catch (err: any) {
-      errors.push(`${candidate.provider}/${candidate.model}: ${err?.message ?? 'error desconocido'}`);
+      const reason = err?.message ?? 'error desconocido';
+      errors.push(`${candidate.provider}/${candidate.model}: ${reason}`);
+      attempts.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        status: 'error',
+        reason,
+        isQuotaOrTokens: isQuotaOrTokenError(reason),
+      });
     }
   }
 
@@ -150,6 +168,7 @@ export async function generateAgentReply(args: {
       fallbackUsed: true,
       fallbackType: 'free_model' as const,
       errors,
+      attempts: [...attempts, { provider: 'openrouter-free', model: freeFallback.model, status: 'ok' as const }],
     };
   }
 
@@ -174,10 +193,23 @@ export async function generateAgentReply(args: {
       fallbackUsed: true,
       fallbackType: 'safe_message' as const,
       errors,
+      attempts,
     };
   }
 
   throw new Error(`Todos los proveedores fallaron. ${errors.join(' | ')}`);
+}
+
+function isQuotaOrTokenError(message: string) {
+  const m = String(message || '').toLowerCase();
+  return (
+    m.includes('quota') ||
+    m.includes('billing') ||
+    m.includes('insufficient') ||
+    m.includes('rate limit') ||
+    m.includes('credits') ||
+    m.includes('token')
+  );
 }
 
 async function readWorkspaceSettings(db: Db, workspaceId?: string): Promise<WorkspaceSettings> {

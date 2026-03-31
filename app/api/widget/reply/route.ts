@@ -90,6 +90,17 @@ export async function POST(req: Request) {
       history,
     });
 
+    for (const at of result.attempts ?? []) {
+      if (at.status === 'error') {
+        await writeLog({
+          level: at.isQuotaOrTokens ? 'error' : 'warn',
+          source: 'widget-reply',
+          msg: `Intento fallido ${at.provider}/${at.model}`,
+          detail: at.reason ?? 'error',
+        }).catch(() => {});
+      }
+    }
+
     if (result.fallbackUsed || (Array.isArray(result.errors) && result.errors.length > 0)) {
       await writeLog({
         level: 'warn',

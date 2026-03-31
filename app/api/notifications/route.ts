@@ -83,3 +83,19 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: false, error: 'id or markAllRead required' }, { status: 400 });
 }
+
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  if (!body?.id) return NextResponse.json({ ok: false, error: 'id required' }, { status: 400 });
+
+  const db = await getDb();
+  await db.collection('notifications').deleteOne({
+    _id: new ObjectId(body.id),
+    workspaceId: session.workspaceId,
+  });
+
+  return NextResponse.json({ ok: true });
+}

@@ -326,53 +326,31 @@ export default function DocsPage() {
   async function runDiag() {
     setDiagRunning(true);
     const results: DiagResult[] = [
-      { label: 'API pública (CORS + respuesta)', status: 'loading', detail: '' },
-      { label: 'Config en MongoDB', status: 'loading', detail: '' },
-      { label: 'Widget activo', status: 'loading', detail: '' },
-      { label: 'Endpoint privado (auth)', status: 'loading', detail: '' },
+      { label: 'Inicializando diagnóstico de servidor', status: 'loading', detail: '' },
     ];
     setDiagResults([...results]);
 
     try {
-      const t0 = Date.now();
-      const res = await fetch('/api/public/widget', { cache: 'no-store' });
-      const ms = Date.now() - t0;
-      if (res.ok) {
-        const data = await res.json();
-        results[0] = { label: results[0].label, status: 'ok', detail: `HTTP 200 en ${ms}ms · CORS OK` };
-        if (data._defaults) {
-          results[1] = { label: results[1].label, status: 'warn', detail: 'No hay config guardada — sirviendo defaults. Guarda cambios en Widget.' };
-        } else {
-          results[1] = { label: results[1].label, status: 'ok', detail: `Config encontrada · title: "${data.title ?? '?'}" · updatedAt: ${data.updatedAt ? new Date(data.updatedAt).toLocaleString('es') : '?'}` };
-        }
-        if (data.active === false) {
-          results[2] = { label: results[2].label, status: 'warn', detail: 'Widget marcado como INACTIVO. No se mostrará en orqo.io.' };
-        } else {
-          results[2] = { label: results[2].label, status: 'ok', detail: 'Widget activo — visible en orqo.io' };
-        }
-      } else {
-        results[0] = { label: results[0].label, status: 'error', detail: `HTTP ${res.status}` };
-        results[1] = { label: results[1].label, status: 'error', detail: 'No se pudo leer la config (API falló)' };
-        results[2] = { label: results[2].label, status: 'error', detail: 'No se pudo verificar' };
+      const res = await fetch('/api/docs/diagnostics', { method: 'POST', cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setDiagResults([{ label: 'Diagnóstico de servidor', status: 'error', detail: data?.error ?? `HTTP ${res.status}` }]);
+        setDiagRunning(false);
+        return;
       }
-    } catch (e: any) {
-      results[0] = { label: results[0].label, status: 'error', detail: `Error de red: ${e.message}. Posible CORS bloqueado.` };
-      results[1] = { label: results[1].label, status: 'error', detail: 'No se pudo leer (API inaccesible)' };
-      results[2] = { label: results[2].label, status: 'error', detail: 'No se pudo verificar' };
-    }
 
-    try {
-      const res = await fetch('/api/config/widget', { cache: 'no-store' });
-      if (res.ok) {
-        results[3] = { label: results[3].label, status: 'ok', detail: `HTTP ${res.status} — sesión activa y MongoDB responde` };
-      } else {
-        results[3] = { label: results[3].label, status: 'warn', detail: `HTTP ${res.status}` };
-      }
-    } catch (e: any) {
-      results[3] = { label: results[3].label, status: 'error', detail: `Error: ${e.message}` };
-    }
+      const mapped: DiagResult[] = Array.isArray(data.results)
+        ? data.results.map((r: any) => ({
+            label: String(r?.label ?? 'Check'),
+            status: (r?.status === 'ok' || r?.status === 'warn' || r?.status === 'error') ? r.status : 'warn',
+            detail: String(r?.detail ?? ''),
+          }))
+        : [];
 
-    setDiagResults([...results]);
+      setDiagResults(mapped);
+    } catch (e: any) {
+      setDiagResults([{ label: 'Diagnóstico de servidor', status: 'error', detail: `Error ejecutando diagnóstico: ${e.message}` }]);
+    }
     setDiagRunning(false);
   }
 

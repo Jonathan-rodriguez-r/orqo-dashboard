@@ -10,6 +10,10 @@ type AlertSettings = {
     NO_PROVIDER_CONFIGURED: boolean;
     ALL_PROVIDERS_FAILED: boolean;
     FREE_FALLBACK_FAILED: boolean;
+    DIAGNOSTIC_WARNINGS: boolean;
+    DIAGNOSTIC_FAILURE: boolean;
+    WIDGET_INACTIVE: boolean;
+    PUBLIC_API_UNHEALTHY: boolean;
   };
 };
 
@@ -21,6 +25,10 @@ const DEFAULT_SETTINGS: AlertSettings = {
     NO_PROVIDER_CONFIGURED: true,
     ALL_PROVIDERS_FAILED: true,
     FREE_FALLBACK_FAILED: true,
+    DIAGNOSTIC_WARNINGS: true,
+    DIAGNOSTIC_FAILURE: true,
+    WIDGET_INACTIVE: true,
+    PUBLIC_API_UNHEALTHY: true,
   },
 };
 
@@ -47,6 +55,26 @@ const EVENT_OPTIONS: Array<{ key: keyof AlertSettings['events']; label: string; 
     key: 'FREE_FALLBACK_FAILED',
     label: 'Fallback gratuito falla',
     desc: 'Dispara alerta cuando tambien falla el fallback de modelos gratuitos.',
+  },
+  {
+    key: 'DIAGNOSTIC_WARNINGS',
+    label: 'Diagnostico con advertencias',
+    desc: 'Genera alerta cuando el Centro de Ayuda encuentra warnings operativos.',
+  },
+  {
+    key: 'DIAGNOSTIC_FAILURE',
+    label: 'Diagnostico con error',
+    desc: 'Genera alerta cuando el diagnostico detecta fallos criticos.',
+  },
+  {
+    key: 'WIDGET_INACTIVE',
+    label: 'Widget inactivo',
+    desc: 'Genera alerta cuando la config del widget queda desactivada.',
+  },
+  {
+    key: 'PUBLIC_API_UNHEALTHY',
+    label: 'API publica no saludable',
+    desc: 'Genera alerta cuando /api/public/widget no responde correctamente.',
   },
 ];
 
@@ -171,6 +199,19 @@ export default function AlertsSettingsPage({ embedded = false }: { embedded?: bo
               <span style={{ fontSize: 13, color: 'var(--g06)' }}>{role.label}</span>
             </label>
           ))}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-title">Configuracion de modelos gratuitos</div>
+        <div style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 1.65 }}>
+          1. Ve a <strong style={{ color: 'var(--g06)' }}>Configuracion &gt; Orquestacion IA</strong>.
+          <br />
+          2. Activa <strong style={{ color: 'var(--g06)' }}>Usar fallback de modelos gratuitos</strong>.
+          <br />
+          3. Define modelos `:free` (uno por linea) y una API key de OpenRouter o variable de entorno.
+          <br />
+          4. Opcional: deja mensaje seguro para contingencia cuando todo falle.
         </div>
       </div>
 

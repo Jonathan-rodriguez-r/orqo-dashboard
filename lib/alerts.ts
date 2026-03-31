@@ -3,7 +3,11 @@ import type { Db } from 'mongodb';
 export type AlertEventCode =
   | 'NO_PROVIDER_CONFIGURED'
   | 'ALL_PROVIDERS_FAILED'
-  | 'FREE_FALLBACK_FAILED';
+  | 'FREE_FALLBACK_FAILED'
+  | 'DIAGNOSTIC_WARNINGS'
+  | 'DIAGNOSTIC_FAILURE'
+  | 'WIDGET_INACTIVE'
+  | 'PUBLIC_API_UNHEALTHY';
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 
@@ -22,6 +26,10 @@ const DEFAULT_ALERT_SETTINGS: AlertSettings = {
     NO_PROVIDER_CONFIGURED: true,
     ALL_PROVIDERS_FAILED: true,
     FREE_FALLBACK_FAILED: true,
+    DIAGNOSTIC_WARNINGS: true,
+    DIAGNOSTIC_FAILURE: true,
+    WIDGET_INACTIVE: true,
+    PUBLIC_API_UNHEALTHY: true,
   },
 };
 
@@ -51,6 +59,22 @@ export async function readAlertSettings(db: Db, workspaceId?: string): Promise<A
         typeof safeDoc.events?.FREE_FALLBACK_FAILED === 'boolean'
           ? safeDoc.events.FREE_FALLBACK_FAILED
           : DEFAULT_ALERT_SETTINGS.events.FREE_FALLBACK_FAILED,
+      DIAGNOSTIC_WARNINGS:
+        typeof safeDoc.events?.DIAGNOSTIC_WARNINGS === 'boolean'
+          ? safeDoc.events.DIAGNOSTIC_WARNINGS
+          : DEFAULT_ALERT_SETTINGS.events.DIAGNOSTIC_WARNINGS,
+      DIAGNOSTIC_FAILURE:
+        typeof safeDoc.events?.DIAGNOSTIC_FAILURE === 'boolean'
+          ? safeDoc.events.DIAGNOSTIC_FAILURE
+          : DEFAULT_ALERT_SETTINGS.events.DIAGNOSTIC_FAILURE,
+      WIDGET_INACTIVE:
+        typeof safeDoc.events?.WIDGET_INACTIVE === 'boolean'
+          ? safeDoc.events.WIDGET_INACTIVE
+          : DEFAULT_ALERT_SETTINGS.events.WIDGET_INACTIVE,
+      PUBLIC_API_UNHEALTHY:
+        typeof safeDoc.events?.PUBLIC_API_UNHEALTHY === 'boolean'
+          ? safeDoc.events.PUBLIC_API_UNHEALTHY
+          : DEFAULT_ALERT_SETTINGS.events.PUBLIC_API_UNHEALTHY,
     },
   };
 }
