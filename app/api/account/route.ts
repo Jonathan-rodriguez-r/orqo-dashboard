@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/mongodb';
 import { randomBytes } from 'crypto';
+import { getCurrentPeriodUsage } from '@/lib/usage-meter';
 
 const DEFAULTS = {
   plan: 'Starter',
@@ -23,7 +24,16 @@ export async function GET() {
       return Response.json(newDoc);
     }
     const { _id, ...rest } = doc;
-    return Response.json(rest);
+    const usage = await getCurrentPeriodUsage({
+      db,
+      workspaceId: 'default',
+      timeZone: String(rest?.timezone ?? DEFAULTS.timezone),
+    });
+    return Response.json({
+      ...rest,
+      interactions_used: usage.interactions,
+      interactions_period_key: usage.periodKey,
+    });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -33,6 +43,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     delete body.api_key;
+    delete body.interactions_used;
+    delete body.interactions_period_key;
+    delete body.interactions_previous_period_key;
+    delete body.interactions_previous_period_used;
     const db = await getDb();
     await db.collection('config').updateOne(
       { _id: 'account' as any },

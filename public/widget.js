@@ -58,15 +58,71 @@ let mediaRecorder = null;
 let recordingStream = null;
 let recordingChunks = [];
 let isRecordingVoice = false;
+let dragDepth = 0;
+
+function currentUsagePeriodKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function legacyInteractionsFromConvs(convs) {
+  return (Array.isArray(convs) ? convs : []).reduce((n, c) => {
+    const userMsgs = (c?.messages || []).filter((m) => m?.role === 'user').length;
+    return n + userMsgs;
+  }, 0);
+}
+
+function normalizeUsageState(data) {
+  const periodKey = currentUsagePeriodKey();
+  const raw = data?.interactionUsage;
+
+  if (raw && typeof raw === 'object') {
+    const key = String(raw.periodKey || '').trim();
+    let used = Number(raw.used || 0);
+    if (!Number.isFinite(used) || used < 0) used = 0;
+    if (key === periodKey) return { periodKey, used: Math.floor(used) };
+    return { periodKey, used: 0 };
+  }
+
+  return {
+    periodKey,
+    used: legacyInteractionsFromConvs(data?.conversations || []),
+  };
+}
 
 const S = {
   load: () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } },
   save: d => localStorage.setItem(STORAGE_KEY, JSON.stringify(d)),
+  ensureUsage: () => {
+    const d = S.load();
+    const usage = normalizeUsageState(d);
+    const raw = d?.interactionUsage;
+    const changed =
+      !raw ||
+      String(raw?.periodKey || '') !== usage.periodKey ||
+      Number(raw?.used || 0) !== usage.used;
+    if (changed) {
+      d.interactionUsage = usage;
+      S.save(d);
+    }
+    return usage;
+  },
   convs: () => S.load().conversations || [],
   saveConvs: cs => { const d = S.load(); d.conversations = cs; S.save(d); },
   disclaimerOk: () => !!S.load().disclaimerAccepted,
   acceptDisclaimer: () => { const d = S.load(); d.disclaimerAccepted = true; S.save(d); },
-  usedInt: () => S.convs().reduce((n, c) => n + (c.messages || []).filter(m => m.role === 'user').length, 0),
+  usedInt: () => S.ensureUsage().used,
+  incInt: (count = 1) => {
+    const d = S.load();
+    const usage = normalizeUsageState(d);
+    const by = Math.max(0, Math.floor(Number(count || 0)));
+    usage.used += by;
+    d.interactionUsage = usage;
+    S.save(d);
+    return usage.used;
+  },
   remaining: () => Math.max(0, TOTAL_INT - S.usedInt()),
 };
 
@@ -90,6 +146,13 @@ function describeAttachments(attachments) {
   if (!attachments || !attachments.length) return '';
   const names = attachments.map(a => a.name).join(', ');
   return `Adjuntos: ${names}`;
+}
+
+function detectAttachmentKind(file) {
+  const mime = String(file?.type || '').toLowerCase();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'file';
 }
 
 function attachmentBadge(attachment) {
@@ -183,9 +246,18 @@ async function deleteConversation(convId) {
 function onPickFiles(files, kind) {
   const list = Array.from(files || []);
   if (!list.length) return;
-  list.slice(0, 5).forEach((f) => {
-    pendingAttachments.push(makeAttachment(f, kind));
+  const MAX_PENDING = 8;
+  const room = Math.max(0, MAX_PENDING - pendingAttachments.length);
+  if (room <= 0) {
+    window.alert('Puedes adjuntar hasta 8 elementos por mensaje.');
+    return;
+  }
+  list.slice(0, room).forEach((f) => {
+    pendingAttachments.push(makeAttachment(f, kind || detectAttachmentKind(f)));
   });
+  if (list.length > room) {
+    window.alert('Solo se agregaron 8 adjuntos como máximo por mensaje.');
+  }
   renderPendingAttachments();
 }
 
@@ -243,6 +315,96 @@ async function toggleVoiceRecording() {
   }
   isRecordingVoice = false;
   if (voiceBtn) voiceBtn.style.color = '';
+}
+
+function getChatDropHint() {
+  let hint = document.getElementById('chat-drop-hint');
+  if (hint) return hint;
+  const screen = document.getElementById('screen-chat');
+  if (!screen) return null;
+  hint = document.createElement('div');
+  hint.id = 'chat-drop-hint';
+  hint.setAttribute('aria-hidden', 'true');
+  hint.style.position = 'absolute';
+  hint.style.inset = '0.7rem';
+  hint.style.borderRadius = '14px';
+  hint.style.border = '1.5px dashed rgba(44,185,120,0.72)';
+  hint.style.background = 'rgba(44,185,120,0.14)';
+  hint.style.color = '#C8F7DF';
+  hint.style.display = 'flex';
+  hint.style.alignItems = 'center';
+  hint.style.justifyContent = 'center';
+  hint.style.textAlign = 'center';
+  hint.style.padding = '1rem';
+  hint.style.fontFamily = 'var(--f-body)';
+  hint.style.fontSize = '0.84rem';
+  hint.style.fontWeight = '600';
+  hint.style.letterSpacing = '0.01em';
+  hint.style.pointerEvents = 'none';
+  hint.style.opacity = '0';
+  hint.style.transform = 'scale(0.985)';
+  hint.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+  hint.style.zIndex = '4';
+  hint.innerHTML = 'Suelta aquí tus archivos, imágenes o audio para adjuntarlos';
+  screen.appendChild(hint);
+  return hint;
+}
+
+function setChatDropHintVisible(show) {
+  const hint = getChatDropHint();
+  if (!hint) return;
+  hint.style.opacity = show ? '1' : '0';
+  hint.style.transform = show ? 'scale(1)' : 'scale(0.985)';
+}
+
+function resetChatDropState() {
+  dragDepth = 0;
+  setChatDropHintVisible(false);
+}
+
+function setupChatDragAndDrop() {
+  const screen = document.getElementById('screen-chat');
+  if (!screen || screen.getAttribute('data-dnd-ready') === '1') return;
+  screen.setAttribute('data-dnd-ready', '1');
+
+  const hasFiles = (ev) => {
+    const types = Array.from(ev?.dataTransfer?.types || []);
+    return types.includes('Files');
+  };
+  const stop = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+
+  screen.addEventListener('dragenter', (ev) => {
+    if (!hasFiles(ev)) return;
+    stop(ev);
+    dragDepth += 1;
+    setChatDropHintVisible(true);
+  });
+
+  screen.addEventListener('dragover', (ev) => {
+    if (!hasFiles(ev)) return;
+    stop(ev);
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+    setChatDropHintVisible(true);
+  });
+
+  screen.addEventListener('dragleave', (ev) => {
+    if (!hasFiles(ev)) return;
+    stop(ev);
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) setChatDropHintVisible(false);
+  });
+
+  screen.addEventListener('drop', (ev) => {
+    if (!hasFiles(ev)) return;
+    stop(ev);
+    const files = ev?.dataTransfer?.files;
+    resetChatDropState();
+    if (!files || !files.length) return;
+    onPickFiles(files);
+  });
 }
 
 function toggleWidget() {
@@ -318,6 +480,7 @@ function showScreen(name, back, backTitle) {
   document.getElementById('screen-'+name).classList.add('active');
   curScreen = name;
   setBack(back, backTitle);
+  if (name !== 'chat') resetChatDropState();
   if (name === 'chat') scrollMsgs();
 }
 
@@ -479,6 +642,7 @@ function sendMessage(override) {
   conv.messages.push(m);
   if (conv.messages.filter(x => x.role === 'user').length === 1) conv.title = contentForStore.slice(0, 42);
   S.saveConvs(convs);
+  S.incInt(1);
   appendBubble('user', text, m.timestamp, true, attachments);
   ta.value = ''; ta.style.height = 'auto';
   pendingAttachments = [];
@@ -736,6 +900,7 @@ if (attBtns[2]) {
   attBtns[2].onclick = () => { toggleVoiceRecording(); };
 }
 renderPendingAttachments();
+setupChatDragAndDrop();
 
 // Expose handlers used by inline onclick attributes in embedded HTML.
 window.toggleWidget = toggleWidget;

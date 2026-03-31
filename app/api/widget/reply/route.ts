@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
 import { generateAgentReply, type ChatTurn, type AgentRuntime } from '@/lib/ai-orchestrator';
 import { writeLog } from '@/app/api/admin/logs/route';
+import { bumpInteractionUsage } from '@/lib/usage-meter';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -186,6 +187,10 @@ export async function POST(req: Request) {
 
     const history = sanitizeHistory(historyRaw);
     const modelHistory = historyForInference(history, messageForModel);
+    const safeAgentId = agentId || 'default';
+    const convId = visitorId
+      ? `W-${visitorId.slice(0, 12)}-${safeAgentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '')
+      : '';
 
     let agentDoc: any = null;
     if (agentId && agentId !== 'default' && ObjectId.isValid(agentId)) {
@@ -261,8 +266,6 @@ export async function POST(req: Request) {
       const nowMs = now.getTime();
       const previewMessage = result.reply.slice(0, 280);
       const who = visitorId.startsWith('v_') ? 'Visitante web' : visitorId;
-      const safeAgentId = agentId || 'default';
-      const convId = `W-${visitorId.slice(0, 12)}-${safeAgentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '');
       const newTurns: PersistedWidgetMessage[] = [
         { role: 'user', content: messageForModel, ts: nowMs, ...(attachments.length ? { attachments } : {}) },
         { role: 'assistant', content: result.reply, ts: nowMs + 1 },
@@ -305,6 +308,28 @@ export async function POST(req: Request) {
         } as any,
         { upsert: true }
       );
+    }
+
+    try {
+      await bumpInteractionUsage(db, {
+        workspaceId,
+        channel: 'widget',
+        count: 1,
+        provider: result.provider,
+        model: result.model,
+        conversationRef: convId || undefined,
+        visitorId: visitorId || undefined,
+        agentId: safeAgentId || undefined,
+        preview: message.slice(0, 200),
+        timeZone: String(account?.timezone ?? 'America/Bogota'),
+      });
+    } catch (usageErr: any) {
+      await writeLog({
+        level: 'warn',
+        source: 'widget-reply',
+        msg: 'No se pudo registrar uso de interacciones',
+        detail: usageErr?.message ?? 'unknown',
+      }).catch(() => {});
     }
 
     await writeLog({

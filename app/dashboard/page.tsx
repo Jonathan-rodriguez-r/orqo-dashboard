@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/mongodb';
 import HomeCharts from '@/components/dashboard/HomeCharts';
+import { getCurrentPeriodUsage } from '@/lib/usage-meter';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,30 @@ export default async function DashboardPage() {
     db.collection('conversations').find({}).sort({ updatedAt: -1 }).limit(6).toArray(),
   ]);
 
-  const config = configDoc ?? { plan: 'Starter', interactions_limit: 1000 };
+  const config: any = configDoc ?? { plan: 'Starter', interactions_limit: 1000, timezone: 'America/Bogota' };
   const activeAgents = agentDocs.filter((a: any) => a.enabled !== false).length;
   const planLimit: number = config.interactions_limit ?? 1000;
 
-  // Usage estimate
-  const convCount = recentConvs.length;
-  const totalConv = await db.collection('conversations').countDocuments();
-  const interactionsUsed = Math.floor(totalConv * 4.3);
+  const usage = await getCurrentPeriodUsage({
+    db,
+    workspaceId: 'default',
+    timeZone: String(config?.timezone ?? 'America/Bogota'),
+  });
+  const usageDoc = await db.collection<any>('usage_monthly').findOne({ _id: `default:${usage.periodKey}` });
+  const recentUsage = await db
+    .collection<any>('usage_events')
+    .find({ workspaceId: 'default', periodKey: usage.periodKey })
+    .sort({ ts: -1 })
+    .limit(6)
+    .toArray();
+  const interactionsUsed = usage.interactions;
   const usagePct = Math.min(100, Math.round((interactionsUsed / planLimit) * 100));
+  const topChannels = Object.entries(usageDoc?.by_channel ?? {})
+    .sort((a: any, b: any) => Number(b?.[1] ?? 0) - Number(a?.[1] ?? 0))
+    .slice(0, 3);
+  const topProviders = Object.entries(usageDoc?.by_provider ?? {})
+    .sort((a: any, b: any) => Number(b?.[1] ?? 0) - Number(a?.[1] ?? 0))
+    .slice(0, 3);
 
   return (
     <div className="dash-content">
@@ -147,6 +163,45 @@ export default async function DashboardPage() {
             <p style={{ fontSize: 12, color: 'var(--g05)', marginTop: 8 }}>
               {usagePct}% del límite mensual utilizado
             </p>
+          </div>
+
+          <hr className="section-divider"/>
+          <div className="card-title" style={{ marginBottom: 10 }}>
+            Detalle de interacciones ({usage.periodKey})
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--g05)' }}>Canales</div>
+              {topChannels.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--g05)' }}>Sin registros en este periodo</div>
+              ) : topChannels.map(([name, count]) => (
+                <div key={String(name)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                  <span>{String(name)}</span>
+                  <strong>{Number(count).toLocaleString('es')}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--g05)' }}>Proveedores</div>
+              {topProviders.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--g05)' }}>Sin registros en este periodo</div>
+              ) : topProviders.map(([name, count]) => (
+                <div key={String(name)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                  <span>{String(name)}</span>
+                  <strong>{Number(count).toLocaleString('es')}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--g05)' }}>Ultimas interacciones</div>
+              {recentUsage.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--g05)' }}>Sin eventos recientes</div>
+              ) : recentUsage.map((evt: any) => (
+                <div key={String(evt?._id)} style={{ fontSize: 12, color: 'var(--g06)' }}>
+                  {relTime(Number(evt?.ts ?? Date.now()))} · {String(evt?.provider ?? 'n/a')} / {String(evt?.model ?? 'n/a')}
+                </div>
+              ))}
+            </div>
           </div>
 
           <hr className="section-divider"/>
