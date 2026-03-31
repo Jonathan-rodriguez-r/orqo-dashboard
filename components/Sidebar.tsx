@@ -6,15 +6,15 @@ import { useSession } from '@/hooks/usePermissions';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const I = {
-  home:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 6.5 8 1.5l6.5 5V14a.5.5 0 0 1-.5.5H10v-4H6v4H2a.5.5 0 0 1-.5-.5V6.5Z" strokeLinejoin="round"/></svg>,
-  logs:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 7.5h9M2 11h6" strokeLinecap="round"/></svg>,
-  conv:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/></svg>,
-  agent:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
-  report:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
-  settings: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M11.89 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" strokeLinecap="round"/></svg>,
-  feedback: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a6 6 0 1 1 0 12 6 6 0 0 1 0-12ZM8 5.5v3M8 10.5h.01" strokeLinecap="round"/></svg>,
-  collapse: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3L6 8l4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  expand:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3l4 5-4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  home:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 6.5 8 1.5l6.5 5V14a.5.5 0 0 1-.5.5H10v-4H6v4H2a.5.5 0 0 1-.5-.5V6.5Z" strokeLinejoin="round"/></svg>,
+  logs:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 7.5h9M2 11h6" strokeLinecap="round"/></svg>,
+  conv:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/></svg>,
+  agent:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
+  report:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
+  settings:<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M11.89 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" strokeLinecap="round"/></svg>,
+  ai:      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2h4M8 2v2M5 4h6a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M6 10v2M10 10v2M4 13h8" strokeLinecap="round"/><circle cx="6.5" cy="7" r=".75" fill="currentColor" stroke="none"/><circle cx="9.5" cy="7" r=".75" fill="currentColor" stroke="none"/></svg>,
+  collapse:<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3L6 8l4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  expand:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3l4 5-4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
 };
 
 const NAV_MAIN = [
@@ -25,9 +25,9 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings',  label: 'Configuración',    icon: I.settings, permission: 'settings.widget' },
-  { href: '/dashboard/logs',      label: 'Logs & Auditoría', icon: I.logs,     permission: 'admin.logs'      },
-  { href: '/dashboard/feedback',  label: 'Feedback',         icon: I.feedback, permission: null              },
+  { href: '/dashboard/settings',               label: 'Configuración',   icon: I.settings, permission: 'settings.widget' },
+  { href: '/dashboard/settings/orchestration', label: 'Orquestación IA', icon: I.ai,       permission: 'settings.widget' },
+  { href: '/dashboard/logs',                   label: 'Logs & Auditoría',icon: I.logs,     permission: 'admin.logs'      },
 ] as const;
 
 type Props = {

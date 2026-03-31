@@ -176,9 +176,27 @@ const FAQ_GROUPS = [
 // ── Changelog data ────────────────────────────────────────────────────────────
 const CHANGELOG = [
   {
-    version: 'v1.3',
+    version: 'v1.4',
     date: 'Mar 2026',
     label: 'Actual',
+    items: [
+      'Agentes: arquitectura Master-Detail — lista lateral de agentes + panel de configuración con 4 bloques (Identidad, Canales, Skills, Avanzado)',
+      'Agentes: simulador de chat (Vista Previa) con conversación mock adaptada al perfil y personalidad del agente',
+      'Agentes: soporte multi-agente real con CRUD completo persistido en MongoDB (colección agents_v2)',
+      'Orquestación IA: nueva sección en Configuración para gestionar proveedores (OpenAI, Anthropic, Google, Grok), límites de tokens y estrategia multi-modelo',
+      'API /api/agents (GET/POST) y /api/agents/[id] (GET/PATCH/DELETE) — schema multi-tenant por workspaceId',
+      'API /api/settings/workspace (GET/PUT) — configuración global de workspace (proveedores, orquestación, tokens)',
+      'Canales: 6 canales configurables por agente (WhatsApp, Instagram, Messenger, Web Widget, WooCommerce, Shopify)',
+      'Skills: sistema de capacidades por agente con máximo 8 skills, agrupadas por categoría',
+      'Avanzado: zona horaria, horarios de atención, geocercas y configuración de escalamiento por agente',
+      'Topbar: eliminado botón de Asistente; Feedback eliminado del menú lateral',
+      'Sidebar: nuevo ítem "Orquestación IA" en sección Sistema con icono de IA',
+    ],
+  },
+  {
+    version: 'v1.3',
+    date: 'Mar 2026',
+    label: null,
     items: [
       'Cuenta: logo del cliente en la barra lateral (upload por archivo ≤512KB o URL), nombre del dashboard personalizable',
       'Cuenta: campos adicionales — industria, teléfono, dirección, email de soporte',

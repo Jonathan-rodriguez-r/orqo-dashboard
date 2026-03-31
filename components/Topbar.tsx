@@ -129,20 +129,6 @@ export default function Topbar() {
     <div className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ flex: 1 }} />
 
-      {/* ── Assistant button ── */}
-      <button
-        style={btnStyle}
-        title="Asistente ORQO"
-        onClick={() => router.push('/dashboard/conversations')}
-      >
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M8 1.5a6 6 0 0 1 6 6v.5c0 1.1-.9 2-2 2H9.5A1.5 1.5 0 0 0 8 11.5v1A1.5 1.5 0 0 1 6.5 14H4a.5.5 0 0 1-.5-.5V12A6 6 0 0 1 8 1.5Z"/>
-          <circle cx="6" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
-          <circle cx="8" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
-          <circle cx="10" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
-        </svg>
-      </button>
-
       {/* ── Help button ── */}
       <button
         style={btnStyle}
