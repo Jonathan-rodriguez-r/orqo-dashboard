@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-// ── Channel Icons ─────────────────────────────────────────────────────────────
 function WhatsAppIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -46,22 +45,22 @@ function WooIcon() {
 function WidgetIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
 
 const CHANNEL_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  whatsapp:    { label: 'WhatsApp',    color: '#25D366', icon: <WhatsAppIcon /> },
-  instagram:   { label: 'Instagram',   color: '#E1306C', icon: <InstagramIcon /> },
-  facebook:    { label: 'Facebook',    color: '#1877F2', icon: <FacebookIcon /> },
-  shopify:     { label: 'Shopify',     color: '#96BF48', icon: <ShopifyIcon /> },
+  whatsapp: { label: 'WhatsApp', color: '#25D366', icon: <WhatsAppIcon /> },
+  instagram: { label: 'Instagram', color: '#E1306C', icon: <InstagramIcon /> },
+  facebook: { label: 'Facebook', color: '#1877F2', icon: <FacebookIcon /> },
+  shopify: { label: 'Shopify', color: '#96BF48', icon: <ShopifyIcon /> },
   woocommerce: { label: 'WooCommerce', color: '#7F54B3', icon: <WooIcon /> },
-  widget:      { label: 'Widget',      color: '#2CB978', icon: <WidgetIcon /> },
+  widget: { label: 'Widget', color: '#2CB978', icon: <WidgetIcon /> },
 };
 
 function ChannelBadge({ channel }: { channel?: string }) {
-  const cfg = CHANNEL_CONFIG[channel ?? 'widget'] ?? CHANNEL_CONFIG['widget']!;
+  const cfg = CHANNEL_CONFIG[channel ?? 'widget'] ?? CHANNEL_CONFIG.widget;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: cfg.color }}>
       {cfg.icon}
@@ -70,47 +69,50 @@ function ChannelBadge({ channel }: { channel?: string }) {
   );
 }
 
-// ── Model badge ───────────────────────────────────────────────────────────────
 const MODEL_COLORS: Record<string, string> = {
   anthropic: '#2CB978',
-  openai:    '#00A1E0',
-  google:    '#4285F4',
+  openai: '#00A1E0',
+  google: '#4285F4',
 };
 
 function ModelBadge({ model, provider, label }: { model?: string; provider?: string; label?: string }) {
-  if (!model) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>—</span>;
+  if (!model) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>-</span>;
   const color = MODEL_COLORS[provider ?? 'anthropic'] ?? '#7A9488';
   const display = label ?? model;
   return (
-    <span style={{
-      display: 'inline-block', fontSize: 11, fontWeight: 600,
-      padding: '2px 7px', borderRadius: 20,
-      background: color + '18', color,
-      whiteSpace: 'nowrap',
-    }}>
+    <span
+      style={{
+        display: 'inline-block',
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '2px 7px',
+        borderRadius: 20,
+        background: `${color}18`,
+        color,
+        whiteSpace: 'nowrap',
+      }}
+    >
       {display}
     </span>
   );
 }
 
-// ── Token display ─────────────────────────────────────────────────────────────
 function TokenCell({ tokens }: { tokens?: { input: number; output: number; total: number } }) {
-  if (!tokens) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>—</span>;
-  const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  if (!tokens) return <span style={{ color: 'var(--g04)', fontSize: 12 }}>-</span>;
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
   return (
     <div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--g07)' }}>{fmt(tokens.total)}</div>
       <div style={{ fontSize: 10.5, color: 'var(--g05)', marginTop: 1 }}>
-        ↑{fmt(tokens.input)} · ↓{fmt(tokens.output)}
+        in {fmt(tokens.input)} | out {fmt(tokens.output)}
       </div>
     </div>
   );
 }
 
-// ── Duration ──────────────────────────────────────────────────────────────────
 function fmtDuration(s?: number) {
-  if (!s || s < 0) return '—';
-  if (s < 60)  return `${s}s`;
+  if (!s || s < 0) return '-';
+  if (s < 60) return `${s}s`;
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
@@ -125,7 +127,16 @@ function relTime(ts: number) {
   return `${Math.floor(h / 24)}d`;
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+function fmtTs(ts: number) {
+  return new Date(ts).toLocaleString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 type Tokens = { input: number; output: number; total: number };
 type Conv = {
   _id: string;
@@ -146,49 +157,111 @@ type Conv = {
   duration_s?: number;
 };
 
+type ConvMessage = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  ts: number;
+};
+
 const PAGE_SIZE = 20;
 const ALL_CHANNELS = ['', 'whatsapp', 'instagram', 'facebook', 'shopify', 'woocommerce', 'widget'];
 const CH_LABELS: Record<string, string> = {
-  '': 'Todos', whatsapp: 'WhatsApp', instagram: 'Instagram',
-  facebook: 'Facebook', shopify: 'Shopify', woocommerce: 'WooCommerce', widget: 'Widget',
+  '': 'Todos',
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  shopify: 'Shopify',
+  woocommerce: 'WooCommerce',
+  widget: 'Widget',
 };
 
 export default function ConversationsPage() {
-  const [convs, setConvs]     = useState<Conv[]>([]);
-  const [total, setTotal]     = useState(0);
-  const [page, setPage]       = useState(1);
-  const [search, setSearch]   = useState('');
+  const [convs, setConvs] = useState<Conv[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const [channel, setChannel] = useState('');
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
 
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [detailSource, setDetailSource] = useState<'conversation' | 'widget_runtime' | 'summary' | ''>('');
+  const [detailConv, setDetailConv] = useState<Conv | null>(null);
+  const [detailMessages, setDetailMessages] = useState<ConvMessage[]>([]);
+
   function load(p = page, q = search, ch = channel) {
     setLoading(true);
     const params = new URLSearchParams({
-      page: String(p), limit: String(PAGE_SIZE), q,
+      page: String(p),
+      limit: String(PAGE_SIZE),
+      q,
       ...(ch ? { channel: ch } : {}),
     });
+
     fetch(`/api/conversations?${params}`)
-      .then(r => r.json())
-      .then(d => { setConvs(d.items ?? []); setTotal(d.total ?? 0); })
+      .then((r) => r.json())
+      .then((d) => {
+        setConvs(d.items ?? []);
+        setTotal(d.total ?? 0);
+      })
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(page, search, channel); }, [page, search, channel]);
+  useEffect(() => {
+    load(page, search, channel);
+  }, [page, search, channel]);
+
+  useEffect(() => {
+    if (!detailOpen) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setDetailOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [detailOpen]);
 
   async function seedDemo() {
-    setSeeding(true); setSeedMsg('');
+    setSeeding(true);
+    setSeedMsg('');
     const res = await fetch('/api/seed', { method: 'POST' });
-    const d   = await res.json();
+    const d = await res.json();
     setSeeding(false);
+
     if (d.ok) {
       const n = d.inserted?.conversations ?? 60;
-      setSeedMsg(d.skipped ? '✓ Datos de demo ya cargados' : `✓ ${n} conversaciones de demo insertadas`);
-      load(1, '', '');
+      setSeedMsg(d.skipped ? 'Demo ya estaba cargado' : `${n} conversaciones demo insertadas`);
       setPage(1);
+      load(1, '', '');
     } else {
-      setSeedMsg('Error al insertar datos de demo');
+      setSeedMsg('Error al insertar datos demo');
+    }
+  }
+
+  async function openConversation(conv: Conv) {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailError('');
+    setDetailSource('');
+    setDetailConv(conv);
+    setDetailMessages([]);
+
+    try {
+      const res = await fetch(`/api/conversations/${conv._id}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'No fue posible cargar el detalle');
+
+      setDetailConv((data?.conversation ?? conv) as Conv);
+      setDetailMessages(Array.isArray(data?.messages) ? (data.messages as ConvMessage[]) : []);
+      setDetailSource((data?.source ?? '') as any);
+    } catch (e: any) {
+      setDetailError(e?.message ?? 'Error cargando detalle');
+    } finally {
+      setDetailLoading(false);
     }
   }
 
@@ -212,36 +285,45 @@ export default function ConversationsPage() {
       </div>
 
       <div className="card">
-        {/* Search + filter row */}
         <div className="search-row" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div className="search-wrap">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="6.5" cy="6.5" r="5"/>
-              <path d="M10.5 10.5 14 14"/>
+              <circle cx="6.5" cy="6.5" r="5" />
+              <path d="M10.5 10.5 14 14" />
             </svg>
             <input
               className="search-input"
               placeholder="Buscar nombre, mensaje, ID..."
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
-          {/* Channel filter pills */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {ALL_CHANNELS.map(ch => {
-              const cfg    = ch ? CHANNEL_CONFIG[ch] : null;
+            {ALL_CHANNELS.map((ch) => {
+              const cfg = ch ? CHANNEL_CONFIG[ch] : null;
               const active = channel === ch;
               return (
                 <button
                   key={ch || 'all'}
-                  onClick={() => { setChannel(ch); setPage(1); }}
+                  onClick={() => {
+                    setChannel(ch);
+                    setPage(1);
+                  }}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '5px 10px', borderRadius: 20, fontSize: 12,
-                    fontWeight: active ? 700 : 500, cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '5px 10px',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
                     border: `1px solid ${active && cfg ? cfg.color : 'var(--g03)'}`,
-                    background: active ? (cfg ? cfg.color + '18' : 'var(--acc-g)') : 'transparent',
+                    background: active ? (cfg ? `${cfg.color}18` : 'var(--acc-g)') : 'transparent',
                     color: active && cfg ? cfg.color : active ? 'var(--acc)' : 'var(--g05)',
                     transition: 'all 0.15s',
                   }}
@@ -254,7 +336,6 @@ export default function ConversationsPage() {
           </div>
         </div>
 
-        {/* Table */}
         <div className="table-wrap">
           <table>
             <thead>
@@ -264,7 +345,7 @@ export default function ConversationsPage() {
                 <th className="hide-sm">Canal</th>
                 <th className="hide-md">Modelo</th>
                 <th className="hide-md">Tokens</th>
-                <th className="hide-md">Último mensaje</th>
+                <th className="hide-md">Ultimo mensaje</th>
                 <th className="hide-md">Agente</th>
                 <th className="hide-md" style={{ width: 64 }}>Msgs</th>
                 <th>Estado</th>
@@ -275,104 +356,230 @@ export default function ConversationsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', color: 'var(--g05)', padding: 40 }}>
-                    Cargando…
+                    Cargando...
                   </td>
                 </tr>
               ) : convs.length === 0 ? (
                 <tr>
                   <td colSpan={10}>
                     <div className="empty">
-                      <div className="empty-icon">💬</div>
+                      <div className="empty-icon">Chat</div>
                       <div className="empty-text">Sin conversaciones para estos filtros</div>
                     </div>
                   </td>
                 </tr>
-              ) : convs.map(c => (
-                <tr key={c._id}>
-                  {/* ID */}
-                  <td className="hide-md">
-                    {c.conv_id
-                      ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--g05)', letterSpacing: '0.03em' }}>{c.conv_id}</span>
-                      : <span style={{ color: 'var(--g04)', fontSize: 11 }}>—</span>
-                    }
-                  </td>
+              ) : (
+                convs.map((c) => (
+                  <tr key={c._id} onClick={() => openConversation(c)} style={{ cursor: 'pointer' }}>
+                    <td className="hide-md">
+                      {c.conv_id ? (
+                        <span
+                          style={{
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            color: 'var(--g05)',
+                            letterSpacing: '0.03em',
+                          }}
+                        >
+                          {c.conv_id}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--g04)', fontSize: 11 }}>-</span>
+                      )}
+                    </td>
 
-                  {/* Usuario */}
-                  <td>
-                    <div style={{ fontWeight: 600, color: 'var(--g07)', fontSize: 13 }}>{c.user_name ?? 'Visitante'}</div>
-                    {c.user_email && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.user_email}</div>}
-                    {c.phone      && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.phone}</div>}
-                    {c.duration_s && (
-                      <div style={{ fontSize: 10.5, color: 'var(--g04)', marginTop: 1 }}>⏱ {fmtDuration(c.duration_s)}</div>
-                    )}
-                  </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--g07)', fontSize: 13 }}>{c.user_name ?? 'Visitante'}</div>
+                      {c.user_email && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.user_email}</div>}
+                      {c.phone && <div style={{ fontSize: 11, color: 'var(--g05)' }}>{c.phone}</div>}
+                      {c.duration_s ? (
+                        <div style={{ fontSize: 10.5, color: 'var(--g04)', marginTop: 1 }}>
+                          duracion {fmtDuration(c.duration_s)}
+                        </div>
+                      ) : null}
+                    </td>
 
-                  {/* Canal */}
-                  <td className="hide-sm">
-                    <ChannelBadge channel={c.channel} />
-                  </td>
+                    <td className="hide-sm">
+                      <ChannelBadge channel={c.channel} />
+                    </td>
 
-                  {/* Modelo */}
-                  <td className="hide-md">
-                    <ModelBadge model={c.model} provider={c.model_provider} label={c.model_label} />
-                  </td>
+                    <td className="hide-md">
+                      <ModelBadge model={c.model} provider={c.model_provider} label={c.model_label} />
+                    </td>
 
-                  {/* Tokens */}
-                  <td className="hide-md">
-                    <TokenCell tokens={c.tokens} />
-                  </td>
+                    <td className="hide-md">
+                      <TokenCell tokens={c.tokens} />
+                    </td>
 
-                  {/* Último mensaje */}
-                  <td className="hide-md" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>
-                    {c.last_message ?? '—'}
-                  </td>
+                    <td
+                      className="hide-md"
+                      style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}
+                    >
+                      {c.last_message ?? '-'}
+                    </td>
 
-                  {/* Agente */}
-                  <td className="hide-md" style={{ fontSize: 12, color: 'var(--g06)' }}>
-                    {c.agent ?? '—'}
-                  </td>
+                    <td className="hide-md" style={{ fontSize: 12, color: 'var(--g06)' }}>
+                      {c.agent ?? '-'}
+                    </td>
 
-                  {/* Msgs */}
-                  <td className="hide-md" style={{ fontSize: 12, color: 'var(--g05)', textAlign: 'center' }}>
-                    {c.message_count ?? '—'}
-                  </td>
+                    <td className="hide-md" style={{ fontSize: 12, color: 'var(--g05)', textAlign: 'center' }}>
+                      {c.message_count ?? '-'}
+                    </td>
 
-                  {/* Estado */}
-                  <td>
-                    <span className={`badge ${
-                      c.status === 'resolved'  ? 'badge-green'
-                      : c.status === 'escalated' ? 'badge-yellow'
-                      : c.status === 'open'      ? 'badge-blue'
-                      : 'badge-gray'
-                    }`}>
-                      {c.status === 'resolved'  ? 'Resuelta'
-                        : c.status === 'escalated' ? 'Escalada'
-                        : c.status === 'open'      ? 'Abierta'
-                        : c.status ?? 'Cerrada'}
-                    </span>
-                  </td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          c.status === 'resolved'
+                            ? 'badge-green'
+                            : c.status === 'escalated'
+                              ? 'badge-yellow'
+                              : c.status === 'open'
+                                ? 'badge-blue'
+                                : 'badge-gray'
+                        }`}
+                      >
+                        {c.status === 'resolved'
+                          ? 'Resuelta'
+                          : c.status === 'escalated'
+                            ? 'Escalada'
+                            : c.status === 'open'
+                              ? 'Abierta'
+                              : c.status ?? 'Cerrada'}
+                      </span>
+                    </td>
 
-                  {/* Hace */}
-                  <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--g05)' }}>
-                    {relTime(c.updatedAt ?? Date.now())}
-                  </td>
-                </tr>
-              ))}
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--g05)' }}>
+                      {relTime(c.updatedAt ?? Date.now())}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="pagination">
           <span className="page-info">
-            {total > 0
-              ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}`
-              : '0 resultados'}
+            {total > 0 ? `${(page - 1) * PAGE_SIZE + 1}-${Math.min(page * PAGE_SIZE, total)} de ${total}` : '0 resultados'}
           </span>
-          <button className="page-btn" disabled={page <= 1}         onClick={() => setPage(p => p - 1)}>← Anterior</button>
-          <button className="page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Siguiente →</button>
+          <button className="page-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Anterior
+          </button>
+          <button className="page-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Siguiente
+          </button>
         </div>
       </div>
+
+      {detailOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.58)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16,
+          }}
+          onClick={() => setDetailOpen(false)}
+        >
+          <div
+            style={{
+              width: 'min(900px, 100%)',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--g03)',
+              background: 'var(--g00)',
+              boxShadow: '0 18px 60px rgba(0,0,0,0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: '14px 16px',
+                borderBottom: '1px solid var(--g03)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: 'var(--f-disp)', fontSize: 16, fontWeight: 700, color: 'var(--g08)' }}>
+                  Conversacion {detailConv?.conv_id ? `- ${detailConv.conv_id}` : ''}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--g05)' }}>
+                  {detailConv?.user_name ?? 'Visitante'} | {detailConv?.channel ?? 'widget'} |{' '}
+                  {detailConv?.updatedAt ? fmtTs(detailConv.updatedAt) : '-'}
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDetailOpen(false)}>
+                Cerrar
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: '8px 16px',
+                borderBottom: '1px solid var(--g03)',
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                fontSize: 11,
+              }}
+            >
+              <span className="badge badge-gray">Fuente: {detailSource || '-'}</span>
+              <span className="badge badge-gray">Mensajes: {detailMessages.length}</span>
+              <span className="badge badge-gray">Tokens: {detailConv?.tokens?.total ?? 0}</span>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {detailLoading ? (
+                <div style={{ color: 'var(--g05)', fontSize: 13 }}>Cargando detalle...</div>
+              ) : detailError ? (
+                <div style={{ color: 'var(--red)', fontSize: 13 }}>{detailError}</div>
+              ) : detailMessages.length === 0 ? (
+                <div style={{ color: 'var(--g05)', fontSize: 13 }}>No hay mensajes almacenados para esta conversacion.</div>
+              ) : (
+                detailMessages.map((m, idx) => {
+                  const isUser = m.role === 'user';
+                  const isAssistant = m.role === 'assistant';
+                  return (
+                    <div
+                      key={`${m.ts}-${idx}`}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isUser ? 'flex-end' : isAssistant ? 'flex-start' : 'center',
+                      }}
+                    >
+                      <div
+                        style={{
+                          maxWidth: '86%',
+                          padding: '10px 13px',
+                          borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                          background: isUser ? 'var(--acc)' : 'var(--g02)',
+                          color: isUser ? '#fff' : 'var(--g08)',
+                          fontSize: 13,
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {m.content}
+                        <div style={{ marginTop: 6, fontSize: 10.5, opacity: 0.7 }}>{fmtTs(m.ts)}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

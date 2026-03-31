@@ -10,6 +10,18 @@ const CORS = {
   'Cache-Control': 'no-store',
 };
 
+type PersistedWidgetMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  ts: number;
+};
+
+type UsageStats = {
+  input: number;
+  output: number;
+  total: number;
+};
+
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS });
 }
@@ -17,6 +29,66 @@ export async function OPTIONS() {
 function genConvId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return 'CNV-' + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function normalizeText(value: string) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function sanitizeHistory(historyRaw: any[]): ChatTurn[] {
+  return historyRaw
+    .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
+    .map((m: any) => ({ role: m.role, content: String(m.content) }))
+    .slice(-12);
+}
+
+function historyForInference(history: ChatTurn[], message: string) {
+  const last = history.length > 0 ? history[history.length - 1] : null;
+  if (last?.role === 'user' && normalizeText(last.content) === normalizeText(message)) {
+    return history.slice(0, -1);
+  }
+  return history;
+}
+
+function estimateTokens(text: string) {
+  const compact = String(text || '').trim();
+  if (!compact) return 0;
+  // Generic estimator for UI/accounting when provider usage is unavailable.
+  return Math.max(1, Math.ceil(compact.length / 4));
+}
+
+function buildUsageEstimate(args: {
+  agent: AgentRuntime;
+  history: ChatTurn[];
+  message: string;
+  reply: string;
+}): UsageStats {
+  const agentContext = [
+    args.agent.name || '',
+    args.agent.profile?.systemPrompt || '',
+    args.agent.profile?.personality || '',
+    Array.isArray(args.agent.profile?.languages) ? args.agent.profile?.languages.join(', ') : '',
+    args.agent.corporateContext || '',
+    Array.isArray(args.agent.skills) ? args.agent.skills.join(', ') : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const inputText = [
+    agentContext,
+    ...args.history.map((turn) => `${turn.role}: ${turn.content}`),
+    `user: ${args.message}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const input = estimateTokens(inputText);
+  const output = estimateTokens(args.reply);
+  return {
+    input,
+    output,
+    total: input + output,
+  };
 }
 
 export async function POST(req: Request) {
@@ -59,10 +131,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
     }
 
-    const history: ChatTurn[] = historyRaw
-      .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
-      .map((m: any) => ({ role: m.role, content: m.content }))
-      .slice(-12);
+    const history = sanitizeHistory(historyRaw);
+    const modelHistory = historyForInference(history, message);
 
     let agentDoc: any = null;
     if (agentId && agentId !== 'default' && ObjectId.isValid(agentId)) {
@@ -103,7 +173,7 @@ export async function POST(req: Request) {
       workspaceId,
       agent,
       message,
-      history,
+      history: modelHistory,
     });
 
     for (const at of result.attempts ?? []) {
@@ -126,12 +196,24 @@ export async function POST(req: Request) {
       }).catch(() => {});
     }
 
+    const usage = buildUsageEstimate({
+      agent,
+      history: modelHistory,
+      message,
+      reply: result.reply,
+    });
+
     if (visitorId) {
       const now = new Date();
-      const updatedAt = now.getTime();
+      const nowMs = now.getTime();
       const previewMessage = result.reply.slice(0, 280);
       const who = visitorId.startsWith('v_') ? 'Visitante web' : visitorId;
-      const convId = `W-${visitorId.slice(0, 12)}-${(agentId || 'default').slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '');
+      const safeAgentId = agentId || 'default';
+      const convId = `W-${visitorId.slice(0, 12)}-${safeAgentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '');
+      const newTurns: PersistedWidgetMessage[] = [
+        { role: 'user', content: message, ts: nowMs },
+        { role: 'assistant', content: result.reply, ts: nowMs + 1 },
+      ];
 
       await db.collection('conversations').updateOne(
         { conv_id: convId, channel: 'widget' },
@@ -141,21 +223,33 @@ export async function POST(req: Request) {
             user_name: who,
             user_email: '',
             last_message: previewMessage,
-            message_count: history.length + 2,
             status: 'open',
             channel: 'widget',
             agent: agentDoc?.name ?? 'Asistente Web',
             model: result.model,
             model_label: result.model,
             model_provider: result.provider,
-            updatedAt,
+            visitor_id: visitorId,
+            agent_id: safeAgentId,
+            updatedAt: nowMs,
+          },
+          $inc: {
+            message_count: newTurns.length,
+            'tokens.input': usage.input,
+            'tokens.output': usage.output,
+            'tokens.total': usage.total,
+          },
+          $push: {
+            messages: {
+              $each: newTurns,
+              $slice: -600,
+            },
           },
           $setOnInsert: {
             createdAt: now,
             conv_id: convId || genConvId(),
-            tokens: { input: 0, output: 0, total: 0 },
           },
-        },
+        } as any,
         { upsert: true }
       );
     }
@@ -167,7 +261,7 @@ export async function POST(req: Request) {
       detail: `${result.provider}/${result.model}`,
     }).catch(() => {});
 
-    return Response.json(result, { headers: CORS });
+    return Response.json({ ...result, usage }, { headers: CORS });
   } catch (e: any) {
     await writeLog({
       level: 'error',
