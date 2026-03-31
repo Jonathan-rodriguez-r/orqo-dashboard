@@ -1,4 +1,5 @@
 import type { Db } from 'mongodb';
+import { emitWorkspaceAlert } from '@/lib/alerts';
 
 type ProviderKey = 'google' | 'openai' | 'grok' | 'anthropic';
 type Strategy = 'failover' | 'roundrobin' | 'single';
@@ -11,6 +12,13 @@ type WorkspaceSettings = {
     strategy: Strategy;
     concurrentMessages: number;
     activeProviders: string[];
+  };
+  fallback: {
+    useFreeModels: boolean;
+    freeProviderApiKey: string;
+    freeModels: string[];
+    safeReplyEnabled: boolean;
+    safeReplyMessage: string;
   };
 };
 
@@ -51,6 +59,14 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
     concurrentMessages: 50,
     activeProviders: [],
   },
+  fallback: {
+    useFreeModels: false,
+    freeProviderApiKey: '',
+    freeModels: ['meta-llama/llama-3.3-70b-instruct:free'],
+    safeReplyEnabled: true,
+    safeReplyMessage:
+      'Estoy con alta demanda y no pude procesar tu mensaje ahora mismo. Intenta nuevamente en unos minutos.',
+  },
 };
 
 export async function generateAgentReply(args: {
@@ -60,17 +76,27 @@ export async function generateAgentReply(args: {
   message: string;
   history?: ChatTurn[];
 }) {
-  const settings = await readWorkspaceSettings(args.db, args.workspaceId);
+  const workspaceId = args.workspaceId || 'default';
+  const settings = await readWorkspaceSettings(args.db, workspaceId);
   const providers = resolveProviderOrder(settings);
-
-  if (providers.length === 0) {
-    throw new Error('No hay proveedores de IA activos con API key configurada.');
-  }
 
   const system = buildSystemPrompt(args.agent);
   const history = (args.history ?? []).slice(-12);
-
   const errors: string[] = [];
+
+  if (providers.length === 0) {
+    errors.push('No hay proveedores de IA activos con API key configurada.');
+    await emitWorkspaceAlert({
+      db: args.db,
+      workspaceId,
+      eventCode: 'NO_PROVIDER_CONFIGURED',
+      severity: 'warning',
+      title: 'Sin proveedores configurados',
+      body: 'No hay proveedores IA activos o con token valido en esta organizacion.',
+      meta: { module: 'ai-orchestrator' },
+    }).catch(() => {});
+  }
+
   for (const candidate of providers) {
     try {
       const reply = await callProvider({
@@ -87,10 +113,68 @@ export async function generateAgentReply(args: {
         reply,
         provider: candidate.provider,
         model: candidate.model,
+        fallbackUsed: false,
+        fallbackType: 'none' as const,
+        errors,
       };
     } catch (err: any) {
       errors.push(`${candidate.provider}/${candidate.model}: ${err?.message ?? 'error desconocido'}`);
     }
+  }
+
+  if (providers.length > 0) {
+    await emitWorkspaceAlert({
+      db: args.db,
+      workspaceId,
+      eventCode: 'ALL_PROVIDERS_FAILED',
+      severity: 'critical',
+      title: 'Todos los proveedores fallaron',
+      body: 'Se agoto la lista de proveedores IA sin respuesta valida.',
+      meta: { errors },
+    }).catch(() => {});
+  }
+
+  const freeFallback = await tryFreeFallback({
+    settings,
+    system,
+    history,
+    message: args.message,
+    responseLength: args.agent.profile?.responseLength ?? 'standard',
+  });
+
+  if (freeFallback.ok) {
+    return {
+      reply: freeFallback.reply,
+      provider: 'openrouter-free',
+      model: freeFallback.model,
+      fallbackUsed: true,
+      fallbackType: 'free_model' as const,
+      errors,
+    };
+  }
+
+  if (freeFallback.error) {
+    errors.push(`openrouter-free: ${freeFallback.error}`);
+    await emitWorkspaceAlert({
+      db: args.db,
+      workspaceId,
+      eventCode: 'FREE_FALLBACK_FAILED',
+      severity: 'warning',
+      title: 'Fallback gratuito no disponible',
+      body: 'El fallback de modelo gratuito tambien fallo.',
+      meta: { error: freeFallback.error },
+    }).catch(() => {});
+  }
+
+  if (settings.fallback.safeReplyEnabled) {
+    return {
+      reply: settings.fallback.safeReplyMessage,
+      provider: 'fallback-message',
+      model: 'static-safe-reply',
+      fallbackUsed: true,
+      fallbackType: 'safe_message' as const,
+      errors,
+    };
   }
 
   throw new Error(`Todos los proveedores fallaron. ${errors.join(' | ')}`);
@@ -128,6 +212,13 @@ async function readWorkspaceSettings(db: Db, workspaceId?: string): Promise<Work
         ? doc.orchestration.activeProviders
         : [],
     },
+    fallback: {
+      ...DEFAULT_SETTINGS.fallback,
+      ...(doc.fallback ?? {}),
+      freeModels: Array.isArray(doc.fallback?.freeModels)
+        ? doc.fallback.freeModels.filter((m: unknown) => typeof m === 'string' && m.trim())
+        : DEFAULT_SETTINGS.fallback.freeModels,
+    },
   };
 }
 
@@ -163,10 +254,50 @@ function resolveProviderOrder(settings: WorkspaceSettings): ProviderCandidate[] 
   }));
 }
 
+async function tryFreeFallback(args: {
+  settings: WorkspaceSettings;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  if (!args.settings.fallback.useFreeModels) return { ok: false as const };
+
+  const apiKey =
+    args.settings.fallback.freeProviderApiKey?.trim() ||
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    process.env.ORQO_FREE_OPENROUTER_API_KEY?.trim() ||
+    '';
+
+  if (!apiKey) return { ok: false as const, error: 'No hay API key para OpenRouter free fallback.' };
+
+  const models = (args.settings.fallback.freeModels ?? []).filter((m) => m?.trim());
+  if (models.length === 0) return { ok: false as const, error: 'No hay modelos gratuitos configurados.' };
+
+  const errors: string[] = [];
+  for (const model of models) {
+    try {
+      const reply = await callOpenRouterFree({
+        apiKey,
+        model,
+        system: args.system,
+        history: args.history,
+        message: args.message,
+        responseLength: args.responseLength,
+      });
+      return { ok: true as const, reply, model };
+    } catch (error: any) {
+      errors.push(`${model}: ${error?.message ?? 'error desconocido'}`);
+    }
+  }
+
+  return { ok: false as const, error: errors.join(' | ') };
+}
+
 function buildSystemPrompt(agent: AgentRuntime): string {
   const lines: string[] = [];
   lines.push(`Eres ${agent.name?.trim() || 'un asistente virtual de ORQO'}.`);
-  lines.push('Responde con claridad, útil y en tono profesional.');
+  lines.push('Responde con claridad, util y en tono profesional.');
 
   const p = agent.profile;
   if (p?.personality) lines.push(`Personalidad: ${p.personality}.`);
@@ -176,7 +307,9 @@ function buildSystemPrompt(agent: AgentRuntime): string {
   if (agent.skills?.length) lines.push(`Skills activos: ${agent.skills.join(', ')}.`);
 
   if (agent.advanced?.escalationKeywords?.trim()) {
-    lines.push(`Si detectas escalación (${agent.advanced.escalationKeywords}), informa: ${agent.advanced.humanHandoffMsg || 'Te conecto con un agente humano.'}`);
+    lines.push(
+      `Si detectas escalacion (${agent.advanced.escalationKeywords}), informa: ${agent.advanced.humanHandoffMsg || 'Te conecto con un agente humano.'}`
+    );
   }
 
   return lines.join('\n\n');
@@ -235,7 +368,7 @@ async function callOpenAI(args: {
   if (!res.ok) throw new Error(data?.error?.message ?? 'OpenAI error');
 
   const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('OpenAI no devolvió contenido');
+  if (!text) throw new Error('OpenAI no devolvio contenido');
   return text;
 }
 
@@ -273,7 +406,7 @@ async function callAnthropic(args: {
 
   const blocks = Array.isArray(data?.content) ? data.content : [];
   const text = blocks.map((b: any) => (b?.type === 'text' ? b.text : '')).join('').trim();
-  if (!text) throw new Error('Anthropic no devolvió contenido');
+  if (!text) throw new Error('Anthropic no devolvio contenido');
   return text;
 }
 
@@ -310,7 +443,7 @@ async function callGoogle(args: {
   if (!res.ok) throw new Error(data?.error?.message ?? 'Google Gemini error');
 
   const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? '').join('').trim();
-  if (!text) throw new Error('Gemini no devolvió contenido');
+  if (!text) throw new Error('Gemini no devolvio contenido');
   return text;
 }
 
@@ -346,6 +479,42 @@ async function callGrok(args: {
   if (!res.ok) throw new Error(data?.error?.message ?? 'Grok error');
 
   const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('Grok no devolvió contenido');
+  if (!text) throw new Error('Grok no devolvio contenido');
+  return text;
+}
+
+async function callOpenRouterFree(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  const messages = [
+    { role: 'system', content: args.system },
+    ...args.history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: args.message },
+  ];
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      messages,
+      temperature: 0.3,
+      max_tokens: maxTokens(args.responseLength),
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message ?? 'OpenRouter error');
+
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('OpenRouter no devolvio contenido');
   return text;
 }

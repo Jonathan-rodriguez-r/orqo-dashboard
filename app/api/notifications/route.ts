@@ -10,7 +10,14 @@ export async function GET() {
   const db = await getDb();
 
   const items = await db.collection('notifications')
-    .find({ workspaceId: session.workspaceId })
+    .find({
+      workspaceId: session.workspaceId,
+      $or: [
+        { recipientRoles: { $exists: false } },
+        { recipientRoles: { $size: 0 } },
+        { recipientRoles: session.role },
+      ],
+    })
     .sort({ createdAt: -1 })
     .limit(50)
     .toArray();
@@ -25,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { type = 'info', title, body: bodyText } = body;
+  const { type = 'info', title, body: bodyText, recipientRoles } = body;
 
   if (!title || !bodyText) {
     return NextResponse.json({ ok: false, error: 'title and body required' }, { status: 400 });
@@ -39,6 +46,9 @@ export async function POST(req: NextRequest) {
     type,
     title,
     body: bodyText,
+    recipientRoles: Array.isArray(recipientRoles)
+      ? recipientRoles.filter((r: unknown) => typeof r === 'string' && r.trim())
+      : [],
     read: false,
     createdAt: now,
     expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days TTL

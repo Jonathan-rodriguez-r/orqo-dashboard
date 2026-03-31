@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { SYSTEM_MODULES } from '@/lib/rbac';
 import OrchestrationPage from './orchestration/page';
+import AlertsSettingsPage from './alerts/page';
 
 // ── Tab types ──────────────────────────────────────────────────────────────────
-type Tab = 'orchestration' | 'widget' | 'integrations' | 'access' | 'account';
+type Tab = 'orchestration' | 'alerts' | 'widget' | 'integrations' | 'access' | 'account';
 type AccessSubTab = 'users' | 'roles';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -282,6 +283,7 @@ export default function SettingsPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'orchestration', label: 'Orquestación IA' },
+    { id: 'alerts',        label: 'Alertas' },
     { id: 'widget',        label: 'Widget' },
     { id: 'integrations',  label: 'Integraciones' },
     { id: 'access',        label: 'Accesos' },
@@ -314,6 +316,9 @@ export default function SettingsPage() {
 
       {/* ── Orchestration tab ─────────────────────────────────────────── */}
       {tab === 'orchestration' && <OrchestrationPage embedded />}
+
+      {/* ── Alerts tab ─────────────────────────────────────────────────── */}
+      {tab === 'alerts' && <AlertsSettingsPage embedded />}
 
       {/* ── Widget tab ──────────────────────────────────────────────────────── */}
       {tab === 'widget' && (

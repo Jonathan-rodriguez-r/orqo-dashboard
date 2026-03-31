@@ -2,6 +2,27 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.0] - 2026-03-31
+
+### Added
+
+- Alerting module for AI incidents:
+- New workspace alert settings API `GET/PUT /api/settings/alerts`.
+- New alert service `lib/alerts.ts` with throttling and role-based recipients.
+- New settings tab `Alertas` with event toggles, deduplication window, and recipient-role selection.
+- New fallback controls in orchestration settings:
+- Free model fallback (OpenRouter) with configurable model list.
+- Safe fallback reply message to avoid hard chat failures.
+
+### Changed
+
+- `lib/ai-orchestrator.ts` now supports:
+- Automatic no-provider detection and alert emission.
+- Multi-provider failure detection with critical alerts.
+- Optional free-model fallback before returning a controlled safe reply.
+- `POST /api/agents/preview` and `POST /api/widget/reply` now log degradation details when fallback is used.
+- Notifications query now supports role-targeted alerts via `recipientRoles`.
+
 ## [1.5.0] - 2026-03-31
 
 ### Added

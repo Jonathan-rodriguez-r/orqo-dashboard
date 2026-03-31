@@ -14,6 +14,14 @@ const DEFAULT_SETTINGS = {
     concurrentMessages: 50,
     activeProviders: [] as string[],
   },
+  fallback: {
+    useFreeModels: false,
+    freeProviderApiKey: '',
+    freeModels: ['meta-llama/llama-3.3-70b-instruct:free'],
+    safeReplyEnabled: true,
+    safeReplyMessage:
+      'Estoy con alta demanda y no pude procesar tu mensaje ahora mismo. Intenta nuevamente en unos minutos.',
+  },
 };
 
 export async function GET() {
@@ -36,7 +44,13 @@ export async function GET() {
     }
 
     const { _id, ...rest } = doc as any;
-    return Response.json(rest);
+    return Response.json({
+      ...DEFAULT_SETTINGS,
+      ...rest,
+      aiProviders: { ...DEFAULT_SETTINGS.aiProviders, ...(rest.aiProviders ?? {}) },
+      orchestration: { ...DEFAULT_SETTINGS.orchestration, ...(rest.orchestration ?? {}) },
+      fallback: { ...DEFAULT_SETTINGS.fallback, ...(rest.fallback ?? {}) },
+    });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
   }
