@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -20,6 +20,11 @@ type AccountCfg = {
   phone: string;
   address: string;
   industry: string;
+  brand_primary_color: string;
+  brand_secondary_color: string;
+  operations_owner: string;
+  report_recipients: string;
+  sla_first_response_min: number;
 };
 
 const DEFAULTS: AccountCfg = {
@@ -40,12 +45,17 @@ const DEFAULTS: AccountCfg = {
   phone: '',
   address: '',
   industry: '',
+  brand_primary_color: '#2CB978',
+  brand_secondary_color: '#0B100D',
+  operations_owner: '',
+  report_recipients: '',
+  sla_first_response_min: 15,
 };
 
 const INDUSTRIES = [
-  '', 'E-commerce / Retail', 'Salud y Bienestar', 'Educación', 'Servicios Financieros',
-  'Bienes Raíces', 'Hospitalidad y Turismo', 'Tecnología / SaaS', 'Logística y Transporte',
-  'Manufactura', 'Consultoría y Servicios Profesionales', 'Entretenimiento y Medios', 'Otro',
+  '', 'E-commerce / Retail', 'Salud y Bienestar', 'EducaciÃ³n', 'Servicios Financieros',
+  'Bienes RaÃ­ces', 'Hospitalidad y Turismo', 'TecnologÃ­a / SaaS', 'LogÃ­stica y Transporte',
+  'Manufactura', 'ConsultorÃ­a y Servicios Profesionales', 'Entretenimiento y Medios', 'Otro',
 ];
 
 export default function AccountPage() {
@@ -127,12 +137,12 @@ export default function AccountPage() {
     <div className="dash-content">
       <div className="page-header">
         <h1 className="page-title">Cuenta</h1>
-        <p className="page-sub">Administra tu plan, identidad del dashboard y configuración del negocio</p>
+        <p className="page-sub">Administra tu plan, identidad del dashboard y configuraciÃ³n del negocio</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Plan ── */}
+        {/* â”€â”€ Plan â”€â”€ */}
         <div className="card">
           <div className="card-title">Plan actual</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
@@ -158,12 +168,12 @@ export default function AccountPage() {
           </div>
           <div style={{ marginTop: 16 }}>
             <button className="btn btn-ghost btn-sm" style={{ opacity: 0.5, cursor: 'not-allowed' }} disabled>
-              Actualizar plan — próximamente
+              Actualizar plan â€” prÃ³ximamente
             </button>
           </div>
         </div>
 
-        {/* ── Identidad del dashboard ── */}
+        {/* â”€â”€ Identidad del dashboard â”€â”€ */}
         <div className="card">
           <div className="card-title">Identidad del dashboard</div>
           <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 16 }}>
@@ -226,9 +236,9 @@ export default function AccountPage() {
                     onChange={handleFileUpload}
                   />
                   <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>
-                    Elegir imagen…
+                    Elegir imagenâ€¦
                   </button>
-                  <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 6 }}>PNG, SVG, JPEG o WebP · máx. 512 KB</div>
+                  <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 6 }}>PNG, SVG, JPEG o WebP Â· mÃ¡x. 512 KB</div>
                 </>
               )}
 
@@ -251,33 +261,75 @@ export default function AccountPage() {
               maxLength={32}
             />
             <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 4 }}>
-              Si está vacío, se usa el nombre del negocio (o "ORQO" si tampoco está definido).
+              Si estÃ¡ vacÃ­o, se usa el nombre del negocio (o "ORQO" si tampoco estÃ¡ definido).
             </div>
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <label className="label">Color primario del portal</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="color"
+                  value={cfg.brand_primary_color || '#2CB978'}
+                  onChange={e => set('brand_primary_color', e.target.value)}
+                  style={{ width: 44, height: 34, border: '1px solid var(--g03)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }}
+                />
+                <input
+                  className="input input-mono"
+                  value={cfg.brand_primary_color}
+                  onChange={e => set('brand_primary_color', e.target.value)}
+                  placeholder="#2CB978"
+                  style={{ maxWidth: 130 }}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label className="label">Color secundario del portal</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="color"
+                  value={cfg.brand_secondary_color || '#0B100D'}
+                  onChange={e => set('brand_secondary_color', e.target.value)}
+                  style={{ width: 44, height: 34, border: '1px solid var(--g03)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }}
+                />
+                <input
+                  className="input input-mono"
+                  value={cfg.brand_secondary_color}
+                  onChange={e => set('brand_secondary_color', e.target.value)}
+                  placeholder="#0B100D"
+                  style={{ maxWidth: 130 }}
+                />
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: -4 }}>
+            Estos colores aplican para el portal y para la exportacion de informes. No modifican la configuracion del widget.
           </div>
         </div>
 
-        {/* ── API Key ── */}
+        {/* â”€â”€ API Key â”€â”€ */}
         <div className="card">
           <div className="card-title">API Key</div>
           <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 12 }}>
-            Usa esta clave para autenticar el widget en tu sitio web. No la compartas públicamente.
+            Usa esta clave para autenticar el widget en tu sitio web. No la compartas pÃºblicamente.
           </p>
           <div className="apikey-row">
             <div className="apikey-val">
-              {showKey ? cfg.api_key || '—' : '●'.repeat(Math.min(32, (cfg.api_key || '').length || 32))}
+              {showKey ? cfg.api_key || 'â€”' : 'â—'.repeat(Math.min(32, (cfg.api_key || '').length || 32))}
             </div>
             <button className="btn btn-ghost btn-sm" onClick={() => setShowKey(p => !p)}>
               {showKey ? 'Ocultar' : 'Mostrar'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={copyKey}>
-              {copied ? '✓ Copiado' : 'Copiar'}
+              {copied ? 'âœ“ Copiado' : 'Copiar'}
             </button>
           </div>
         </div>
 
-        {/* ── Información del negocio ── */}
+        {/* â”€â”€ InformaciÃ³n del negocio â”€â”€ */}
         <div className="card">
-          <div className="card-title">Información del negocio</div>
+          <div className="card-title">InformaciÃ³n del negocio</div>
           <div className="field-row">
             <div className="field">
               <label className="label">Nombre del negocio</label>
@@ -286,7 +338,7 @@ export default function AccountPage() {
             <div className="field">
               <label className="label">Industria</label>
               <select className="input" value={cfg.industry} onChange={e => set('industry', e.target.value)}>
-                {INDUSTRIES.map(i => <option key={i} value={i}>{i || '— Seleccionar —'}</option>)}
+                {INDUSTRIES.map(i => <option key={i} value={i}>{i || 'â€” Seleccionar â€”'}</option>)}
               </select>
             </div>
           </div>
@@ -306,13 +358,13 @@ export default function AccountPage() {
               <input className="input" value={cfg.website} onChange={e => set('website', e.target.value)} placeholder="https://miempresa.com"/>
             </div>
             <div className="field">
-              <label className="label">Teléfono</label>
+              <label className="label">TelÃ©fono</label>
               <input className="input" value={cfg.phone} onChange={e => set('phone', e.target.value)} placeholder="+57 300 000 0000"/>
             </div>
           </div>
           <div className="field">
-            <label className="label">Dirección</label>
-            <input className="input" value={cfg.address} onChange={e => set('address', e.target.value)} placeholder="Calle 123 #45-67, Bogotá, Colombia"/>
+            <label className="label">DirecciÃ³n</label>
+            <input className="input" value={cfg.address} onChange={e => set('address', e.target.value)} placeholder="Calle 123 #45-67, BogotÃ¡, Colombia"/>
           </div>
           <div className="field-row">
             <div className="field">
@@ -320,7 +372,7 @@ export default function AccountPage() {
               <input className="input" value={cfg.active_domain} onChange={e => set('active_domain', e.target.value)} placeholder="miempresa.com"/>
             </div>
             <div className="field">
-              <label className="label">Página donde aparece el widget</label>
+              <label className="label">PÃ¡gina donde aparece el widget</label>
               <input className="input" value={cfg.widget_page_url} onChange={e => set('widget_page_url', e.target.value)} placeholder="https://miempresa.com"/>
             </div>
           </div>
@@ -328,37 +380,77 @@ export default function AccountPage() {
             <div className="field">
               <label className="label">Zona horaria</label>
               <select className="input" value={cfg.timezone} onChange={e => set('timezone', e.target.value)}>
-                <option value="America/Bogota">América/Bogotá (COT)</option>
-                <option value="America/Mexico_City">América/Ciudad de México (CST)</option>
-                <option value="America/Argentina/Buenos_Aires">América/Buenos Aires (ART)</option>
-                <option value="America/Santiago">América/Santiago (CLT)</option>
-                <option value="America/Lima">América/Lima (PET)</option>
-                <option value="America/New_York">América/Nueva York (EST)</option>
+                <option value="America/Bogota">AmÃ©rica/BogotÃ¡ (COT)</option>
+                <option value="America/Mexico_City">AmÃ©rica/Ciudad de MÃ©xico (CST)</option>
+                <option value="America/Argentina/Buenos_Aires">AmÃ©rica/Buenos Aires (ART)</option>
+                <option value="America/Santiago">AmÃ©rica/Santiago (CLT)</option>
+                <option value="America/Lima">AmÃ©rica/Lima (PET)</option>
+                <option value="America/New_York">AmÃ©rica/Nueva York (EST)</option>
                 <option value="Europe/Madrid">Europa/Madrid (CET)</option>
               </select>
             </div>
             <div className="field">
               <label className="label">Idioma del widget</label>
               <select className="input" value={cfg.language} onChange={e => set('language', e.target.value)}>
-                <option value="es">Español</option>
+                <option value="es">EspaÃ±ol</option>
                 <option value="en">English</option>
-                <option value="pt">Português</option>
+                <option value="pt">PortuguÃªs</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* ── Info útil ── */}
+        <div className="card">
+          <div className="card-title">Operacion y reportes</div>
+          <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 14 }}>
+            Estos datos se usan para personalizar informes gerenciales, alertas y seguimiento operativo por cliente.
+          </p>
+          <div className="field-row">
+            <div className="field">
+              <label className="label">Responsable de operaciones</label>
+              <input
+                className="input"
+                value={cfg.operations_owner}
+                onChange={e => set('operations_owner', e.target.value)}
+                placeholder="Nombre del responsable"
+              />
+            </div>
+            <div className="field">
+              <label className="label">SLA primera respuesta (min)</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={180}
+                value={cfg.sla_first_response_min}
+                onChange={e => set('sla_first_response_min', Number(e.target.value || 0))}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label className="label">Destinatarios de informes (emails separados por coma)</label>
+            <input
+              className="input"
+              value={cfg.report_recipients}
+              onChange={e => set('report_recipients', e.target.value)}
+              placeholder="ops@cliente.com, gerencia@cliente.com"
+            />
+          </div>
+        </div>
+
+        {/* â”€â”€ Info Ãºtil â”€â”€ */}
         <div className="card" style={{ background: 'rgba(44,185,120,0.04)', borderColor: 'rgba(44,185,120,0.15)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>ℹ️</div>
+            <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>â„¹ï¸</div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--g07)', marginBottom: 4 }}>¿Cómo se usa esta información?</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--g07)', marginBottom: 4 }}>Â¿CÃ³mo se usa esta informaciÃ³n?</div>
               <ul style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 1.8, paddingLeft: 16, margin: 0 }}>
                 <li>El <strong style={{ color: 'var(--g06)' }}>logo</strong> reemplaza el isotipo ORQO en la barra lateral del dashboard.</li>
                 <li>El <strong style={{ color: 'var(--g06)' }}>nombre en sidebar</strong> reemplaza "ORQO" en la barra lateral.</li>
-                <li>La <strong style={{ color: 'var(--g06)' }}>zona horaria</strong> afecta la presentación de fechas y horas en los logs y conversaciones.</li>
+                <li>El <strong style={{ color: 'var(--g06)' }}>logo del cliente</strong> tambien se usa en exportaciones PDF gerenciales.</li>
+                <li>La <strong style={{ color: 'var(--g06)' }}>zona horaria</strong> afecta la presentaciÃ³n de fechas y horas en los logs y conversaciones.</li>
                 <li>El <strong style={{ color: 'var(--g06)' }}>dominio activo</strong> se usa para validar solicitudes del widget embebido.</li>
+                <li>Los <strong style={{ color: 'var(--g06)' }}>datos operativos</strong> enriquecen el contexto para informes asistidos por AI.</li>
               </ul>
             </div>
           </div>
@@ -368,7 +460,7 @@ export default function AccountPage() {
 
       <div className="save-bar">
         <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? 'Guardando…' : saved ? '✓ Guardado' : 'Guardar cambios'}
+          {saving ? 'Guardandoâ€¦' : saved ? 'âœ“ Guardado' : 'Guardar cambios'}
         </button>
       </div>
     </div>

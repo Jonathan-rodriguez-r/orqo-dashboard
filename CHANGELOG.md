@@ -2,6 +2,28 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.9] - 2026-03-31
+
+### Added
+
+- Account branding controls for dashboard/reporting colors:
+- `brand_primary_color`
+- `brand_secondary_color`
+- New operational account fields for reporting context:
+- `operations_owner`
+- `report_recipients`
+- `sla_first_response_min`
+
+### Changed
+
+- Dashboard branding now reads account-level colors (independent from widget config), applying client palette to portal accents and mobile header branding.
+- Reports module now splits into two independent flows:
+- Statistical report by date range (`mode: stats`) for pure metrics/export.
+- AI-assisted management report (`mode: ai`) for executive narrative plus export.
+- `POST /api/reports/generate` now supports report mode separation (`stats` vs `ai`) in JSON/XLSX/PDF generation.
+- PDF exports were redesigned with executive styling (header band, KPI blocks, client logo, and account branding colors).
+- Default AI prompt was strengthened for management-level output structure and action plan framing.
+
 ## [1.6.8] - 2026-03-31
 
 ### Added

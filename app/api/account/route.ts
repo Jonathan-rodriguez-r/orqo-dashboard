@@ -12,6 +12,8 @@ const DEFAULTS = {
   timezone: 'America/Bogota',
   language: 'es',
   api_key: '',
+  brand_primary_color: '#2CB978',
+  brand_secondary_color: '#0B100D',
 };
 
 export async function GET() {
