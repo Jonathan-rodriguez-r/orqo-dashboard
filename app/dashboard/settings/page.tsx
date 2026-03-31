@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { SYSTEM_MODULES } from '@/lib/rbac';
+import OrchestrationPage from './orchestration/page';
 
 // ── Tab types ──────────────────────────────────────────────────────────────────
-type Tab = 'widget' | 'integrations' | 'access' | 'account';
+type Tab = 'orchestration' | 'widget' | 'integrations' | 'access' | 'account';
 type AccessSubTab = 'users' | 'roles';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ const MODULE_GROUPS = Array.from(new Set(SYSTEM_MODULES.map(m => m.group)));
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const [tab, setTab]               = useState<Tab>('widget');
+  const [tab, setTab]               = useState<Tab>('orchestration');
   const [accessSub, setAccessSub]   = useState<AccessSubTab>('users');
 
   // Widget
@@ -280,10 +281,11 @@ export default function SettingsPage() {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'widget',       label: 'Widget' },
-    { id: 'integrations', label: 'Integraciones' },
-    { id: 'access',       label: 'Accesos' },
-    { id: 'account',      label: 'Cuenta' },
+    { id: 'orchestration', label: 'Orquestación IA' },
+    { id: 'widget',        label: 'Widget' },
+    { id: 'integrations',  label: 'Integraciones' },
+    { id: 'access',        label: 'Accesos' },
+    { id: 'account',       label: 'Cuenta' },
   ];
 
   const tabBtnStyle = (active: boolean) => ({
@@ -298,7 +300,7 @@ export default function SettingsPage() {
     <div className="dash-content">
       <div className="page-header">
         <h1 className="page-title">Configuración</h1>
-        <p className="page-sub">Widget, integraciones, accesos y configuración de cuenta</p>
+        <p className="page-sub">Orquestación IA, widget, integraciones, accesos y cuenta</p>
       </div>
 
       {/* Main tab nav */}
@@ -309,6 +311,9 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Orchestration tab ─────────────────────────────────────────── */}
+      {tab === 'orchestration' && <OrchestrationPage embedded />}
 
       {/* ── Widget tab ──────────────────────────────────────────────────────── */}
       {tab === 'widget' && (

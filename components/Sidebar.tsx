@@ -12,7 +12,7 @@ const I = {
   agent:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
   report:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
   settings:<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M11.89 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" strokeLinecap="round"/></svg>,
-  ai:      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 2h2v1.5a4.5 4.5 0 0 1 1.95.8l1.3-.75 1 1.73-1.3.75a4.5 4.5 0 0 1 0 1.94l1.3.75-1 1.73-1.3-.75A4.5 4.5 0 0 1 9 11.5V13H7v-1.5a4.5 4.5 0 0 1-1.95-.8l-1.3.75-1-1.73 1.3-.75a4.5 4.5 0 0 1 0-1.94l-1.3-.75 1-1.73 1.3.75A4.5 4.5 0 0 1 7 3.5V2Z" strokeLinejoin="round"/><circle cx="8" cy="8" r="2"/></svg>,
+  ai:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" strokeLinejoin="round"/></svg>,
   collapse:<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3L6 8l4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   expand:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3l4 5-4 5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
 };
@@ -25,9 +25,8 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings',               label: 'Configuración',   icon: I.settings, permission: 'settings.widget' },
-  { href: '/dashboard/settings/orchestration', label: 'Orquestación IA', icon: I.ai,       permission: 'settings.widget' },
-  { href: '/dashboard/logs',                   label: 'Logs & Auditoría',icon: I.logs,     permission: 'admin.logs'      },
+  { href: '/dashboard/settings', label: 'Configuración',   icon: I.settings, permission: 'settings.widget' },
+  { href: '/dashboard/logs',     label: 'Logs & Auditoría', icon: I.logs,  permission: 'admin.logs'      },
 ] as const;
 
 type Props = {

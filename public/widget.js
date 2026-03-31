@@ -160,9 +160,11 @@
     }
 
     var open = false;
+    var remoteLoaded = false;
     function toggle() {
       open = !open;
       winEl.classList.toggle('o-hide', !open);
+      if (open && !remoteLoaded) { remoteLoaded = true; loadRemote(); }
     }
     btn.addEventListener('click', toggle);
     closeBtn.addEventListener('click', function() { open = false; winEl.classList.add('o-hide'); });
@@ -177,18 +179,105 @@
     });
     sendBtn.addEventListener('click', sendMsg);
 
-    var history = [];
+    // ── Conversation storage ───────────────────────────────────────────────
+    var LS_VISITOR = 'orqo_visitor_id';
+    var LS_CONV    = 'orqo_conv_' + (cfg.agentId || 'default');
+    var convId     = null;
+    var history    = [];
+    var syncing    = false;
+
+    // Get or create persistent visitor ID
+    function getVisitorId() {
+      var id = localStorage.getItem(LS_VISITOR);
+      if (!id) {
+        id = 'v_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+        localStorage.setItem(LS_VISITOR, id);
+      }
+      return id;
+    }
+    var visitorId = getVisitorId();
+
+    // Load conversation from localStorage
+    function loadLocal() {
+      try {
+        var raw = localStorage.getItem(LS_CONV);
+        if (raw) {
+          var saved = JSON.parse(raw);
+          history = saved.messages || [];
+          convId  = saved.convId || null;
+          // Re-render saved messages (skip welcome bubble already shown)
+          history.forEach(function(m) {
+            addBub(m.role === 'user' ? 'usr' : 'bot', m.content);
+          });
+        }
+      } catch(e) {}
+    }
+
+    // Save conversation to localStorage
+    function saveLocal() {
+      try {
+        localStorage.setItem(LS_CONV, JSON.stringify({ messages: history, convId: convId, ts: Date.now() }));
+      } catch(e) {}
+    }
+
+    // Sync a single message to API (fire and forget)
+    function syncMessage(role, content) {
+      if (syncing) return;
+      syncing = true;
+      fetch(API_BASE + '/api/widget/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitorId: visitorId, agentId: cfg.agentId || 'default', role: role, content: content }),
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.convId) { convId = d.convId; saveLocal(); }
+      }).catch(function() {
+        // API failed — message is already in localStorage, will sync later
+      }).finally(function() { syncing = false; });
+    }
+
+    // Load history from API on open
+    function loadRemote() {
+      fetch(API_BASE + '/api/widget/conversations?visitorId=' + encodeURIComponent(visitorId) + '&agentId=' + encodeURIComponent(cfg.agentId || 'default'), { cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.messages && d.messages.length > history.length) {
+            // Remote has more messages — use remote version
+            history = d.messages;
+            convId  = d.convId;
+            saveLocal();
+            // Clear current display and re-render
+            msgs.innerHTML = '';
+            history.forEach(function(m) {
+              addBub(m.role === 'user' ? 'usr' : 'bot', m.content);
+            });
+          }
+        }).catch(function() {});
+    }
+
+    // Load local history immediately, then try remote
+    loadLocal();
+    loadRemote();
+
     function sendMsg() {
       var text = ta.value.trim();
       if (!text) return;
       ta.value = '';
       autoResize();
+
+      // Add user message
       addBub('usr', text);
-      history.push({ role: 'user', content: text });
-      // Simple echo reply — replace with real AI endpoint
+      history.push({ role: 'user', content: text, ts: Date.now() });
+      saveLocal();
+      syncMessage('user', text);
+
+      // Simple agent reply (TODO: connect to real AI endpoint)
+      var agentReply = 'Gracias por tu mensaje. Nuestro equipo te responderá pronto. Si tienes una consulta urgente, por favor indícala.';
       setTimeout(function() {
-        addBub('bot', 'Gracias por tu mensaje. Pronto me conectaré a tu agente IA.');
-      }, 600);
+        addBub('bot', agentReply);
+        history.push({ role: 'agent', content: agentReply, ts: Date.now() });
+        saveLocal();
+        syncMessage('agent', agentReply);
+      }, 700);
     }
 
     function addBub(role, text) {

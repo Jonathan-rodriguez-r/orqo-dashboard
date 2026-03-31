@@ -21,6 +21,21 @@ const DEFAULT_AGENT = {
     escalationKeywords: 'hablar con agente, cancelar, queja, urgente',
     humanHandoffMsg: 'En un momento te atiendo un agente humano.',
   },
+  preChatForm: {
+    enabled: false,
+    fields: {
+      name:  { enabled: true,  required: true  },
+      email: { enabled: true,  required: false },
+      phone: { enabled: false, required: false },
+    },
+  },
+  tokenLimits: {
+    periodEnabled: false,
+    period: 'month',
+    periodLimit: 100000,
+    convEnabled: false,
+    convLimit: 4000,
+  },
 };
 
 export async function GET() {
@@ -86,6 +101,21 @@ export async function POST(req: Request) {
         geofencingEnabled: false,
         escalationKeywords: '',
         humanHandoffMsg: 'En un momento te atiendo un agente humano.',
+      },
+      preChatForm: body.preChatForm ?? {
+        enabled: false,
+        fields: {
+          name:  { enabled: true,  required: true  },
+          email: { enabled: true,  required: false },
+          phone: { enabled: false, required: false },
+        },
+      },
+      tokenLimits: body.tokenLimits ?? {
+        periodEnabled: false,
+        period: 'month',
+        periodLimit: 100000,
+        convEnabled: false,
+        convLimit: 4000,
       },
       createdAt: now,
       updatedAt: now,

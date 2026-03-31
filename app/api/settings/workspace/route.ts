@@ -8,26 +8,11 @@ const DEFAULT_SETTINGS = {
     grok:      { apiKey: '', model: 'grok-3', enabled: false },
     anthropic: { apiKey: '', model: 'claude-sonnet-4-6', enabled: false },
   },
-  tokenLimits: {
-    periodEnabled: false,
-    period: 'month' as const,
-    periodLimit: 100000,
-    convEnabled: false,
-    convLimit: 4000,
-  },
   orchestration: {
     multiModel: false,
     strategy: 'failover' as const,
     concurrentMessages: 50,
     activeProviders: [] as string[],
-  },
-  preChatForm: {
-    enabled: false,
-    fields: {
-      name:  { enabled: true,  required: true  },
-      email: { enabled: true,  required: false },
-      phone: { enabled: false, required: false },
-    },
   },
 };
 

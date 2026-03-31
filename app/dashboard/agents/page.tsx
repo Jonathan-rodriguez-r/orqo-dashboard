@@ -31,6 +31,21 @@ type AgentFull = AgentSummary & {
     escalationKeywords: string;
     humanHandoffMsg: string;
   };
+  preChatForm: {
+    enabled: boolean;
+    fields: {
+      name:  { enabled: boolean; required: boolean };
+      email: { enabled: boolean; required: boolean };
+      phone: { enabled: boolean; required: boolean };
+    };
+  };
+  tokenLimits: {
+    periodEnabled: boolean;
+    period: 'day' | 'week' | 'month';
+    periodLimit: number;
+    convEnabled: boolean;
+    convLimit: number;
+  };
 };
 
 type FormState = Omit<AgentFull, '_id' | 'createdAt'>;
@@ -123,6 +138,18 @@ const DEFAULT_FORM: FormState = {
   advanced: {
     timezone: 'America/Bogota', scheduleEnabled: false, geofencingEnabled: false,
     escalationKeywords: '', humanHandoffMsg: 'En un momento te atiendo un agente humano.',
+  },
+  preChatForm: {
+    enabled: false,
+    fields: {
+      name:  { enabled: true,  required: true  },
+      email: { enabled: true,  required: false },
+      phone: { enabled: false, required: false },
+    },
+  },
+  tokenLimits: {
+    periodEnabled: false, period: 'month' as const, periodLimit: 100000,
+    convEnabled: false, convLimit: 4000,
   },
 };
 
@@ -346,6 +373,9 @@ export default function AgentsPage() {
         if (rest.profile && !Array.isArray(rest.profile.languages)) {
           rest.profile.languages = rest.profile.language ? [rest.profile.language] : ['auto'];
         }
+        // Backward compat: ensure preChatForm and tokenLimits exist
+        if (!rest.preChatForm) rest.preChatForm = DEFAULT_FORM.preChatForm;
+        if (!rest.tokenLimits) rest.tokenLimits = DEFAULT_FORM.tokenLimits;
         setForm(rest);
       }
     } catch {}
@@ -749,9 +779,95 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 2: Canales ───────────────────────────────── */}
+                    {/* ─── Section 2: Formulario Pre-Chat ──────────────────────────── */}
                     <div className="card">
-                      <SectionTitle>2. Canales</SectionTitle>
+                      <SectionTitle>2. Formulario Pre-Chat</SectionTitle>
+                      <ToggleRow
+                        title="Activar formulario pre-chat"
+                        desc="Muestra un formulario antes de iniciar la conversación"
+                        checked={form.preChatForm.enabled}
+                        onChange={v => setF('preChatForm', { ...form.preChatForm, enabled: v })}
+                      />
+                      {form.preChatForm.enabled && (
+                        <div style={{ marginTop: 12, paddingLeft: 16, borderLeft: '2px solid var(--acc)' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 8, marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--g05)', textTransform: 'uppercase' }}>
+                            <span>Campo</span><span style={{ textAlign: 'center' }}>Activado</span><span style={{ textAlign: 'center' }}>Requerido</span>
+                          </div>
+                          {([
+                            { id: 'name'  as const, label: 'Nombre',   icon: '👤' },
+                            { id: 'email' as const, label: 'Correo',   icon: '✉️' },
+                            { id: 'phone' as const, label: 'Teléfono', icon: '📱' },
+                          ]).map(field => {
+                            const cfg = form.preChatForm.fields[field.id];
+                            return (
+                              <div key={field.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 8, alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--g02)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 15 }}>{field.icon}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)' }}>{field.label}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                  <label className="toggle">
+                                    <input type="checkbox" checked={cfg.enabled} onChange={e => setF('preChatForm', { ...form.preChatForm, fields: { ...form.preChatForm.fields, [field.id]: { ...cfg, enabled: e.target.checked } } })}/>
+                                    <span className="toggle-track"/><span className="toggle-thumb"/>
+                                  </label>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                  <label className="toggle" style={{ opacity: cfg.enabled ? 1 : 0.35 }}>
+                                    <input type="checkbox" checked={cfg.required} disabled={!cfg.enabled} onChange={e => setF('preChatForm', { ...form.preChatForm, fields: { ...form.preChatForm.fields, [field.id]: { ...cfg, required: e.target.checked } } })}/>
+                                    <span className="toggle-track"/><span className="toggle-thumb"/>
+                                  </label>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ─── Section 3: Límites de Tokens ────────────────────────── */}
+                    <div className="card">
+                      <SectionTitle>3. Límites de Tokens</SectionTitle>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <ToggleRow
+                          title="Límite por período"
+                          desc="Restringe el total de tokens de este agente por período"
+                          checked={form.tokenLimits.periodEnabled}
+                          onChange={v => setF('tokenLimits', { ...form.tokenLimits, periodEnabled: v })}
+                        />
+                        {form.tokenLimits.periodEnabled && (
+                          <div style={{ paddingLeft: 16, borderLeft: '2px solid var(--acc)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label className="label">Período</label>
+                              <select className="input" value={form.tokenLimits.period} onChange={e => setF('tokenLimits', { ...form.tokenLimits, period: e.target.value as 'day'|'week'|'month' })} style={{ minWidth: 100 }}>
+                                <option value="day">Día</option><option value="week">Semana</option><option value="month">Mes</option>
+                              </select>
+                            </div>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label className="label">Límite</label>
+                              <input className="input" type="number" min={1000} step={1000} value={form.tokenLimits.periodLimit} onChange={e => setF('tokenLimits', { ...form.tokenLimits, periodLimit: Number(e.target.value) })} style={{ maxWidth: 140 }}/>
+                            </div>
+                          </div>
+                        )}
+                        <ToggleRow
+                          title="Límite por conversación"
+                          desc="Limita los tokens de cada conversación individual"
+                          checked={form.tokenLimits.convEnabled}
+                          onChange={v => setF('tokenLimits', { ...form.tokenLimits, convEnabled: v })}
+                        />
+                        {form.tokenLimits.convEnabled && (
+                          <div style={{ paddingLeft: 16, borderLeft: '2px solid var(--acc)' }}>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label className="label">Tokens por conversación</label>
+                              <input className="input" type="number" min={500} step={500} value={form.tokenLimits.convLimit} onChange={e => setF('tokenLimits', { ...form.tokenLimits, convLimit: Number(e.target.value) })} style={{ maxWidth: 140 }}/>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ─── Section 4: Canales ───────────────────────────────── */}
+                    <div className="card">
+                      <SectionTitle>4. Canales</SectionTitle>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                         {CHANNELS.map(ch => {
                           const enabled = form.channels[ch.id] ?? false;
@@ -785,10 +901,10 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 3: Skills / MCP ──────────────────────────── */}
+                    {/* ─── Section 5: Skills / MCP ──────────────────────────── */}
                     <div className="card">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                        <SectionTitle>3. Skills / MCP</SectionTitle>
+                        <SectionTitle>5. Skills / MCP</SectionTitle>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span className={`badge ${form.skills.length >= 8 ? 'badge-red' : 'badge-green'}`}>
                             {form.skills.length}/8
@@ -841,9 +957,9 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 4: Avanzado ──────────────────────────────── */}
+                    {/* ─── Section 6: Avanzado ──────────────────────────────── */}
                     <div className="card">
-                      <SectionTitle>4. Avanzado</SectionTitle>
+                      <SectionTitle>6. Avanzado</SectionTitle>
 
                       <div className="field">
                         <label className="label">Zona horaria</label>
@@ -943,9 +1059,9 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 5: Contexto Generado ────────────────────── */}
+                    {/* ─── Section 7: Contexto Generado ────────────────────── */}
                     <div className="card">
-                      <SectionTitle>5. Contexto Generado</SectionTitle>
+                      <SectionTitle>7. Contexto Generado</SectionTitle>
                       <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 12 }}>
                         Vista previa del contexto compilado que recibirá el modelo de IA al procesar mensajes de este agente.
                       </div>
@@ -956,6 +1072,9 @@ export default function AgentsPage() {
                         color: 'var(--g07)', whiteSpace: 'pre-wrap',
                         lineHeight: 1.7, maxHeight: 360, overflowY: 'auto',
                         border: '1px solid var(--g03)',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        cursor: 'default',
                       }}>
                         {compileContext(form)}
                       </div>
