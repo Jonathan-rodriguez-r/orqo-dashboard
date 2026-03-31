@@ -32,6 +32,9 @@ type WidgetCfg = {
   fontFamily: string;
   widgetRadius: number;
   interactionLimit: number;
+  closeOnInactivity: boolean;
+  inactivityCloseMinutes: number;
+  askForHelpfulnessOnClose: boolean;
   showBranding: boolean;
   soundEnabled: boolean;
   homeArticles: string[];
@@ -59,6 +62,9 @@ const DEFAULTS: WidgetCfg = {
   fontFamily: 'default',
   widgetRadius: 14,
   interactionLimit: 20,
+  closeOnInactivity: true,
+  inactivityCloseMinutes: 15,
+  askForHelpfulnessOnClose: true,
   showBranding: true,
   soundEnabled: true,
   homeArticles: ['orqo-que-es', 'wp-connect', 'plugin-install', 'modelos-fallback'],
@@ -517,6 +523,31 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
               <label className="label">Límite de interacciones por usuario</label>
               <input className="input" type="number" min={1} max={500} value={cfg.interactionLimit} onChange={e => set('interactionLimit', Number(e.target.value))} style={{ maxWidth: 120 }} />
             </div>
+            <ToggleRow
+              title="Cerrar por inactividad"
+              desc="Cierra la conversación cuando el cliente deja de responder."
+              checked={cfg.closeOnInactivity}
+              onChange={v => set('closeOnInactivity', v)}
+            />
+            <div className="field" style={{ marginTop: 12 }}>
+              <label className="label">Minutos para cierre automático</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={240}
+                value={cfg.inactivityCloseMinutes}
+                onChange={e => set('inactivityCloseMinutes', Number(e.target.value))}
+                style={{ maxWidth: 120 }}
+                disabled={!cfg.closeOnInactivity}
+              />
+            </div>
+            <ToggleRow
+              title="Pedir feedback al cerrar"
+              desc="Solicita si el chat fue útil antes de cerrar la conversación."
+              checked={cfg.askForHelpfulnessOnClose}
+              onChange={v => set('askForHelpfulnessOnClose', v)}
+            />
             <ToggleRow title='Mostrar "powered by ORQO"' desc="Muestra el crédito en el footer del widget" checked={cfg.showBranding} onChange={v => set('showBranding', v)} />
             <ToggleRow title="Sonido de respuesta" desc="Reproduce un tono suave cada vez que el agente envía un mensaje" checked={cfg.soundEnabled} onChange={v => set('soundEnabled', v)} />
           </div>

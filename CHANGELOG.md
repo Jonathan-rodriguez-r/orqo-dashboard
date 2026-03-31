@@ -2,6 +2,31 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.8] - 2026-03-31
+
+### Added
+
+- Conversation lifecycle closure controls in widget config:
+- `closeOnInactivity`, `inactivityCloseMinutes`, and `askForHelpfulnessOnClose`.
+- New widget endpoint `POST /api/widget/feedback` to persist helpfulness feedback and close conversation.
+- New widget endpoint `POST /api/widget/close` to persist explicit inactivity/manual closure from embedded runtime.
+- New AI-assisted management report endpoint `POST /api/reports/generate` with:
+- Dynamic period analysis.
+- JSON report payload.
+- XLSX export (`xlsx`).
+- PDF export (`pdf-lib`) with optional company logo.
+
+### Changed
+
+- `public/widget.js` now closes stale conversations by inactivity, requests end-of-chat feedback, and syncs closure state to backend.
+- `POST /api/widget/reply` now rotates conversation reference after inactivity timeout and persists closure metadata.
+- `GET /api/analytics` now includes satisfaction/feedback KPIs, inactivity closures, and live channel distribution from conversations.
+- Reports dashboard (`/dashboard/reports`) was redesigned with:
+- Interactive channel charts (bar + pie focus).
+- Expanded KPI cards for satisfaction and inactivity closure.
+- New AI report generator with configurable date range and XLSX/PDF export actions.
+- Logs dashboard retention default was reduced to 30 days with quicker prune presets (7/15/30/60/90).
+
 ## [1.6.7] - 2026-03-31
 
 ### Added

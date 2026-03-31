@@ -227,7 +227,7 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage]       = useState(1);
   const [pruning, setPruning] = useState(false);
-  const [pruneDays, setPruneDays] = useState(90);
+  const [pruneDays, setPruneDays] = useState(30);
   const [pruneMsg, setPruneMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Filters
@@ -310,7 +310,7 @@ export default function LogsPage() {
   const errorCount   = (stats.byLevel['ERROR'] ?? 0) + (stats.byLevel['FATAL'] ?? 0);
   const warnCount    = stats.byLevel['WARN']  ?? 0;
   const infoCount    = stats.byLevel['INFO']  ?? 0;
-  const retentionDays = 90;
+  const retentionDays = 30;
 
   const filterPillStyle = (active: boolean, color?: string) => ({
     display: 'inline-flex' as const, alignItems: 'center' as const, gap: 4,
@@ -336,10 +336,11 @@ export default function LogsPage() {
             onChange={(e) => setPruneDays(Number(e.target.value))}
             style={{ width: 118 }}
           >
+            <option value={7}>7 dias</option>
+            <option value={15}>15 dias</option>
             <option value={30}>30 dias</option>
             <option value={60}>60 dias</option>
             <option value={90}>90 dias</option>
-            <option value={180}>180 dias</option>
           </select>
           <button className="btn btn-ghost btn-sm" onClick={pruneOldLogs} disabled={pruning}>
             {pruning ? 'Depurando...' : `Borrar > ${pruneDays}d`}

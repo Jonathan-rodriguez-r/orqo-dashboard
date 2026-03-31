@@ -23,6 +23,31 @@ export async function GET(req: Request) {
     from.setDate(from.getDate() - days + 1);
     from.setHours(0, 0, 0, 0);
     const fromStr = from.toISOString().split('T')[0];
+    const fromMs = from.getTime();
+    const toMs = Date.now();
+
+    // Auto-close stale widget conversations by inactivity policy so reports reflect real lifecycle.
+    const widgetCfg = await db.collection('widget_config').findOne({ widgetId: 'default' });
+    const inactivityEnabled = widgetCfg?.closeOnInactivity !== false;
+    const inactivityMinutes = Math.max(1, Math.min(240, Number(widgetCfg?.inactivityCloseMinutes ?? 15)));
+    if (inactivityEnabled) {
+      const cutoff = Date.now() - inactivityMinutes * 60 * 1000;
+      await db.collection('conversations').updateMany(
+        {
+          channel: 'widget',
+          status: 'open',
+          updatedAt: { $lt: cutoff },
+        },
+        {
+          $set: {
+            status: 'closed',
+            closedAt: Date.now(),
+            closureReason: 'inactivity_timeout',
+            autoClosed: true,
+          },
+        }
+      );
+    }
 
     // Analytics daily
     const daily = await db
@@ -49,7 +74,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const byChannel = Object.entries(byChannelMap)
+    let byChannel = Object.entries(byChannelMap)
       .map(([channel, count]) => ({
         channel,
         count,
@@ -81,6 +106,47 @@ export async function GET(req: Request) {
       ? daily.reduce((s, d) => s + (d.avgResponseTime ?? 1.5), 0) / daily.length
       : 1.5;
 
+    const [feedbackAgg, byChannelLive] = await Promise.all([
+      db.collection('conversations').aggregate([
+        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        {
+          $group: {
+            _id: null,
+            helpfulYes: { $sum: { $cond: [{ $eq: ['$feedback.helpful', true] }, 1, 0] } },
+            helpfulNo: { $sum: { $cond: [{ $eq: ['$feedback.helpful', false] }, 1, 0] } },
+            feedbackResponses: { $sum: { $cond: [{ $in: ['$feedback.helpful', [true, false]] }, 1, 0] } },
+            closedByInactivity: { $sum: { $cond: [{ $eq: ['$closureReason', 'inactivity_timeout'] }, 1, 0] } },
+            closedConversations: { $sum: { $cond: [{ $in: ['$status', ['closed', 'resolved']] }, 1, 0] } },
+          },
+        },
+      ]).toArray(),
+      db.collection('conversations').aggregate([
+        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $group: { _id: '$channel', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]).toArray(),
+    ]);
+
+    if (Array.isArray(byChannelLive) && byChannelLive.length > 0) {
+      byChannel = byChannelLive
+        .map((row: any) => {
+          const channel = String(row?._id ?? 'unknown');
+          return {
+            channel,
+            count: Number(row?.count ?? 0),
+            label: CHANNEL_META[channel]?.label ?? channel,
+            color: CHANNEL_META[channel]?.color ?? '#888',
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+    }
+
+    const feedback = feedbackAgg[0] ?? {};
+    const feedbackResponses = Number(feedback.feedbackResponses ?? 0);
+    const helpfulYes = Number(feedback.helpfulYes ?? 0);
+    const helpfulNo = Number(feedback.helpfulNo ?? 0);
+    const satisfaction = feedbackResponses > 0 ? Math.round((helpfulYes / feedbackResponses) * 100) : 0;
+
     return Response.json({
       ok: true,
       totals: {
@@ -92,6 +158,12 @@ export async function GET(req: Request) {
         avgResponseTime: Math.round(avgResponse * 10) / 10,
         prevConversations: prevConv,
         trend: prevConv > 0 ? Math.round(((totalConv - prevConv) / prevConv) * 100) : 0,
+        feedbackResponses,
+        helpfulYes,
+        helpfulNo,
+        satisfaction,
+        closedByInactivity: Number(feedback.closedByInactivity ?? 0),
+        closedConversations: Number(feedback.closedConversations ?? 0),
       },
       daily: daily.map(d => ({
         date: d.date,
