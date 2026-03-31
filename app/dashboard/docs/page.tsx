@@ -483,7 +483,7 @@ export default function DocsPage() {
       </div>
 
       {tab === 'manual' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) minmax(0, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
           <div style={{ background: 'var(--g01)', border: '1px solid var(--g03)', borderRadius: 'var(--radius-lg)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--g04)', letterSpacing: '0.09em', textTransform: 'uppercase', padding: '2px 4px 6px' }}>
               Ruta operativa
