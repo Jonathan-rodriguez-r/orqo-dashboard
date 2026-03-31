@@ -23,22 +23,38 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const key = String(body?.key ?? '').trim();
+    const origin = String(req.headers.get('origin') ?? '').trim();
+    const referer = String(req.headers.get('referer') ?? '').trim();
     const visitorId = String(body?.visitorId ?? '').trim();
     const agentId = String(body?.agentId ?? 'default').trim();
     const agentToken = String(body?.agentToken ?? '').trim();
     const message = String(body?.message ?? '').trim();
     const historyRaw = Array.isArray(body?.history) ? body.history : [];
 
-    if (!key) return Response.json({ error: 'key is required' }, { status: 400, headers: CORS });
     if (!message) return Response.json({ error: 'message is required' }, { status: 400, headers: CORS });
 
     const db = await getDb();
     const account = await db.collection('config').findOne({ _id: 'account' as any });
-    if (!account || account.api_key !== key) {
+
+    const trustedOrigins = new Set(['https://orqo.io', 'https://www.orqo.io', 'http://localhost:3000']);
+    const trustedByOrigin = trustedOrigins.has(origin);
+    const trustedByReferer = (() => {
+      try {
+        if (!referer) return false;
+        const u = new URL(referer);
+        return trustedOrigins.has(`${u.protocol}//${u.host}`);
+      } catch {
+        return false;
+      }
+    })();
+
+    const keyIsValid = !!account && !!key && account.api_key === key;
+    if (!keyIsValid && !trustedByOrigin && !trustedByReferer) {
       await writeLog({
         level: 'warn',
         source: 'widget-reply',
-        msg: 'API key inválida en reply',
+        msg: 'API key invalida en reply',
+        detail: `origin=${origin || 'n/a'} referer=${referer || 'n/a'}`,
       });
       return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
     }
@@ -75,7 +91,7 @@ export async function POST(req: Request) {
       : {
           name: 'Asistente ORQO',
           profile: {
-            systemPrompt: 'Responde de forma útil y clara, en español por defecto.',
+            systemPrompt: 'Responde de forma util y clara, en espanol por defecto.',
             personality: 'professional',
             languages: ['auto'],
             responseLength: 'standard',
@@ -110,7 +126,6 @@ export async function POST(req: Request) {
       }).catch(() => {});
     }
 
-    // Persist lightweight operational conversation for dashboard list.
     if (visitorId) {
       const now = new Date();
       const updatedAt = now.getTime();
@@ -126,7 +141,7 @@ export async function POST(req: Request) {
             user_name: who,
             user_email: '',
             last_message: previewMessage,
-            message_count: (history.length + 2),
+            message_count: history.length + 2,
             status: 'open',
             channel: 'widget',
             agent: agentDoc?.name ?? 'Asistente Web',
