@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type Article = {
   id: string;
   title: string;
@@ -39,6 +39,13 @@ type WidgetCfg = {
   soundEnabled: boolean;
   homeArticles: string[];
   articles: Article[];
+};
+
+type WidgetInstallInfo = {
+  api_key: string;
+  active_domain: string;
+  widget_page_url: string;
+  widget_last_seen_at: number;
 };
 
 const DEFAULTS: WidgetCfg = {
@@ -80,7 +87,7 @@ const POSITIONS = [
   { value: 'top-center',    label: 'Arriba — Centro' },
 ];
 
-// ── Real human agent portraits ─────────────────────────────────────────────
+// â”€â”€ Real human agent portraits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const AGENT_PHOTOS = [
   { id: 'w1', label: 'Laura',   url: 'https://randomuser.me/api/portraits/women/44.jpg' },
   { id: 'w2', label: 'Camila',  url: 'https://randomuser.me/api/portraits/women/65.jpg' },
@@ -92,7 +99,7 @@ const AGENT_PHOTOS = [
   { id: 'm4', label: 'Daniel',  url: 'https://randomuser.me/api/portraits/men/91.jpg' },
 ];
 
-// ── 10 icon presets for favicon mode ──────────────────────────────────────
+// â”€â”€ 10 icon presets for favicon mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ICON_PRESETS = [
   { id: 'chat',     label: 'Chat',     svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' },
   { id: 'support',  label: 'Soporte',  svg: '<path d="M3 11a9 9 0 1 1 18 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M21 11v4a2 2 0 0 1-2 2h-1M3 11v4a2 2 0 0 0 2 2h1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
@@ -125,7 +132,7 @@ const CATEGORIES = ['Ayuda', 'FAQ', 'Integraciones', 'Planes'];
 
 function newArtId() { return 'art-' + Math.random().toString(36).slice(2, 9); }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ToggleRow({ title, desc, checked, onChange }: {
   title: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
 }) {
@@ -166,11 +173,17 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type WidgetPageProps = { embedded?: boolean };
 
 export default function WidgetPage({ embedded = false }: WidgetPageProps) {
   const [cfg, setCfg] = useState<WidgetCfg>(DEFAULTS);
+  const [installInfo, setInstallInfo] = useState<WidgetInstallInfo>({
+    api_key: '',
+    active_domain: '',
+    widget_page_url: '',
+    widget_last_seen_at: 0,
+  });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -182,6 +195,28 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
     fetch('/api/config/widget').then(r => r.json()).then(d => {
       if (d && !d.error) setCfg({ ...DEFAULTS, ...d });
     });
+  }, []);
+
+  async function loadInstallInfo() {
+    try {
+      const res = await fetch('/api/account', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok || data?.error) return;
+      setInstallInfo({
+        api_key: String(data?.api_key ?? ''),
+        active_domain: String(data?.active_domain ?? ''),
+        widget_page_url: String(data?.widget_page_url ?? ''),
+        widget_last_seen_at: Number(data?.widget_last_seen_at ?? 0),
+      });
+    } catch {
+      // no-op
+    }
+  }
+
+  useEffect(() => {
+    loadInstallInfo();
+    const timer = setInterval(loadInstallInfo, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -268,6 +303,9 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
   const previewSurface = previewTheme === 'dark' ? cfg.darkSurface  : cfg.lightSurface;
   const previewText    = previewTheme === 'dark' ? '#F5F5F2'        : '#090F0A';
   const previewSub     = previewTheme === 'dark' ? 'rgba(233,237,233,0.5)' : 'rgba(9,15,10,0.45)';
+  const lastSeenLabel = installInfo.widget_last_seen_at
+    ? new Date(installInfo.widget_last_seen_at).toLocaleString('es-CO', { hour12: false })
+    : 'Sin detecciones aún';
 
   return (
     <div className={embedded ? '' : 'dash-content'}>
@@ -280,7 +318,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
 
       <div className="widget-layout" style={{ display: 'grid', gap: 22, alignItems: 'start' }}>
 
-        {/* ── Left: Settings ───────────────────────────────────────── */}
+        {/* â”€â”€ Left: Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
           {/* 1. General */}
@@ -322,6 +360,41 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
             </div>
           </div>
 
+          {/* 1.1 Credenciales y detección */}
+          <div className="card">
+            <STitle>Credenciales automáticas del widget</STitle>
+            <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 12 }}>
+              Este bloque se completa automáticamente cuando el widget embebido carga o responde en tu sitio.
+            </p>
+            <div style={{ marginBottom: 10 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={loadInstallInfo}>
+                Actualizar detección
+              </button>
+            </div>
+            <div className="field-row">
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">API KEY (solo lectura)</label>
+                <div className="apikey-val" title={installInfo.api_key || ''}>
+                  {installInfo.api_key || 'Sin generar'}
+                </div>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">Última detección del widget</label>
+                <input className="input" value={lastSeenLabel} readOnly disabled />
+              </div>
+            </div>
+            <div className="field-row" style={{ marginTop: 8 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">Dominio detectado</label>
+                <input className="input" value={installInfo.active_domain || 'Sin detecciones aún'} readOnly disabled />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label">Página detectada</label>
+                <input className="input" value={installInfo.widget_page_url || 'Sin detecciones aún'} readOnly disabled />
+              </div>
+            </div>
+          </div>
+
           {/* 2. Icono / Avatar */}
           <div className="card">
             <STitle>Icono del asistente</STitle>
@@ -344,7 +417,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                   ))}
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
-                  <label className="label">O URL personalizada (PNG/SVG/ICO — 48×48 recomendado)</label>
+                  <label className="label">O URL personalizada (PNG/SVG/ICO — 48Ã—48 recomendado)</label>
                   <input className="input" type="url" placeholder="https://midominio.com/favicon.png" value={cfg.faviconUrl}
                     onChange={e => { set('faviconUrl', e.target.value); set('faviconPreset', ''); }} />
                 </div>
@@ -431,7 +504,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
 
             <div style={{ fontSize: 12, color: 'var(--g05)', background: 'var(--g02)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: 14, lineHeight: 1.6 }}>
               <strong style={{ color: 'var(--g06)' }}>Estructura:</strong> id · título · categoría · fecha · cuerpo HTML.{' '}
-              Marca con <strong>★ Inicio</strong> los que aparecen en la pantalla principal (máx. 6).
+              Marca con <strong>â˜… Inicio</strong> los que aparecen en la pantalla principal (máx. 6).
             </div>
 
             {/* Add form */}
@@ -475,7 +548,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                       <div style={{ fontSize: 11, color: 'var(--g05)' }}>{art.category} · {art.date}</div>
                     </div>
                     <button className={`btn btn-sm ${cfg.homeArticles.includes(art.id) ? 'btn-primary' : 'btn-ghost'}`} onClick={() => toggleHomeArt(art.id)} style={{ fontSize: 11, padding: '4px 8px' }}>
-                      {cfg.homeArticles.includes(art.id) ? '★' : '☆'} Inicio
+                      {cfg.homeArticles.includes(art.id) ? 'â˜…' : 'â˜†'} Inicio
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(editingId === art.id ? null : art.id)}>
                       {editingId === art.id ? 'Cerrar' : 'Editar'}
@@ -554,7 +627,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
 
         </div>
 
-        {/* ── Right: Preview ───────────────────────────────────────── */}
+        {/* â”€â”€ Right: Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="widget-preview-col" style={{ position: 'sticky', top: 28 }}>
           <div className="card">
             <STitle>Vista previa</STitle>
@@ -565,7 +638,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                 <button key={t} onClick={() => setPreviewTheme(t)}
                   className={`btn btn-sm ${previewTheme === t ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
-                  {t === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
+                  {t === 'dark' ? 'ðŸŒ™ Oscuro' : 'â˜€ï¸ Claro'}
                 </button>
               ))}
             </div>

@@ -1,12 +1,6 @@
 import type { Db } from 'mongodb';
 
-const INTERNAL_HOSTS = new Set([
-  'orqo.io',
-  'www.orqo.io',
-  'dashboard.orqo.io',
-  'localhost',
-  '127.0.0.1',
-]);
+const INTERNAL_HOSTS = new Set(['dashboard.orqo.io', 'localhost', '127.0.0.1']);
 
 function parseUrlSafe(raw: string) {
   try {
@@ -24,7 +18,6 @@ function isExternalHost(host: string) {
   const normalized = normalizeHost(host);
   if (!normalized) return false;
   if (INTERNAL_HOSTS.has(normalized)) return false;
-  if (normalized.endsWith('.orqo.io')) return false;
   if (normalized.startsWith('localhost:')) return false;
   if (normalized.startsWith('127.0.0.1:')) return false;
   return true;

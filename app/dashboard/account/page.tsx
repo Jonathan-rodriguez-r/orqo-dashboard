@@ -180,10 +180,6 @@ export default function AccountPage({ embedded = false }: Props) {
   const secondary = normalizeHex(cfg.brand_secondary_color, '#0B100D');
   const contrast = contrastRatio(primary, secondary);
   const contrastState = contrast >= 4.5 ? 'OK' : contrast >= 3 ? 'WARN' : 'LOW';
-  const widgetLastSeen = cfg.widget_last_seen_at
-    ? new Date(cfg.widget_last_seen_at).toLocaleString('es-CO', { hour12: false })
-    : '';
-
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--acc', primary);
@@ -447,26 +443,6 @@ export default function AccountPage({ embedded = false }: Props) {
                   <div style={{ flex: 1, height: 26, borderRadius: 8, border: `1px solid ${primary}66`, background: `${primary}22` }} />
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* â”€â”€ Credenciales automáticas del widget â”€â”€ */}
-        <div className="card">
-          <div className="card-title">Credenciales automáticas del widget</div>
-          <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 12 }}>
-            La clave del widget se genera automáticamente al activar el canal Web Widget en Agentes.
-          </p>
-          <div className="field-row">
-            <div className="field">
-              <label className="label">API key (solo lectura)</label>
-              <div className="apikey-val" title={cfg.api_key || ''}>
-                {cfg.api_key || 'Sin generar'}
-              </div>
-            </div>
-            <div className="field">
-              <label className="label">Última detección del widget</label>
-              <input className="input" value={widgetLastSeen || 'Sin detecciones aún'} disabled readOnly />
             </div>
           </div>
         </div>
