@@ -28,6 +28,22 @@ function sanitizeSettings(body: any) {
         typeof events.FREE_FALLBACK_FAILED === 'boolean'
           ? events.FREE_FALLBACK_FAILED
           : defaults.events.FREE_FALLBACK_FAILED,
+      DIAGNOSTIC_WARNINGS:
+        typeof events.DIAGNOSTIC_WARNINGS === 'boolean'
+          ? events.DIAGNOSTIC_WARNINGS
+          : defaults.events.DIAGNOSTIC_WARNINGS,
+      DIAGNOSTIC_FAILURE:
+        typeof events.DIAGNOSTIC_FAILURE === 'boolean'
+          ? events.DIAGNOSTIC_FAILURE
+          : defaults.events.DIAGNOSTIC_FAILURE,
+      WIDGET_INACTIVE:
+        typeof events.WIDGET_INACTIVE === 'boolean'
+          ? events.WIDGET_INACTIVE
+          : defaults.events.WIDGET_INACTIVE,
+      PUBLIC_API_UNHEALTHY:
+        typeof events.PUBLIC_API_UNHEALTHY === 'boolean'
+          ? events.PUBLIC_API_UNHEALTHY
+          : defaults.events.PUBLIC_API_UNHEALTHY,
     },
   };
 }

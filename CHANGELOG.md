@@ -22,6 +22,8 @@ All notable changes to this dashboard are documented in this file.
 - Optional free-model fallback before returning a controlled safe reply.
 - `POST /api/agents/preview` and `POST /api/widget/reply` now log degradation details when fallback is used.
 - Notifications query now supports role-targeted alerts via `recipientRoles`.
+- Diagnostics in Help Center now run server-side with persistent logs and alerts.
+- Notification dropdown now supports per-alert deletion via quick `x` action.
 
 ## [1.5.0] - 2026-03-31
 

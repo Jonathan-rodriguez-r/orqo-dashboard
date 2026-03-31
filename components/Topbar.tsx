@@ -8,7 +8,7 @@ import { useSession } from '@/hooks/usePermissions';
 
 type Notification = {
   _id: string;
-  type: 'info' | 'warn' | 'error' | 'success';
+  type: 'info' | 'warn' | 'error' | 'success' | 'warning' | 'critical';
   title: string;
   body: string;
   read: boolean;
@@ -26,7 +26,12 @@ function fmtTime(iso: string) {
 }
 
 const TYPE_COLOR: Record<string, string> = {
-  error: 'var(--red)', warn: 'var(--yellow)', success: 'var(--acc)', info: 'var(--g05)',
+  error: 'var(--red)',
+  critical: 'var(--red)',
+  warn: 'var(--yellow)',
+  warning: 'var(--yellow)',
+  success: 'var(--acc)',
+  info: 'var(--g05)',
 };
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -110,6 +115,14 @@ export default function Topbar() {
       .then(() => setNotifs(prev => prev.map(n => n._id === id ? { ...n, read: true } : n)));
   }
 
+  function removeNotif(id: string) {
+    fetch('/api/notifications', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).then(() => setNotifs(prev => prev.filter(n => n._id !== id)));
+  }
+
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
@@ -170,7 +183,36 @@ export default function Topbar() {
               {notifs.length === 0 ? (
                 <div className="notif-empty">Sin notificaciones</div>
               ) : notifs.map(n => (
-                <div key={n._id} className={`notif-item${n.read ? '' : ' unread'}`} onClick={() => markRead(n._id)}>
+                <div
+                  key={n._id}
+                  className={`notif-item${n.read ? '' : ' unread'}`}
+                  onClick={() => { if (!n.read) markRead(n._id); }}
+                  style={{ position: 'relative', paddingRight: 34 }}
+                >
+                  <button
+                    aria-label="Eliminar alerta"
+                    title="Eliminar alerta"
+                    onClick={(e) => { e.stopPropagation(); removeNotif(n._id); }}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: 10,
+                      width: 20,
+                      height: 20,
+                      border: '1px solid var(--g03)',
+                      borderRadius: 99,
+                      background: 'var(--g02)',
+                      color: 'var(--g06)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      padding: 0,
+                      zIndex: 2,
+                    }}
+                  >
+                    ✕
+                  </button>
                   <div className="notif-item-title" style={{ color: TYPE_COLOR[n.type] ?? 'var(--g07)' }}>{n.title}</div>
                   <div className="notif-item-body">{n.body}</div>
                   <div className="notif-item-time">{fmtTime(n.createdAt)}</div>
@@ -180,7 +222,7 @@ export default function Topbar() {
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--g03)' }}>
               <button
                 style={{ fontSize: 12, color: 'var(--g05)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--f-body)' }}
-                onClick={() => { router.push('/dashboard/settings?tab=alerts'); setBellOpen(false); }}
+                onClick={() => { router.push('/dashboard/settings?tab=access&sub=alerts'); setBellOpen(false); }}
               >
                 Configurar alertas →
               </button>
