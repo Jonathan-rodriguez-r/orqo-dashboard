@@ -582,13 +582,19 @@ if (S.convs().length > 0) {
     if (cfg.accentColor && widgetEl) widgetEl.style.setProperty('--acc', cfg.accentColor);
     // Theme-sensitive colors scoped to widget so landing theme is not forced
     {
-      const darkBg      = cfg.darkBg      || '#0B100D';
-      const darkSurface = cfg.darkSurface || '#111812';
+      const darkBg      = cfg.darkBg      || '#060908';
+      const darkSurface = cfg.darkSurface || '#0B100D';
       const lightBg     = cfg.lightBg     || '#F4F7F4';
       const lightSurface= cfg.lightSurface|| '#FFFFFF';
       let styleEl = document.getElementById('orqo-theme-vars');
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'orqo-theme-vars'; document.head.appendChild(styleEl); }
-      styleEl.textContent = `#orqo-widget{--g00:${darkBg};--g01:${darkSurface}}#orqo-widget[data-theme="light"]{--g00:${lightBg};--g01:${lightSurface}}`;
+      styleEl.textContent =
+        `#orqo-widget{` +
+        `--g00:${darkBg};--g01:${darkSurface};--g02:#111812;--g03:#1D2920;--g04:#2E4038;--g05:#7A9488;--g06:#B4C4BC;--g07:#E9EDE9;--g08:#F5F5F2;` +
+        `}` +
+        `#orqo-widget[data-theme="light"]{` +
+        `--g00:${lightBg};--g01:${lightSurface};--g02:#EDF2ED;--g03:#D5E3D5;--g04:#B0C8B0;--g05:#527060;--g06:#2A4434;--g07:#152018;--g08:#090F0A;` +
+        `}`;
       const applyWidgetThemeVars = (theme) => {
         if (!widgetEl) return;
         const mode = String(cfg.themeMode || 'auto').toLowerCase();
