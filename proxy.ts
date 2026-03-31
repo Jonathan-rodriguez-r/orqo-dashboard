@@ -13,6 +13,7 @@ const PUBLIC_PREFIXES = [
   '/login',
   '/api/auth',       // login, verify, logout, google OAuth
   '/api/public',
+  '/api/widget',
   '/_next',
   '/favicon',
 ];
