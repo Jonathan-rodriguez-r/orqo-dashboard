@@ -187,7 +187,7 @@ export default function Topbar() {
                   key={n._id}
                   className={`notif-item${n.read ? '' : ' unread'}`}
                   onClick={() => { if (!n.read) markRead(n._id); }}
-                  style={{ position: 'relative', paddingRight: 28 }}
+                  style={{ position: 'relative', paddingRight: 34 }}
                 >
                   <button
                     aria-label="Eliminar alerta"
@@ -195,21 +195,23 @@ export default function Topbar() {
                     onClick={(e) => { e.stopPropagation(); removeNotif(n._id); }}
                     style={{
                       position: 'absolute',
-                      right: 8,
-                      top: 8,
-                      width: 16,
-                      height: 16,
-                      border: 'none',
+                      right: 10,
+                      top: 10,
+                      width: 20,
+                      height: 20,
+                      border: '1px solid var(--g03)',
                       borderRadius: 99,
-                      background: 'transparent',
-                      color: 'var(--g04)',
+                      background: 'var(--g02)',
+                      color: 'var(--g06)',
                       cursor: 'pointer',
-                      fontSize: 12,
+                      fontSize: 13,
+                      fontWeight: 700,
                       lineHeight: 1,
                       padding: 0,
+                      zIndex: 2,
                     }}
                   >
-                    x
+                    ✕
                   </button>
                   <div className="notif-item-title" style={{ color: TYPE_COLOR[n.type] ?? 'var(--g07)' }}>{n.title}</div>
                   <div className="notif-item-body">{n.body}</div>
