@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         await writeLog({
           level: at.isQuotaOrTokens ? 'error' : 'warn',
           source: 'widget-reply',
-          msg: `Intento fallido ${at.provider}/${at.model}`,
+          msg: `Intento fallido ${at.provider}/${at.model} [${at.errorType ?? 'unknown'}]`,
           detail: at.reason ?? 'error',
         }).catch(() => {});
       }

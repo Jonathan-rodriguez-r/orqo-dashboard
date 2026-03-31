@@ -11,6 +11,11 @@ type CheckResult = {
   detail: string;
 };
 
+type OpenRouterModel = {
+  id?: string;
+  pricing?: { prompt?: string; completion?: string };
+};
+
 function looksLikeQuotaError(message: string) {
   const m = message.toLowerCase();
   return (
@@ -102,6 +107,56 @@ export async function POST(req: Request) {
       warnings.push(msg);
     } else {
       results.push({ key: 'free_fallback', label: 'Fallback gratuito', status: 'ok', detail: `${models.length} modelo(s) free configurado(s).` });
+
+      const freeSuffixMissing = models.filter((m: string) => !String(m).toLowerCase().includes(':free'));
+      if (freeSuffixMissing.length > 0) {
+        const msg = `Modelos sin sufijo :free: ${freeSuffixMissing.join(', ')}`;
+        results.push({ key: 'free_suffix', label: 'Formato de modelos free', status: 'warn', detail: msg });
+        warnings.push(msg);
+      } else {
+        results.push({ key: 'free_suffix', label: 'Formato de modelos free', status: 'ok', detail: 'Todos usan sufijo :free.' });
+      }
+
+      const catalog = await fetchOpenRouterModels(keySet);
+      if (catalog.ok) {
+        const configured = new Set<string>(models.map((m: string) => m.trim().toLowerCase()));
+        const ids = catalog.models
+          .map((m) => String(m?.id || '').trim())
+          .filter(Boolean);
+        const lowerIds = new Set(ids.map((x) => x.toLowerCase()));
+        const missing = Array.from(configured).filter((m) => !lowerIds.has(m));
+
+        const availableFree = catalog.models
+          .filter((m) => isOpenRouterFreeModel(m))
+          .map((m) => String(m.id || '').trim())
+          .filter(Boolean);
+
+        if (missing.length > 0) {
+          const msg = `Modelos no encontrados en OpenRouter: ${missing.join(', ')}`;
+          results.push({ key: 'free_catalog_match', label: 'Modelos free en catalogo', status: 'warn', detail: msg });
+          warnings.push(msg);
+        } else {
+          results.push({
+            key: 'free_catalog_match',
+            label: 'Modelos free en catalogo',
+            status: 'ok',
+            detail: 'Todos los modelos configurados existen en OpenRouter.',
+          });
+        }
+
+        results.push({
+          key: 'free_catalog_examples',
+          label: 'Modelos free detectados',
+          status: availableFree.length > 0 ? 'ok' : 'warn',
+          detail: availableFree.length > 0
+            ? availableFree.slice(0, 8).join(', ')
+            : 'No se detectaron modelos free en la respuesta del catalogo.',
+        });
+      } else {
+        const msg = `No se pudo consultar catalogo OpenRouter: ${catalog.error}`;
+        results.push({ key: 'free_catalog_fetch', label: 'Catalogo OpenRouter', status: 'warn', detail: msg });
+        warnings.push(msg);
+      }
     }
   } else {
     results.push({ key: 'free_fallback', label: 'Fallback gratuito', status: 'ok', detail: 'Desactivado (opcional).' });
@@ -202,4 +257,33 @@ export async function POST(req: Request) {
     },
     results,
   });
+}
+
+async function fetchOpenRouterModels(apiKey?: string) {
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false as const, error: data?.error?.message ?? `HTTP ${res.status}` };
+    }
+    const models = Array.isArray(data?.data) ? (data.data as OpenRouterModel[]) : [];
+    return { ok: true as const, models };
+  } catch (e: any) {
+    return { ok: false as const, error: e?.message ?? 'network error' };
+  }
+}
+
+function isOpenRouterFreeModel(m: OpenRouterModel) {
+  const id = String(m?.id || '').toLowerCase();
+  if (id.includes(':free')) return true;
+  const prompt = String(m?.pricing?.prompt ?? '');
+  const completion = String(m?.pricing?.completion ?? '');
+  return prompt === '0' && completion === '0';
 }
