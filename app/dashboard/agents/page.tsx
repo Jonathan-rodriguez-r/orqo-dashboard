@@ -408,6 +408,7 @@ export default function AgentsPage() {
   const [showPreview, setShowPreview]   = useState(false);
   const [showEmbedModal, setShowEmbedModal] = useState(false);
   const [embedApiKey, setEmbedApiKey]   = useState('');
+  const [embedCopied, setEmbedCopied] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteErr, setDeleteErr]       = useState<string | null>(null);
   // Mobile: 'list' shows left panel, 'detail' shows right panel
@@ -435,11 +436,16 @@ export default function AgentsPage() {
       .catch(() => {});
   }, [showEmbedModal, embedApiKey]);
 
+  useEffect(() => {
+    if (!showEmbedModal) setEmbedCopied(false);
+  }, [showEmbedModal]);
+
   async function selectAgent(id: string) {
     setSelectedId(id);
     setMobileView('detail');
     setShowPreview(false);
     setShowEmbedModal(false);
+    setEmbedCopied(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
     setSaveErr(null);
@@ -469,6 +475,7 @@ export default function AgentsPage() {
     setMobileView('detail');
     setShowPreview(false);
     setShowEmbedModal(false);
+    setEmbedCopied(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
     setSaveErr(null);
@@ -1331,10 +1338,12 @@ export default function AgentsPage() {
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(embedScript);
+                          setEmbedCopied(true);
+                          setTimeout(() => setEmbedCopied(false), 2200);
                         } catch {}
                       }}
                     >
-                      Copiar script
+                      {embedCopied ? 'Copiado ✓' : 'Copiar script'}
                     </button>
                   </div>
                 </>
