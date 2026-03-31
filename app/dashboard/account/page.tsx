@@ -104,7 +104,9 @@ function contrastRatio(foreground: string, background: string) {
   return (bright + 0.05) / (dark + 0.05);
 }
 
-export default function AccountPage() {
+type Props = { embedded?: boolean };
+
+export default function AccountPage({ embedded = false }: Props) {
   const [cfg, setCfg] = useState<AccountCfg>(DEFAULTS);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -195,11 +197,13 @@ export default function AccountPage() {
   }, [primary, secondary]);
 
   return (
-    <div className="dash-content">
-      <div className="page-header">
-        <h1 className="page-title">Cuenta</h1>
-        <p className="page-sub">Administra tu plan, identidad del dashboard y configuraciÃ³n del negocio</p>
-      </div>
+    <div className={embedded ? '' : 'dash-content'}>
+      {!embedded && (
+        <div className="page-header">
+          <h1 className="page-title">Cuenta</h1>
+          <p className="page-sub">Administra tu plan, identidad del dashboard y configuraciÃ³n del negocio</p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
