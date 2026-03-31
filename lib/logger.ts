@@ -126,7 +126,7 @@ export interface AuditLogDoc {
 }
 
 /** Input type — auto-populated fields can be omitted */
-export type LogInput = Omit<AuditLogDoc, 'createdAt' | 'expiresAt'> & {
+export type LogInput = Omit<AuditLogDoc, 'createdAt' | 'expiresAt' | 'correlationId'> & {
   correlationId?: string;
 };
 
