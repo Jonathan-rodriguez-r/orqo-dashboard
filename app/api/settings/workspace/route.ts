@@ -19,6 +19,15 @@ const DEFAULT_SETTINGS = {
     multiModel: false,
     strategy: 'failover' as const,
     concurrentMessages: 50,
+    activeProviders: [] as string[],
+  },
+  preChatForm: {
+    enabled: false,
+    fields: {
+      name:  { enabled: true,  required: true  },
+      email: { enabled: true,  required: false },
+      phone: { enabled: false, required: false },
+    },
   },
 };
 

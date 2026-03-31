@@ -1,6 +1,28 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 
+const DEFAULT_AGENT = {
+  name: 'Asistente Informativo',
+  status: 'active' as const,
+  avatar: '📚',
+  channels: { whatsapp: false, instagram: false, messenger: false, web: true, woocommerce: false, shopify: false },
+  profile: {
+    systemPrompt: 'Eres un asistente informativo amigable. Tu objetivo es responder las preguntas de los usuarios de manera clara, precisa y concisa. Siempre mantén un tono profesional y útil.',
+    personality: 'professional',
+    languages: ['auto'],
+    responseLength: 'standard',
+  },
+  skills: ['faq', 'explain'],
+  corporateContext: 'Soy el asistente virtual. Estoy aquí para ayudarte con información general sobre nuestros productos y servicios.',
+  advanced: {
+    timezone: 'America/Bogota',
+    scheduleEnabled: false,
+    geofencingEnabled: false,
+    escalationKeywords: 'hablar con agente, cancelar, queja, urgente',
+    humanHandoffMsg: 'En un momento te atiendo un agente humano.',
+  },
+};
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -14,6 +36,18 @@ export async function GET() {
         { projection: { _id: 1, name: 1, status: 1, avatar: 1, channels: 1, createdAt: 1 } }
       )
       .toArray();
+
+    // Seed default informative agent for new workspaces
+    if (agents.length === 0) {
+      const now = new Date();
+      const doc = { workspaceId: session.workspaceId, ...DEFAULT_AGENT, createdAt: now, updatedAt: now };
+      const result = await db.collection('agents_v2').insertOne(doc);
+      return Response.json([{
+        _id: result.insertedId.toString(),
+        name: doc.name, status: doc.status, avatar: doc.avatar,
+        channels: doc.channels, createdAt: doc.createdAt,
+      }]);
+    }
 
     return Response.json(agents.map(a => ({ ...a, _id: a._id.toString() })));
   } catch (e: any) {
@@ -42,7 +76,7 @@ export async function POST(req: Request) {
       },
       profile: body.profile ?? {
         systemPrompt: '', personality: 'professional',
-        language: 'es', responseLength: 'standard',
+        languages: ['auto'], responseLength: 'standard',
       },
       skills: body.skills ?? [],
       corporateContext: body.corporateContext ?? '',

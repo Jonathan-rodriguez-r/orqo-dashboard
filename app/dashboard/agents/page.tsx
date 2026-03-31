@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Status = 'active' | 'inactive' | 'draft';
-type Provider = 'google' | 'openai' | 'grok' | 'anthropic';
 
 type AgentSummary = {
   _id: string;
@@ -16,8 +16,12 @@ type AgentSummary = {
 };
 
 type AgentFull = AgentSummary & {
-  aiProvider: { provider: Provider; model: string };
-  profile: { systemPrompt: string; personality: string; language: string; responseLength: string };
+  profile: {
+    systemPrompt: string;
+    personality: string;
+    languages: string[];
+    responseLength: string;
+  };
   skills: string[];
   corporateContext: string;
   advanced: {
@@ -32,13 +36,6 @@ type AgentFull = AgentSummary & {
 type FormState = Omit<AgentFull, '_id' | 'createdAt'>;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const PROVIDERS: { id: Provider; name: string; icon: string; models: string[] }[] = [
-  { id: 'google',    name: 'Google Gemini', icon: '◉', models: ['gemini-2.0-flash', 'gemini-2.0-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'] },
-  { id: 'openai',    name: 'OpenAI',        icon: '◆', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
-  { id: 'grok',      name: 'Grok (xAI)',    icon: '✕', models: ['grok-3', 'grok-3-mini', 'grok-2'] },
-  { id: 'anthropic', name: 'Anthropic',     icon: '◭', models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'] },
-];
-
 const AVATARS = ['🤖', '💼', '🎧', '🏠', '📣', '📚', '🛒', '🌎', '🔬', '✨'];
 
 const PERSONALITIES = [
@@ -47,21 +44,23 @@ const PERSONALITIES = [
   { id: 'formal',       label: 'Formal' },
 ];
 
-const LANGUAGES = [
-  { id: 'es', label: 'Español' },
-  { id: 'en', label: 'Inglés' },
-  { id: 'fr', label: 'Francés' },
-  { id: 'pt', label: 'Portugués' },
-  { id: 'de', label: 'Alemán' },
+const LANG_OPTIONS = [
+  { id: 'auto', label: '🌐 Auto (zona)' },
+  { id: 'es',   label: '🇪🇸 Español' },
+  { id: 'en',   label: '🇺🇸 Inglés' },
+  { id: 'fr',   label: '🇫🇷 Francés' },
+  { id: 'pt',   label: '🇧🇷 Portugués' },
+  { id: 'de',   label: '🇩🇪 Alemán' },
+  { id: 'it',   label: '🇮🇹 Italiano' },
 ];
 
 const CHANNELS: { id: string; label: string; emoji: string; color: string }[] = [
-  { id: 'whatsapp',   label: 'WhatsApp',   emoji: '💬', color: '#25D366' },
-  { id: 'instagram',  label: 'Instagram',  emoji: '📸', color: '#E1306C' },
-  { id: 'messenger',  label: 'Messenger',  emoji: '📘', color: '#0084FF' },
-  { id: 'web',        label: 'Web Widget', emoji: '🌐', color: '#2CB978' },
-  { id: 'woocommerce',label: 'WooCommerce',emoji: '🛒', color: '#7F54B3' },
-  { id: 'shopify',    label: 'Shopify',    emoji: '🛍️', color: '#96BF48' },
+  { id: 'whatsapp',    label: 'WhatsApp',   emoji: '💬', color: '#25D366' },
+  { id: 'instagram',   label: 'Instagram',  emoji: '📸', color: '#E1306C' },
+  { id: 'messenger',   label: 'Messenger',  emoji: '📘', color: '#0084FF' },
+  { id: 'web',         label: 'Web Widget', emoji: '🌐', color: '#2CB978' },
+  { id: 'woocommerce', label: 'WooCommerce',emoji: '🛒', color: '#7F54B3' },
+  { id: 'shopify',     label: 'Shopify',    emoji: '🛍️', color: '#96BF48' },
 ];
 
 const TIMEZONES = [
@@ -102,13 +101,23 @@ const SKILLS_GROUPS = [
   ]},
 ];
 
+const PERSONALITY_LABEL: Record<string, string> = {
+  young: 'Joven y cercano',
+  professional: 'Profesional y amigable',
+  formal: 'Formal y corporativo',
+};
+
+const LANG_LABEL: Record<string, string> = {
+  auto: 'Detección automática (zona)', es: 'Español', en: 'Inglés',
+  fr: 'Francés', pt: 'Portugués', de: 'Alemán', it: 'Italiano',
+};
+
 const DEFAULT_FORM: FormState = {
   name: '',
   status: 'draft',
   avatar: '🤖',
-  aiProvider: { provider: 'google', model: 'gemini-2.0-flash' },
   channels: { whatsapp: false, instagram: false, messenger: false, web: true, woocommerce: false, shopify: false },
-  profile: { systemPrompt: '', personality: 'professional', language: 'es', responseLength: 'standard' },
+  profile: { systemPrompt: '', personality: 'professional', languages: ['auto'], responseLength: 'standard' },
   skills: [],
   corporateContext: '',
   advanced: {
@@ -126,6 +135,36 @@ function statusBadge(status: Status) {
 
 function channelCount(channels: Record<string, boolean>) {
   return Object.values(channels).filter(Boolean).length;
+}
+
+function compileContext(form: FormState): string {
+  const parts: string[] = [];
+
+  if (form.profile.systemPrompt.trim()) {
+    parts.push(`## System Prompt\n${form.profile.systemPrompt.trim()}`);
+  }
+
+  parts.push(`## Personalidad\nTono: ${PERSONALITY_LABEL[form.profile.personality] ?? form.profile.personality}`);
+
+  if (form.profile.languages.length > 0) {
+    parts.push(`## Idiomas\n${form.profile.languages.map(l => LANG_LABEL[l] ?? l).join(', ')}`);
+  }
+
+  if (form.skills.length > 0) {
+    const allSkills = SKILLS_GROUPS.flatMap(g => g.skills);
+    const selected = form.skills.map(id => allSkills.find(s => s.id === id)?.label ?? id);
+    parts.push(`## Skills Activos\n${selected.map(s => `• ${s}`).join('\n')}`);
+  }
+
+  if (form.corporateContext.trim()) {
+    parts.push(`## Contexto Corporativo\n${form.corporateContext.trim()}`);
+  }
+
+  if (form.advanced.escalationKeywords.trim()) {
+    parts.push(`## Escalación\nKeywords: ${form.advanced.escalationKeywords}\nMensaje de transferencia: ${form.advanced.humanHandoffMsg}`);
+  }
+
+  return parts.length > 0 ? parts.join('\n\n') : '(Sin configuración definida aún)';
 }
 
 // ── Section header ────────────────────────────────────────────────────────────
@@ -157,7 +196,6 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
       background: 'var(--g00)',
       animation: 'slideIn .2s ease',
     }}>
-      {/* Drawer header */}
       <div style={{
         padding: '16px', borderBottom: '1px solid var(--g03)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -186,9 +224,7 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
         </button>
       </div>
 
-      {/* Chat messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* User */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{
             background: 'var(--acc)', color: '#fff',
@@ -198,7 +234,6 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
             Hola, necesito información sobre sus productos
           </div>
         </div>
-        {/* Agent */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <span style={{
             width: 28, height: 28, borderRadius: '50%',
@@ -213,7 +248,6 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
             {greeting}
           </div>
         </div>
-        {/* User */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{
             background: 'var(--acc)', color: '#fff',
@@ -223,7 +257,6 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
             ¿Cuánto cuesta el servicio?
           </div>
         </div>
-        {/* Agent */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <span style={{
             width: 28, height: 28, borderRadius: '50%',
@@ -235,12 +268,11 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
             borderRadius: '16px 16px 16px 4px',
             padding: '8px 14px', fontSize: 13, maxWidth: '85%',
           }}>
-            Con gusto te ayudo con esa información. Nuestros planes se adaptan a las necesidades de cada cliente. ¿Te gustaría conocer más detalles?
+            Con gusto te ayudo. Nuestros planes se adaptan a cada cliente. ¿Te gustaría conocer más detalles?
           </div>
         </div>
       </div>
 
-      {/* Input bar */}
       <div style={{
         padding: '12px 16px', borderTop: '1px solid var(--g03)',
         display: 'flex', gap: 8, alignItems: 'center',
@@ -269,19 +301,21 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AgentsPage() {
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-  const [formLoading, setFormLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const router = useRouter();
+  const [agents, setAgents]             = useState<AgentSummary[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [selectedId, setSelectedId]     = useState<string | 'new' | null>(null);
+  const [form, setForm]                 = useState<FormState>(DEFAULT_FORM);
+  const [formLoading, setFormLoading]   = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [saveErr, setSaveErr]           = useState<string | null>(null);
+  const [saveOk, setSaveOk]             = useState(false);
+  const [showPreview, setShowPreview]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr]       = useState<string | null>(null);
+  // Mobile: 'list' shows left panel, 'detail' shows right panel
+  const [mobileView, setMobileView]     = useState<'list' | 'detail'>('list');
 
-  // Load agents list
   const loadAgents = useCallback(async () => {
     setLoading(true);
     try {
@@ -294,9 +328,9 @@ export default function AgentsPage() {
 
   useEffect(() => { loadAgents(); }, [loadAgents]);
 
-  // Load full agent on select
   async function selectAgent(id: string) {
     setSelectedId(id);
+    setMobileView('detail');
     setShowPreview(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
@@ -307,7 +341,11 @@ export default function AgentsPage() {
       const r = await fetch(`/api/agents/${id}`);
       const data = await r.json();
       if (!data.error) {
-        const { _id, createdAt, ...rest } = data;
+        const { _id, createdAt, aiProvider: _ai, ...rest } = data as any;
+        // Backward compat: language → languages
+        if (rest.profile && !Array.isArray(rest.profile.languages)) {
+          rest.profile.languages = rest.profile.language ? [rest.profile.language] : ['auto'];
+        }
         setForm(rest);
       }
     } catch {}
@@ -317,11 +355,17 @@ export default function AgentsPage() {
   function newAgent() {
     setSelectedId('new');
     setForm({ ...DEFAULT_FORM });
+    setMobileView('detail');
     setShowPreview(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
     setSaveErr(null);
     setSaveOk(false);
+  }
+
+  function goBackToList() {
+    setMobileView('list');
+    setSelectedId(null);
   }
 
   function setF<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -375,6 +419,7 @@ export default function AgentsPage() {
       } else {
         setSelectedId(null);
         setDeleteConfirm(false);
+        setMobileView('list');
         await loadAgents();
       }
     } catch {
@@ -386,15 +431,10 @@ export default function AgentsPage() {
   const activeCount = agents.filter(a => a.status === 'active').length;
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
+    <div className="agents-shell">
 
-      {/* ── Left Panel ───────────────────────────────────────────────────────── */}
-      <div style={{
-        width: 240, flexShrink: 0,
-        borderRight: '1px solid var(--g03)',
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--g00)',
-      }}>
+      {/* ── Left Panel (Agent list) ───────────────────────────────────────── */}
+      <div className={`agents-list-panel${mobileView === 'detail' ? ' agents-mobile-hidden' : ''}`}>
         {/* List header */}
         <div style={{
           padding: '16px 14px 12px',
@@ -468,8 +508,8 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* ── Right Panel ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* ── Right Panel (Config + Preview) ───────────────────────────────── */}
+      <div className={`agents-detail-panel${mobileView === 'list' && selectedId === null ? ' agents-mobile-hidden' : ''}`}>
         {selectedId === null ? (
           // Empty state
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
@@ -492,35 +532,41 @@ export default function AgentsPage() {
                 <>
                   {/* Config header */}
                   <div style={{
-                    padding: '16px 24px', borderBottom: '1px solid var(--g03)',
-                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    padding: '12px 16px', borderBottom: '1px solid var(--g03)',
+                    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                     background: 'var(--g00)', position: 'sticky', top: 0, zIndex: 10,
                   }}>
-                    <div style={{ fontSize: 28 }}>{form.avatar}</div>
+                    {/* Back button - mobile only */}
+                    <button
+                      className="agents-back-btn btn btn-ghost btn-sm"
+                      onClick={goBackToList}
+                    >
+                      ← Agentes
+                    </button>
+                    <div style={{ fontSize: 24 }}>{form.avatar}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 16, color: 'var(--g08)' }}>
+                      <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 15, color: 'var(--g08)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {form.name || 'Nuevo agente'}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--g05)' }}>
                         {selectedId === 'new' ? 'Sin guardar' : `ID: ${selectedId}`}
                       </div>
                     </div>
-                    {/* Status toggle */}
                     <select
                       className="input"
                       value={form.status}
                       onChange={e => setF('status', e.target.value as Status)}
-                      style={{ width: 130, fontSize: 13 }}
+                      style={{ width: 120, fontSize: 13 }}
                     >
                       <option value="active">Activo</option>
                       <option value="inactive">Inactivo</option>
                       <option value="draft">Borrador</option>
                     </select>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm agents-preview-btn"
                       onClick={() => setShowPreview(v => !v)}
                     >
-                      {showPreview ? 'Cerrar preview' : 'Vista previa'}
+                      {showPreview ? 'Cerrar preview' : 'Preview'}
                     </button>
                     <button
                       className="btn btn-primary btn-sm"
@@ -534,7 +580,7 @@ export default function AgentsPage() {
                   {/* Feedback */}
                   {(saveErr || saveOk) && (
                     <div style={{
-                      margin: '12px 24px 0', padding: '10px 14px',
+                      margin: '12px 16px 0', padding: '10px 14px',
                       borderRadius: 'var(--radius-sm)',
                       background: saveErr ? 'color-mix(in srgb, var(--red) 10%, var(--g01))' : 'color-mix(in srgb, var(--acc) 10%, var(--g01))',
                       color: saveErr ? 'var(--red)' : 'var(--acc)',
@@ -545,9 +591,9 @@ export default function AgentsPage() {
                     </div>
                   )}
 
-                  <div style={{ padding: '24px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                  <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                    {/* ─── Section 1: Identidad ─────────────────────────────────── */}
+                    {/* ─── Section 1: Identidad ─────────────────────────────── */}
                     <div className="card">
                       <SectionTitle>1. Identidad</SectionTitle>
 
@@ -583,34 +629,31 @@ export default function AgentsPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-                        <div className="field">
-                          <label className="label">Proveedor IA</label>
-                          <select
-                            className="input"
-                            value={form.aiProvider.provider}
-                            onChange={e => {
-                              const prov = PROVIDERS.find(p => p.id === e.target.value)!;
-                              setF('aiProvider', { provider: prov.id as Provider, model: prov.models[0] });
-                            }}
-                          >
-                            {PROVIDERS.map(p => (
-                              <option key={p.id} value={p.id}>{p.icon} {p.name}</option>
-                            ))}
-                          </select>
+                      {/* AI model — transversal notice */}
+                      <div style={{
+                        marginTop: 14, padding: '10px 14px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'color-mix(in srgb, var(--acc) 6%, var(--g01))',
+                        border: '1px solid color-mix(in srgb, var(--acc) 30%, var(--g03))',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}>
+                        <span style={{ fontSize: 16 }}>⚙️</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--g07)' }}>
+                            Modelo IA — configuración global
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 2 }}>
+                            El proveedor y modelo se definen en Orquestación IA y aplican a todos los agentes.
+                          </div>
                         </div>
-                        <div className="field">
-                          <label className="label">Modelo</label>
-                          <select
-                            className="input"
-                            value={form.aiProvider.model}
-                            onChange={e => setF('aiProvider', { ...form.aiProvider, model: e.target.value })}
-                          >
-                            {(PROVIDERS.find(p => p.id === form.aiProvider.provider)?.models ?? []).map(m => (
-                              <option key={m} value={m}>{m}</option>
-                            ))}
-                          </select>
-                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => router.push('/dashboard/settings/orchestration')}
+                          style={{ fontSize: 11, flexShrink: 0 }}
+                        >
+                          Configurar →
+                        </button>
                       </div>
 
                       <div className="field" style={{ marginTop: 14 }}>
@@ -656,18 +699,40 @@ export default function AgentsPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-                        <div className="field">
-                          <label className="label">Idioma</label>
-                          <select
-                            className="input"
-                            value={form.profile.language}
-                            onChange={e => setF('profile', { ...form.profile, language: e.target.value })}
-                          >
-                            {LANGUAGES.map(l => (
-                              <option key={l.id} value={l.id}>{l.label}</option>
-                            ))}
-                          </select>
+                      {/* Multi-language with auto-detect */}
+                      <div className="field" style={{ marginTop: 14 }}>
+                        <label className="label">Idiomas de respuesta</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                          {LANG_OPTIONS.map(lang => {
+                            const selected = form.profile.languages.includes(lang.id);
+                            return (
+                              <button
+                                key={lang.id}
+                                type="button"
+                                onClick={() => {
+                                  const langs = form.profile.languages;
+                                  setF('profile', {
+                                    ...form.profile,
+                                    languages: selected
+                                      ? langs.filter(l => l !== lang.id)
+                                      : [...langs, lang.id],
+                                  });
+                                }}
+                                style={{
+                                  padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                  border: `1px solid ${selected ? 'var(--acc)' : 'var(--g03)'}`,
+                                  background: selected ? 'color-mix(in srgb, var(--acc) 15%, var(--g01))' : 'transparent',
+                                  color: selected ? 'var(--acc)' : 'var(--g06)',
+                                  cursor: 'pointer', transition: 'all .15s',
+                                }}
+                              >
+                                {lang.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 6 }}>
+                          <strong>Auto</strong> detecta el idioma según la zona geográfica del usuario. Puedes combinar Auto con idiomas específicos.
                         </div>
                       </div>
 
@@ -684,7 +749,7 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 2: Canales ───────────────────────────────────── */}
+                    {/* ─── Section 2: Canales ───────────────────────────────── */}
                     <div className="card">
                       <SectionTitle>2. Canales</SectionTitle>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
@@ -720,7 +785,7 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 3: Skills / MCP ──────────────────────────────── */}
+                    {/* ─── Section 3: Skills / MCP ──────────────────────────── */}
                     <div className="card">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                         <SectionTitle>3. Skills / MCP</SectionTitle>
@@ -776,7 +841,7 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Section 4: Avanzado ──────────────────────────────────── */}
+                    {/* ─── Section 4: Avanzado ──────────────────────────────── */}
                     <div className="card">
                       <SectionTitle>4. Avanzado</SectionTitle>
 
@@ -793,7 +858,6 @@ export default function AgentsPage() {
                         </select>
                       </div>
 
-                      {/* Schedule */}
                       <div style={{ marginTop: 14 }}>
                         <ToggleRow
                           title="Horario de atención"
@@ -826,7 +890,6 @@ export default function AgentsPage() {
                         )}
                       </div>
 
-                      {/* Geofencing */}
                       <div style={{ marginTop: 14 }}>
                         <ToggleRow
                           title="Restricción geográfica"
@@ -880,7 +943,25 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
-                    {/* ─── Delete ───────────────────────────────────────────────── */}
+                    {/* ─── Section 5: Contexto Generado ────────────────────── */}
+                    <div className="card">
+                      <SectionTitle>5. Contexto Generado</SectionTitle>
+                      <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 12 }}>
+                        Vista previa del contexto compilado que recibirá el modelo de IA al procesar mensajes de este agente.
+                      </div>
+                      <div style={{
+                        background: 'var(--g01)', borderRadius: 8,
+                        padding: '14px 16px',
+                        fontFamily: 'var(--f-mono)', fontSize: 12,
+                        color: 'var(--g07)', whiteSpace: 'pre-wrap',
+                        lineHeight: 1.7, maxHeight: 360, overflowY: 'auto',
+                        border: '1px solid var(--g03)',
+                      }}>
+                        {compileContext(form)}
+                      </div>
+                    </div>
+
+                    {/* ─── Delete ───────────────────────────────────────────── */}
                     {selectedId !== 'new' && (
                       <div style={{ paddingBottom: 32 }}>
                         {!deleteConfirm ? (
@@ -935,16 +1016,71 @@ export default function AgentsPage() {
       </div>
 
       <style>{`
+        .agents-shell {
+          display: flex;
+          height: calc(100vh - 60px);
+          overflow: hidden;
+        }
+        .agents-list-panel {
+          width: 240px;
+          flex-shrink: 0;
+          border-right: 1px solid var(--g03);
+          display: flex;
+          flex-direction: column;
+          background: var(--g00);
+        }
+        .agents-detail-panel {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+          min-width: 0;
+        }
+        .agents-back-btn {
+          display: none;
+        }
+        .agents-preview-btn {
+          display: inline-flex;
+        }
         @keyframes slideIn {
           from { transform: translateX(20px); opacity: 0; }
           to   { transform: translateX(0);    opacity: 1; }
+        }
+        @media (max-width: 767px) {
+          .agents-shell {
+            position: relative;
+          }
+          .agents-list-panel {
+            width: 100%;
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+          }
+          .agents-list-panel.agents-mobile-hidden {
+            display: none;
+          }
+          .agents-detail-panel {
+            width: 100%;
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            flex-direction: column;
+          }
+          .agents-detail-panel.agents-mobile-hidden {
+            display: none;
+          }
+          .agents-back-btn {
+            display: inline-flex !important;
+          }
+          .agents-preview-btn {
+            display: none !important;
+          }
         }
       `}</style>
     </div>
   );
 }
 
-// ── Inline ToggleRow (no import) ───────────────────────────────────────────────
+// ── Inline ToggleRow ───────────────────────────────────────────────────────────
 function ToggleRow({ title, desc, checked, onChange }: {
   title: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
 }) {
