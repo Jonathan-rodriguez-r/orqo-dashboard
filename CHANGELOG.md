@@ -2,6 +2,21 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.7.1] - 2026-03-31
+
+### Added
+
+- Account module enhancements for enterprise operations:
+- Color presets for portal branding with quick reset to default ORQO palette.
+- Live portal preview panel in Account to visualize brand primary/secondary before saving.
+- New operational fields: escalation email, incident WhatsApp, and fixed PDF report footer note.
+
+### Changed
+
+- Account now performs live branding variable updates while editing (`--acc`, gradients) to improve UX feedback.
+- Account API now guarantees a generated `api_key` for legacy records missing one.
+- Mobile responsiveness improved: account form rows (`.field-row`) now stack correctly on tablet/mobile widths.
+
 ## [1.7.0] - 2026-03-31
 
 ### Added

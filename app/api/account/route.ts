@@ -14,6 +14,9 @@ const DEFAULTS = {
   api_key: '',
   brand_primary_color: '#2CB978',
   brand_secondary_color: '#0B100D',
+  escalation_email: '',
+  incident_whatsapp: '',
+  report_footer_note: '',
 };
 
 export async function GET() {
@@ -26,12 +29,20 @@ export async function GET() {
       return Response.json(newDoc);
     }
     const { _id, ...rest } = doc;
+    if (!rest.api_key) {
+      rest.api_key = 'orqo_' + randomBytes(24).toString('hex');
+      await db.collection('config').updateOne(
+        { _id: 'account' as any },
+        { $set: { api_key: rest.api_key } }
+      );
+    }
     const usage = await getCurrentPeriodUsage({
       db,
       workspaceId: 'default',
       timeZone: String(rest?.timezone ?? DEFAULTS.timezone),
     });
     return Response.json({
+      ...DEFAULTS,
       ...rest,
       interactions_used: usage.interactions,
       interactions_period_key: usage.periodKey,
