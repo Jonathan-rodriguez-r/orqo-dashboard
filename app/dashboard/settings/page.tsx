@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SYSTEM_MODULES } from '@/lib/rbac';
 import OrchestrationPage from './orchestration/page';
 import AlertsSettingsPage from './alerts/page';
 
 // ── Tab types ──────────────────────────────────────────────────────────────────
-type Tab = 'orchestration' | 'alerts' | 'widget' | 'integrations' | 'access' | 'account';
-type AccessSubTab = 'users' | 'roles';
+type Tab = 'orchestration' | 'widget' | 'integrations' | 'access' | 'account';
+type AccessSubTab = 'users' | 'roles' | 'alerts';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type User = {
@@ -99,6 +100,7 @@ const MODULE_GROUPS = Array.from(new Set(SYSTEM_MODULES.map(m => m.group)));
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const [tab, setTab]               = useState<Tab>('orchestration');
   const [accessSub, setAccessSub]   = useState<AccessSubTab>('users');
 
@@ -160,6 +162,19 @@ export default function SettingsPage() {
       loadRoles();
     }
   }, [tab]);
+
+  useEffect(() => {
+    const tabParam = (searchParams.get('tab') ?? '').toLowerCase();
+    const subParam = (searchParams.get('sub') ?? '').toLowerCase();
+
+    if (tabParam && ['orchestration', 'widget', 'integrations', 'access', 'account'].includes(tabParam)) {
+      setTab(tabParam as Tab);
+    }
+
+    if (subParam && ['users', 'roles', 'alerts'].includes(subParam)) {
+      setAccessSub(subParam as AccessSubTab);
+    }
+  }, [searchParams]);
 
   // ── Widget save ────────────────────────────────────────────────────────────
   async function saveWidget() {
@@ -283,7 +298,6 @@ export default function SettingsPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'orchestration', label: 'Orquestación IA' },
-    { id: 'alerts',        label: 'Alertas' },
     { id: 'widget',        label: 'Widget' },
     { id: 'integrations',  label: 'Integraciones' },
     { id: 'access',        label: 'Accesos' },
@@ -316,9 +330,6 @@ export default function SettingsPage() {
 
       {/* ── Orchestration tab ─────────────────────────────────────────── */}
       {tab === 'orchestration' && <OrchestrationPage embedded />}
-
-      {/* ── Alerts tab ─────────────────────────────────────────────────── */}
-      {tab === 'alerts' && <AlertsSettingsPage embedded />}
 
       {/* ── Widget tab ──────────────────────────────────────────────────────── */}
       {tab === 'widget' && (
@@ -449,9 +460,9 @@ export default function SettingsPage() {
 
           {/* Sub-tab nav */}
           <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--g03)' }}>
-            {(['users', 'roles'] as AccessSubTab[]).map(st => (
+            {(['users', 'roles', 'alerts'] as AccessSubTab[]).map(st => (
               <button key={st} onClick={() => setAccessSub(st)} style={tabBtnStyle(accessSub === st)}>
-                {st === 'users' ? 'Usuarios' : 'Roles y Permisos'}
+                {st === 'users' ? 'Usuarios' : st === 'roles' ? 'Roles y Permisos' : 'Alertas'}
               </button>
             ))}
           </div>
@@ -722,6 +733,13 @@ export default function SettingsPage() {
                   Sin roles. Ejecuta <code style={{ color: 'var(--acc)' }}>POST /api/seed/rbac</code> para inicializar.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Alerts sub-tab ───────────────────────────────────────────── */}
+          {accessSub === 'alerts' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <AlertsSettingsPage embedded />
             </div>
           )}
         </div>
