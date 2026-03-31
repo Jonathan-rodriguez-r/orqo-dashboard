@@ -157,6 +157,23 @@
     var sendBtn = document.getElementById('orqo-send');
     var msgs = document.getElementById('orqo-msgs');
 
+    var mode = String(cfg.themeMode || 'auto').toLowerCase();
+    if (mode === 'auto') {
+      mode = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    }
+    if (mode === 'light') {
+      widgetEl.style.setProperty('--orqo-g00', cfg.lightBg || '#F4F7F4');
+      widgetEl.style.setProperty('--orqo-g01', cfg.lightSurface || '#FFFFFF');
+      widgetEl.style.setProperty('--orqo-g02', '#EDF2ED');
+      widgetEl.style.setProperty('--orqo-g06', '#527060');
+      widgetEl.style.setProperty('--orqo-g07', '#152018');
+      widgetEl.style.setProperty('--orqo-g08', '#0B130D');
+    } else {
+      widgetEl.style.setProperty('--orqo-g00', cfg.darkBg || '#060908');
+      widgetEl.style.setProperty('--orqo-g01', cfg.darkSurface || '#0B100D');
+      widgetEl.style.setProperty('--orqo-g02', '#111812');
+    }
+
     if (cfg.position && cfg.position !== 'bottom-right') {
       applyPosition(widgetEl, winEl, cfg.position);
     }
@@ -314,7 +331,10 @@
   }
 
   // ── Fetch config & launch ─────────────────────────────────────────────────
-  fetch(API_BASE + '/api/public/widget?key=' + encodeURIComponent(apiKey), { cache: 'no-store' })
+  var cfgUrl = API_BASE + '/api/public/widget?key=' + encodeURIComponent(apiKey);
+  if (scriptAgentId) cfgUrl += '&agentId=' + encodeURIComponent(scriptAgentId);
+  if (scriptAgentToken) cfgUrl += '&agentToken=' + encodeURIComponent(scriptAgentToken);
+  fetch(cfgUrl, { cache: 'no-store' })
     .then(function(r) { return r.ok ? r.json() : { active: false }; })
     .then(function(cfg) {
       if (cfg.active === false) return;
