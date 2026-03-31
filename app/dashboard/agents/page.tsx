@@ -16,6 +16,7 @@ type AgentSummary = {
 };
 
 type AgentFull = AgentSummary & {
+  webWidgetToken?: string;
   profile: {
     systemPrompt: string;
     personality: string;
@@ -131,6 +132,7 @@ const DEFAULT_FORM: FormState = {
   name: '',
   status: 'draft',
   avatar: '🤖',
+  webWidgetToken: '',
   channels: { whatsapp: false, instagram: false, messenger: false, web: true, woocommerce: false, shopify: false },
   profile: { systemPrompt: '', personality: 'professional', languages: ['auto'], responseLength: 'standard' },
   skills: [],
@@ -208,16 +210,85 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 // ── Preview Drawer ────────────────────────────────────────────────────────────
+type PreviewMessage = { role: 'user' | 'assistant'; content: string; meta?: string };
+
 function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => void }) {
   const greeting = agent.profile.personality === 'young'
-    ? `¡Hola! Soy ${agent.name || 'tu asistente'} 😊 ¿En qué te puedo ayudar hoy?`
+    ? `Hola. Soy ${agent.name || 'tu asistente'}. En que te puedo ayudar hoy?`
     : agent.profile.personality === 'formal'
-    ? `Buenos días. Soy ${agent.name || 'su asistente'}. ¿En qué le puedo asistir?`
-    : `Hola, soy ${agent.name || 'tu asistente'}. ¿En qué puedo ayudarte?`;
+    ? `Buenos dias. Soy ${agent.name || 'su asistente'}. En que le puedo asistir?`
+    : `Hola, soy ${agent.name || 'tu asistente'}. En que puedo ayudarte?`;
+
+  const [messages, setMessages] = useState<PreviewMessage[]>([{ role: 'assistant', content: greeting }]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    setMessages([{ role: 'assistant', content: greeting }]);
+    setInput('');
+    setSending(false);
+  }, [
+    greeting,
+    agent.name,
+    agent.avatar,
+    agent.profile.systemPrompt,
+    agent.profile.personality,
+    (agent.profile.languages || []).join('|'),
+    (agent.skills || []).join('|'),
+    agent.corporateContext,
+  ]);
+
+  async function sendPreview() {
+    const text = input.trim();
+    if (!text || sending) return;
+
+    const nextMessages = [...messages, { role: 'user', content: text } as PreviewMessage];
+    setMessages(nextMessages);
+    setInput('');
+    setSending(true);
+
+    try {
+      const history = nextMessages
+        .slice(0, -1)
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const res = await fetch('/api/agents/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent, message: text, history }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'No fue posible generar la respuesta');
+      }
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.reply || 'No hubo respuesta del modelo.',
+          meta: `${data.provider || 'n/a'} / ${data.model || 'n/a'}`,
+        },
+      ]);
+    } catch (err: any) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Error en preview: ${err?.message || 'fallo desconocido'}`,
+          meta: 'error',
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div style={{
-      width: 320, flexShrink: 0,
+      width: 340, flexShrink: 0,
       borderLeft: '1px solid var(--g03)',
       display: 'flex', flexDirection: 'column',
       background: 'var(--g00)',
@@ -239,7 +310,7 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--g05)' }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2CB978', display: 'inline-block' }} />
-              Activo
+              Preview IA real
             </div>
           </div>
         </div>
@@ -247,57 +318,40 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
           onClick={onClose}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--g05)', fontSize: 18, lineHeight: 1 }}
         >
-          ✕
+          x
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{
-            background: 'var(--acc)', color: '#fff',
-            borderRadius: '16px 16px 4px 16px',
-            padding: '8px 14px', fontSize: 13, maxWidth: '85%',
-          }}>
-            Hola, necesito información sobre sus productos
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {messages.map((m, idx) => (
+          <div key={`${m.role}-${idx}`} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              background: m.role === 'user' ? 'var(--acc)' : 'var(--g02)',
+              color: m.role === 'user' ? '#fff' : 'var(--g08)',
+              borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+              padding: '8px 14px', fontSize: 13, maxWidth: '90%',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {m.content}
+              {m.meta && (
+                <div style={{ marginTop: 6, fontSize: 10, opacity: 0.7 }}>
+                  {m.meta}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <span style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'color-mix(in srgb, var(--acc) 15%, var(--g01))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
-          }}>{agent.avatar}</span>
-          <div style={{
-            background: 'var(--g02)', color: 'var(--g08)',
-            borderRadius: '16px 16px 16px 4px',
-            padding: '8px 14px', fontSize: 13, maxWidth: '85%',
-          }}>
-            {greeting}
+        ))}
+        {sending && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{
+              background: 'var(--g02)', color: 'var(--g05)',
+              borderRadius: '16px 16px 16px 4px',
+              padding: '8px 14px', fontSize: 12,
+            }}>
+              Generando respuesta...
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{
-            background: 'var(--acc)', color: '#fff',
-            borderRadius: '16px 16px 4px 16px',
-            padding: '8px 14px', fontSize: 13, maxWidth: '85%',
-          }}>
-            ¿Cuánto cuesta el servicio?
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <span style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'color-mix(in srgb, var(--acc) 15%, var(--g01))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
-          }}>{agent.avatar}</span>
-          <div style={{
-            background: 'var(--g02)', color: 'var(--g08)',
-            borderRadius: '16px 16px 16px 4px',
-            padding: '8px 14px', fontSize: 13, maxWidth: '85%',
-          }}>
-            Con gusto te ayudo. Nuestros planes se adaptan a cada cliente. ¿Te gustaría conocer más detalles?
-          </div>
-        </div>
+        )}
       </div>
 
       <div style={{
@@ -305,28 +359,42 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
         display: 'flex', gap: 8, alignItems: 'center',
       }}>
         <input
-          disabled
-          placeholder="Simulación"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendPreview();
+            }
+          }}
+          placeholder="Prueba este agente con IA real"
           style={{
             flex: 1, padding: '8px 14px',
             border: '1px solid var(--g03)', borderRadius: 20,
-            background: 'var(--g01)', color: 'var(--g05)',
-            fontSize: 13, cursor: 'not-allowed',
+            background: 'var(--g01)', color: 'var(--g07)',
+            fontSize: 13,
           }}
         />
-        <button disabled style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: 'var(--g03)', border: 'none', cursor: 'not-allowed',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-        }}>
-          ➤
+        <button
+          onClick={sendPreview}
+          disabled={sending || !input.trim()}
+          style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: sending || !input.trim() ? 'var(--g03)' : 'var(--acc)',
+            color: sending || !input.trim() ? 'var(--g05)' : '#fff',
+            border: 'none',
+            cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+          }}
+        >
+          {'>'}
         </button>
       </div>
     </div>
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Main Page ───────────────────────────────────────────────────────────────── ─────────────────────────────────────────────────────────────────
 export default function AgentsPage() {
   const router = useRouter();
   const [agents, setAgents]             = useState<AgentSummary[]>([]);
@@ -338,6 +406,8 @@ export default function AgentsPage() {
   const [saveErr, setSaveErr]           = useState<string | null>(null);
   const [saveOk, setSaveOk]             = useState(false);
   const [showPreview, setShowPreview]   = useState(false);
+  const [showEmbedModal, setShowEmbedModal] = useState(false);
+  const [embedApiKey, setEmbedApiKey]   = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteErr, setDeleteErr]       = useState<string | null>(null);
   // Mobile: 'list' shows left panel, 'detail' shows right panel
@@ -355,10 +425,21 @@ export default function AgentsPage() {
 
   useEffect(() => { loadAgents(); }, [loadAgents]);
 
+  useEffect(() => {
+    if (!showEmbedModal || embedApiKey) return;
+    fetch('/api/account')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.api_key) setEmbedApiKey(d.api_key);
+      })
+      .catch(() => {});
+  }, [showEmbedModal, embedApiKey]);
+
   async function selectAgent(id: string) {
     setSelectedId(id);
     setMobileView('detail');
     setShowPreview(false);
+    setShowEmbedModal(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
     setSaveErr(null);
@@ -387,6 +468,7 @@ export default function AgentsPage() {
     setForm({ ...DEFAULT_FORM });
     setMobileView('detail');
     setShowPreview(false);
+    setShowEmbedModal(false);
     setDeleteConfirm(false);
     setDeleteErr(null);
     setSaveErr(null);
@@ -429,7 +511,9 @@ export default function AgentsPage() {
         setTimeout(() => setSaveOk(false), 3000);
         await loadAgents();
         if (selectedId === 'new' && data._id) {
+          const { _id, createdAt, aiProvider: _ai, ...rest } = data as any;
           setSelectedId(data._id);
+          setForm(prev => ({ ...prev, ...rest }));
         }
       }
     } catch {
@@ -459,6 +543,10 @@ export default function AgentsPage() {
   }
 
   const activeCount = agents.filter(a => a.status === 'active').length;
+  const canEmbed = Boolean(selectedId && selectedId !== 'new' && form.webWidgetToken && embedApiKey);
+  const embedScript = canEmbed
+    ? `<script src="https://dashboard.orqo.io/widget.js" data-key="${embedApiKey}" data-agent-id="${selectedId}" data-agent-token="${form.webWidgetToken}" async><\\/script>`
+    : '';
 
   return (
     <div className="agents-shell">
@@ -598,6 +686,14 @@ export default function AgentsPage() {
                     >
                       {showPreview ? 'Cerrar preview' : 'Preview'}
                     </button>
+                    {form.channels.web && form.webWidgetToken && selectedId !== 'new' && (
+                      <button
+                        className="btn btn-ghost btn-sm agents-preview-btn"
+                        onClick={() => setShowEmbedModal(true)}
+                      >
+                        Script Widget
+                      </button>
+                    )}
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={handleSave}
@@ -899,6 +995,40 @@ export default function AgentsPage() {
                           );
                         })}
                       </div>
+                      {(form.channels.web ?? false) && (
+                        <div style={{
+                          marginTop: 14,
+                          padding: '12px 14px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--g03)',
+                          background: 'var(--g01)',
+                        }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--g07)', marginBottom: 6 }}>
+                            Vinculacion Web Widget
+                          </div>
+                          {!form.webWidgetToken ? (
+                            <div style={{ fontSize: 12, color: 'var(--g05)' }}>
+                              Guarda el agente para generar su token de embebido.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 11, color: 'var(--g05)' }}>Token activo</div>
+                                <div style={{ fontSize: 12, color: 'var(--g06)', fontFamily: 'var(--f-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {form.webWidgetToken}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => setShowEmbedModal(true)}
+                              >
+                                Script de embebido
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* ─── Section 5: Skills / MCP ──────────────────────────── */}
@@ -1133,6 +1263,90 @@ export default function AgentsPage() {
           </>
         )}
       </div>
+
+      {showEmbedModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.58)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 16,
+        }}>
+          <div style={{
+            width: 'min(760px, 100%)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--g03)',
+            background: 'var(--g00)',
+            boxShadow: '0 18px 60px rgba(0,0,0,0.45)',
+          }}>
+            <div style={{
+              padding: '14px 16px',
+              borderBottom: '1px solid var(--g03)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontFamily: 'var(--f-disp)', fontSize: 16, fontWeight: 700, color: 'var(--g08)' }}>
+                  Script de embebido Web Widget
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--g05)' }}>
+                  Vinculado al agente seleccionado y su token web.
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowEmbedModal(false)}>Cerrar</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              {canEmbed ? (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 8 }}>
+                    Copia y pega este snippet antes de cerrar el {'</body>'} en tu pagina:
+                  </div>
+                  <textarea
+                    readOnly
+                    value={embedScript}
+                    style={{
+                      width: '100%',
+                      minHeight: 110,
+                      resize: 'vertical',
+                      background: 'var(--g01)',
+                      color: 'var(--g07)',
+                      border: '1px solid var(--g03)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--f-mono)',
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      padding: 12,
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 11, color: 'var(--g05)' }}>
+                      Agente: <span style={{ color: 'var(--g07)' }}>{form.name || 'Sin nombre'}</span>
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(embedScript);
+                        } catch {}
+                      }}
+                    >
+                      Copiar script
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--g05)' }}>
+                  Guarda el agente (con canal Web Widget activo) para generar token, y verifica que la API key de cuenta este disponible.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .agents-shell {

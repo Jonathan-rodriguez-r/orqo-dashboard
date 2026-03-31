@@ -1,6 +1,6 @@
 /**
  * ORQO Widget Loader — v1
- * Usage: <script src="https://dashboard.orqo.io/widget.js" data-key="orqo_xxx" async></script>
+ * Usage: <script src="https://dashboard.orqo.io/widget.js" data-key="orqo_xxx" data-agent-id="..." data-agent-token="..." async></script>
  */
 (function () {
   'use strict';
@@ -9,6 +9,8 @@
   var scripts = document.querySelectorAll('script[data-key]');
   var scriptTag = scripts[scripts.length - 1];
   var apiKey = scriptTag ? scriptTag.getAttribute('data-key') : '';
+  var scriptAgentId = scriptTag ? (scriptTag.getAttribute('data-agent-id') || '') : '';
+  var scriptAgentToken = scriptTag ? (scriptTag.getAttribute('data-agent-token') || '') : '';
   if (!apiKey) { console.warn('[ORQO] data-key not set'); return; }
 
   var API_BASE = 'https://dashboard.orqo.io';
@@ -270,14 +272,36 @@
       saveLocal();
       syncMessage('user', text);
 
-      // Simple agent reply (TODO: connect to real AI endpoint)
-      var agentReply = 'Gracias por tu mensaje. Nuestro equipo te responderá pronto. Si tienes una consulta urgente, por favor indícala.';
-      setTimeout(function() {
+      // Real AI reply from ORQO backend
+      fetch(API_BASE + '/api/widget/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: apiKey,
+          visitorId: visitorId,
+          agentId: cfg.agentId || scriptAgentId || 'default',
+          agentToken: cfg.agentToken || scriptAgentToken || '',
+          message: text,
+          history: history.slice(-12).map(function(m) {
+            return { role: m.role === 'user' ? 'user' : 'assistant', content: m.content };
+          }),
+        }),
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var agentReply = (d && d.reply) ? d.reply : 'No pude generar una respuesta en este momento. Intenta de nuevo.';
         addBub('bot', agentReply);
         history.push({ role: 'agent', content: agentReply, ts: Date.now() });
         saveLocal();
         syncMessage('agent', agentReply);
-      }, 700);
+      })
+      .catch(function() {
+        var fallback = 'No pude conectar con el motor de IA ahora mismo. Intenta nuevamente en unos segundos.';
+        addBub('bot', fallback);
+        history.push({ role: 'agent', content: fallback, ts: Date.now() });
+        saveLocal();
+        syncMessage('agent', fallback);
+      });
     }
 
     function addBub(role, text) {
@@ -294,6 +318,8 @@
     .then(function(r) { return r.ok ? r.json() : { active: false }; })
     .then(function(cfg) {
       if (cfg.active === false) return;
+      if (!cfg.agentId && scriptAgentId) cfg.agentId = scriptAgentId;
+      if (!cfg.agentToken && scriptAgentToken) cfg.agentToken = scriptAgentToken;
       boot(cfg);
     })
     .catch(function() { /* silently fail */ });

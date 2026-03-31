@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { randomBytes } from 'crypto';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -38,12 +39,23 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     delete body.workspaceId;
 
     const db = await getDb();
+    const current = await db.collection('agents_v2').findOne({
+      _id: new ObjectId(id),
+      workspaceId: session.workspaceId,
+    });
+    if (!current) return Response.json({ error: 'Not found' }, { status: 404 });
+
+    const nextChannels = body.channels ?? current.channels ?? {};
+    const webIsEnabled = Boolean(nextChannels.web);
+    const incomingToken = typeof body.webWidgetToken === 'string' ? body.webWidgetToken : current.webWidgetToken;
+    const webWidgetToken = webIsEnabled
+      ? (incomingToken && String(incomingToken).trim()) || ('awt_' + randomBytes(18).toString('hex'))
+      : '';
+
     const result = await db.collection('agents_v2').updateOne(
       { _id: new ObjectId(id), workspaceId: session.workspaceId },
-      { $set: { ...body, updatedAt: new Date() } }
+      { $set: { ...body, webWidgetToken, updatedAt: new Date() } }
     );
-
-    if (result.matchedCount === 0) return Response.json({ error: 'Not found' }, { status: 404 });
 
     return Response.json({ ok: true });
   } catch (e: any) {

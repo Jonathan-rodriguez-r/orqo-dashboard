@@ -1,121 +1,130 @@
 # ORQO Dashboard
 
-Panel de administración para ORQO — asistente de IA para WordPress y WhatsApp.
+Corporate-grade control plane for ORQO conversational orchestration.
 
-## Stack
+This repository powers `https://dashboard.orqo.io` and manages:
+- Agent lifecycle and channel binding
+- AI orchestration providers/models
+- Operational conversations, analytics, and auditability
+- Widget configuration and public runtime delivery
 
-- **Framework**: Next.js 16.2.1 (App Router, Turbopack)
-- **UI**: React 19, TypeScript, Recharts
-- **Base de datos**: MongoDB Atlas (base `orqo`)
-- **Auth**: Google OAuth 2.0 (SSO) + Magic links via Resend
-- **Sesión**: JWT (jose), cookie `orqo_session` (7 días), permisos embebidos
-- **Autorización**: RBAC — 5 roles, 15 módulos de sistema, Edge Middleware
-- **Deploy**: Vercel → `dashboard.orqo.io`
+## Product Scope
 
-## Variables de entorno
+ORQO Dashboard is the administrative surface for a conversational middleware platform that applies CQRS in customer channels:
+- Query flow: retrieve business information (stock, status, availability)
+- Command flow: execute business transactions (orders, bookings, updates)
+
+## Architecture
+
+### Architectural Style
+
+- Clean architecture boundaries between UI, API, domain/service, and persistence concerns
+- CQRS-oriented operational model for conversational events
+- Stateless APIs with explicit persistence points
+- Workspace-oriented settings and role-driven access control
+
+### Core Modules
+
+- `app/dashboard/*`: Operator UI (agents, settings, widget, logs, conversations)
+- `app/api/*`: Server routes for auth, config, orchestration, and persistence
+- `lib/*`: Shared infrastructure and services (auth, mongo, orchestration)
+- `public/widget.js`: Public embeddable widget runtime
+
+### Orchestration Layer
+
+Primary orchestration service:
+- `lib/ai-orchestrator.ts`
+
+Responsibilities:
+- Resolve active provider/model configuration
+- Apply orchestration strategy (single/failover/round-robin)
+- Compose agent runtime prompt context
+- Call provider APIs (OpenAI, Anthropic, Gemini, Grok)
+- Return normalized reply metadata (`provider`, `model`, `reply`)
+
+## Security and Governance
+
+- JWT session model with workspace and role context
+- RBAC-protected dashboard and APIs
+- API-key validation for public widget traffic
+- Optional agent token binding for web widget embedding
+- Operational logs for traceability (`activity_logs`)
+
+## Runtime Flows
+
+### 1. Agent Preview (real AI)
+
+`/dashboard/agents` -> `/api/agents/preview` -> `ai-orchestrator`
+
+Used to validate agent behavior before channel publication.
+
+### 2. Public Widget Conversation
+
+`public/widget.js` -> `/api/widget/reply` -> `ai-orchestrator`
+
+Also persists conversation operational state for dashboard visibility.
+
+### 3. Channel Binding
+
+When `Web Widget` is enabled on an agent:
+- Agent receives/retains `webWidgetToken`
+- Embed script can include:
+  - `data-key`
+  - `data-agent-id`
+  - `data-agent-token`
+
+## Engineering Principles
+
+This codebase follows:
+- SOLID principles for service boundaries and extension safety
+- Clean code conventions (small functions, explicit naming, low coupling)
+- Defensive error handling with safe fallbacks
+- Backward compatibility for production runtime paths
+
+## Local Development
+
+### Requirements
+
+- Node.js 20+
+- MongoDB Atlas URI
+- Resend API key
+
+### Environment Variables
 
 ```env
 MONGODB_URI=mongodb+srv://...
 RESEND_API_KEY=re_...
-SESSION_SECRET=...          # string largo aleatorio
+SESSION_SECRET=long-random-secret
 APP_URL=https://dashboard.orqo.io
 EMAIL_FROM=ORQO <noreply@orqo.io>
-GOOGLE_CLIENT_ID=...        # Google Cloud Console
+GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
-> En desarrollo, el magic link se imprime en la consola (no necesita email).
-
-## Roles y permisos
-
-| Rol | Permisos |
-|---|---|
-| `owner` | Todos |
-| `admin` | Todo excepto billing y roles |
-| `analyst` | Lectura conversaciones + informes |
-| `agent_manager` | Agentes + conversaciones |
-| `viewer` | Solo lectura |
-
-El primer usuario que hace login se crea automáticamente como `owner`.
-
-## Desarrollo local
+### Run
 
 ```bash
-cd orqo-dashboard
 npm install
 npm run dev
-# → http://localhost:3000
 ```
 
-Para agregar Google OAuth en local, crear credenciales en Google Cloud Console con:
-- Origen: `http://localhost:3000`
-- Redirect URI: `http://localhost:3000/api/auth/google/callback`
+## Release and Deployment
 
-## Seed de datos
+- Primary branch in remote: `main`
+- Production deployment: Vercel (auto deploy from primary branch)
+- Domain: `dashboard.orqo.io`
 
-```bash
-# RBAC — roles y módulos del sistema (idempotente)
-curl -X POST http://localhost:3000/api/seed/rbac
+## Wiki (In-Repo)
 
-# Analytics — 30 días de datos de prueba (idempotente)
-curl -X POST http://localhost:3000/api/seed
-```
+This section acts as the project wiki index:
 
-## Estructura
+- Architecture Overview: this README -> `Architecture`
+- Runtime Flows: this README -> `Runtime Flows`
+- Security Model: this README -> `Security and Governance`
+- Operational Release Notes: `CHANGELOG.md`
 
-```
-orqo-dashboard/
-├── app/
-│   ├── api/
-│   │   ├── auth/
-│   │   │   ├── google/         ← OAuth redirect + callback
-│   │   │   ├── me/             ← sesión actual (no DB)
-│   │   │   ├── login/          ← magic link
-│   │   │   ├── verify/         ← valida token
-│   │   │   └── logout/
-│   │   ├── users/              ← CRUD usuarios (requiere settings.users)
-│   │   ├── roles/              ← listar/actualizar roles (requiere settings.roles)
-│   │   ├── analytics/          ← métricas ?days=7|30|90
-│   │   ├── seed/               ← analytics seed
-│   │   └── seed/rbac/          ← RBAC seed
-│   ├── dashboard/
-│   │   ├── page.tsx            ← Vista general (KPIs + convs recientes)
-│   │   ├── conversations/      ← tabla con filtros por canal
-│   │   ├── agents/             ← gestión de agentes
-│   │   ├── reports/            ← analytics con recharts
-│   │   └── settings/           ← widget / integraciones / accesos / cuenta
-│   ├── login/                  ← Google SSO + magic link
-│   └── globals.css             ← design tokens, dark mode
-├── components/
-│   ├── Sidebar.tsx
-│   ├── DashboardNav.tsx        ← mobile off-canvas wrapper
-│   └── auth/
-│       └── PermissionGate.tsx  ← renderizado condicional por permiso
-├── hooks/
-│   └── usePermissions.ts       ← useSession, useHasPermission, useRole
-├── lib/
-│   ├── auth.ts                 ← JWT helpers, SessionPayload, buildSessionPayload
-│   ├── rbac.ts                 ← SYSTEM_MODULES, DEFAULT_ROLES, hasPermission
-│   └── mongodb.ts              ← conexión MongoDB
-└── proxy.ts                    ← Edge Middleware RBAC (JWT + route permissions)
-```
+For external documentation expansion, keep long-form docs under `docs/` and link them here.
 
-## Rutas de la API
+## Changelog
 
-| Método | Ruta | Permiso requerido |
-|---|---|---|
-| GET | `/api/auth/me` | — (sesión válida) |
-| GET | `/api/auth/google` | — público |
-| GET | `/api/auth/google/callback` | — público |
-| POST | `/api/auth/login` | — público |
-| GET | `/api/auth/verify` | — público |
-| POST | `/api/auth/logout` | — público |
-| GET/POST/DELETE | `/api/users` | `settings.users` |
-| GET/PATCH | `/api/roles` | `settings.roles` |
-| GET | `/api/analytics` | `reports.view` |
-| POST | `/api/seed` | `admin.seed` |
-| POST | `/api/seed/rbac` | `admin.seed` |
-
-## Deploy
-
-Auto-deploy en Vercel al hacer push a `main`.
+See [CHANGELOG.md](./CHANGELOG.md).

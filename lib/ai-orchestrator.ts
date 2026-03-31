@@ -1,0 +1,351 @@
+import type { Db } from 'mongodb';
+
+type ProviderKey = 'google' | 'openai' | 'grok' | 'anthropic';
+type Strategy = 'failover' | 'roundrobin' | 'single';
+
+type ProviderCfg = { apiKey: string; model: string; enabled: boolean };
+type WorkspaceSettings = {
+  aiProviders: Record<ProviderKey, ProviderCfg>;
+  orchestration: {
+    multiModel: boolean;
+    strategy: Strategy;
+    concurrentMessages: number;
+    activeProviders: string[];
+  };
+};
+
+export type ChatTurn = { role: 'user' | 'assistant'; content: string };
+
+export type AgentRuntime = {
+  name?: string;
+  profile?: {
+    systemPrompt?: string;
+    personality?: string;
+    languages?: string[];
+    responseLength?: string;
+  };
+  corporateContext?: string;
+  skills?: string[];
+  advanced?: {
+    escalationKeywords?: string;
+    humanHandoffMsg?: string;
+  };
+};
+
+type ProviderCandidate = {
+  provider: ProviderKey;
+  model: string;
+  apiKey: string;
+};
+
+const DEFAULT_SETTINGS: WorkspaceSettings = {
+  aiProviders: {
+    google: { apiKey: '', model: 'gemini-2.0-flash', enabled: false },
+    openai: { apiKey: '', model: 'gpt-4o', enabled: false },
+    grok: { apiKey: '', model: 'grok-3', enabled: false },
+    anthropic: { apiKey: '', model: 'claude-sonnet-4-6', enabled: false },
+  },
+  orchestration: {
+    multiModel: false,
+    strategy: 'failover',
+    concurrentMessages: 50,
+    activeProviders: [],
+  },
+};
+
+export async function generateAgentReply(args: {
+  db: Db;
+  workspaceId?: string;
+  agent: AgentRuntime;
+  message: string;
+  history?: ChatTurn[];
+}) {
+  const settings = await readWorkspaceSettings(args.db, args.workspaceId);
+  const providers = resolveProviderOrder(settings);
+
+  if (providers.length === 0) {
+    throw new Error('No hay proveedores de IA activos con API key configurada.');
+  }
+
+  const system = buildSystemPrompt(args.agent);
+  const history = (args.history ?? []).slice(-12);
+
+  const errors: string[] = [];
+  for (const candidate of providers) {
+    try {
+      const reply = await callProvider({
+        provider: candidate.provider,
+        apiKey: candidate.apiKey,
+        model: candidate.model,
+        system,
+        history,
+        message: args.message,
+        responseLength: args.agent.profile?.responseLength ?? 'standard',
+      });
+
+      return {
+        reply,
+        provider: candidate.provider,
+        model: candidate.model,
+      };
+    } catch (err: any) {
+      errors.push(`${candidate.provider}/${candidate.model}: ${err?.message ?? 'error desconocido'}`);
+    }
+  }
+
+  throw new Error(`Todos los proveedores fallaron. ${errors.join(' | ')}`);
+}
+
+async function readWorkspaceSettings(db: Db, workspaceId?: string): Promise<WorkspaceSettings> {
+  const coll = db.collection('workspace_settings');
+  let doc: any = null;
+
+  if (workspaceId) {
+    doc = await coll.findOne({ workspaceId });
+  }
+
+  if (!doc) {
+    doc = await coll.findOne({ workspaceId: 'default' });
+  }
+
+  if (!doc) {
+    doc = await coll.findOne({});
+  }
+
+  if (!doc) return DEFAULT_SETTINGS;
+
+  return {
+    aiProviders: {
+      google: { ...DEFAULT_SETTINGS.aiProviders.google, ...(doc.aiProviders?.google ?? {}) },
+      openai: { ...DEFAULT_SETTINGS.aiProviders.openai, ...(doc.aiProviders?.openai ?? {}) },
+      grok: { ...DEFAULT_SETTINGS.aiProviders.grok, ...(doc.aiProviders?.grok ?? {}) },
+      anthropic: { ...DEFAULT_SETTINGS.aiProviders.anthropic, ...(doc.aiProviders?.anthropic ?? {}) },
+    },
+    orchestration: {
+      ...DEFAULT_SETTINGS.orchestration,
+      ...(doc.orchestration ?? {}),
+      activeProviders: Array.isArray(doc.orchestration?.activeProviders)
+        ? doc.orchestration.activeProviders
+        : [],
+    },
+  };
+}
+
+function resolveProviderOrder(settings: WorkspaceSettings): ProviderCandidate[] {
+  const providerMap = settings.aiProviders;
+  const enabled = (Object.keys(providerMap) as ProviderKey[])
+    .filter((k) => providerMap[k].enabled && providerMap[k].apiKey?.trim());
+
+  if (enabled.length === 0) return [];
+
+  const preferred = settings.orchestration.multiModel
+    ? settings.orchestration.activeProviders.filter((p): p is ProviderKey =>
+        ['google', 'openai', 'grok', 'anthropic'].includes(p)
+      )
+    : [];
+
+  const baseOrder = preferred.length > 0 ? preferred : enabled;
+  const filtered = baseOrder.filter((p) => enabled.includes(p));
+
+  const order = filtered.length > 0 ? filtered : enabled;
+  const strategy = settings.orchestration.multiModel ? settings.orchestration.strategy : 'single';
+
+  let rotated = order;
+  if (strategy === 'roundrobin' && order.length > 1) {
+    const idx = Math.floor(Date.now() / 1000) % order.length;
+    rotated = [...order.slice(idx), ...order.slice(0, idx)];
+  }
+
+  return rotated.map((provider) => ({
+    provider,
+    model: providerMap[provider].model,
+    apiKey: providerMap[provider].apiKey,
+  }));
+}
+
+function buildSystemPrompt(agent: AgentRuntime): string {
+  const lines: string[] = [];
+  lines.push(`Eres ${agent.name?.trim() || 'un asistente virtual de ORQO'}.`);
+  lines.push('Responde con claridad, útil y en tono profesional.');
+
+  const p = agent.profile;
+  if (p?.personality) lines.push(`Personalidad: ${p.personality}.`);
+  if (p?.languages?.length) lines.push(`Idiomas preferidos: ${p.languages.join(', ')}.`);
+  if (p?.systemPrompt?.trim()) lines.push(`Instrucciones del agente:\n${p.systemPrompt.trim()}`);
+  if (agent.corporateContext?.trim()) lines.push(`Contexto corporativo:\n${agent.corporateContext.trim()}`);
+  if (agent.skills?.length) lines.push(`Skills activos: ${agent.skills.join(', ')}.`);
+
+  if (agent.advanced?.escalationKeywords?.trim()) {
+    lines.push(`Si detectas escalación (${agent.advanced.escalationKeywords}), informa: ${agent.advanced.humanHandoffMsg || 'Te conecto con un agente humano.'}`);
+  }
+
+  return lines.join('\n\n');
+}
+
+async function callProvider(args: {
+  provider: ProviderKey;
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  if (args.provider === 'openai') return callOpenAI(args);
+  if (args.provider === 'anthropic') return callAnthropic(args);
+  if (args.provider === 'google') return callGoogle(args);
+  return callGrok(args);
+}
+
+function maxTokens(length: string) {
+  if (length === 'short') return 180;
+  if (length === 'long') return 900;
+  return 450;
+}
+
+async function callOpenAI(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  const messages = [
+    { role: 'system', content: args.system },
+    ...args.history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: args.message },
+  ];
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      messages,
+      temperature: 0.3,
+      max_tokens: maxTokens(args.responseLength),
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message ?? 'OpenAI error');
+
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('OpenAI no devolvió contenido');
+  return text;
+}
+
+async function callAnthropic(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  const messages = [
+    ...args.history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: args.message },
+  ];
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': args.apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      system: args.system,
+      max_tokens: maxTokens(args.responseLength),
+      temperature: 0.3,
+      messages,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message ?? 'Anthropic error');
+
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const text = blocks.map((b: any) => (b?.type === 'text' ? b.text : '')).join('').trim();
+  if (!text) throw new Error('Anthropic no devolvió contenido');
+  return text;
+}
+
+async function callGoogle(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  const contents = [
+    ...args.history.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+    { role: 'user', parts: [{ text: args.message }] },
+  ];
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent?key=${encodeURIComponent(args.apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: args.system }] },
+        generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens(args.responseLength) },
+        contents,
+      }),
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message ?? 'Google Gemini error');
+
+  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? '').join('').trim();
+  if (!text) throw new Error('Gemini no devolvió contenido');
+  return text;
+}
+
+async function callGrok(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  history: ChatTurn[];
+  message: string;
+  responseLength: string;
+}) {
+  const messages = [
+    { role: 'system', content: args.system },
+    ...args.history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: args.message },
+  ];
+
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      messages,
+      temperature: 0.3,
+      max_tokens: maxTokens(args.responseLength),
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message ?? 'Grok error');
+
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('Grok no devolvió contenido');
+  return text;
+}
