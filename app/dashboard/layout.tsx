@@ -1,6 +1,5 @@
 import DashboardNav from '@/components/DashboardNav';
 import Topbar from '@/components/Topbar';
-import HelpFab from '@/components/HelpFab';
 import InactivityGuard from '@/components/InactivityGuard';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -19,7 +18,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </div>
       </div>
-      <HelpFab />
     </>
   );
 }

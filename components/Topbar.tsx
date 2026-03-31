@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/hooks/usePermissions';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Notification = {
   _id: string;
@@ -11,6 +14,8 @@ type Notification = {
   read: boolean;
   createdAt: string;
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -24,39 +29,80 @@ const TYPE_COLOR: Record<string, string> = {
   error: 'var(--red)', warn: 'var(--yellow)', success: 'var(--acc)', info: 'var(--g05)',
 };
 
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+const SunIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// ── Topbar button base style ──────────────────────────────────────────────────
+
+const btnStyle: React.CSSProperties = {
+  width: 34, height: 34, borderRadius: 8,
+  background: 'none', border: '1px solid var(--g03)',
+  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: 'var(--g05)', flexShrink: 0, transition: 'background 0.15s, color 0.15s',
+  padding: 0,
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function Topbar() {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [notifs, setNotifs] = useState<Notification[]>([]);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const router  = useRouter();
+  const session = useSession();
 
-  const unread = notifs.filter(n => !n.read).length;
+  // Notifications
+  const [bellOpen, setBellOpen] = useState(false);
+  const [notifs, setNotifs]     = useState<Notification[]>([]);
+  const bellRef = useRef<HTMLDivElement>(null);
+  const unread  = notifs.filter(n => !n.read).length;
 
-  function load() {
+  // User dropdown
+  const [userOpen, setUserOpen]     = useState(false);
+  const [theme, setTheme]           = useState<'dark'|'light'>('dark');
+  const userRef = useRef<HTMLDivElement>(null);
+
+  // ── Init theme from localStorage ──
+  useEffect(() => {
+    const saved = (localStorage.getItem('orqo_theme') as 'dark'|'light') || 'dark';
+    setTheme(saved);
+  }, []);
+
+  // ── Load notifications ──
+  function loadNotifs() {
     fetch('/api/notifications').then(r => r.json()).then(d => {
       if (d.ok) setNotifs(d.items ?? []);
     }).catch(() => {});
   }
 
   useEffect(() => {
-    load();
-    const id = setInterval(load, 60_000);
+    loadNotifs();
+    const id = setInterval(loadNotifs, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // Close dropdown on outside click
+  // ── Close on outside click ──
   useEffect(() => {
-    if (!open) return;
     function handle(e: MouseEvent) {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpen(false);
+      if (bellOpen && bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+      if (userOpen && userRef.current && !userRef.current.contains(e.target as Node)) setUserOpen(false);
     }
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
+  }, [bellOpen, userOpen]);
 
   function markAllRead() {
     fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true }) })
-      .then(() => load());
+      .then(() => loadNotifs());
   }
 
   function markRead(id: string) {
@@ -64,66 +110,146 @@ export default function Topbar() {
       .then(() => setNotifs(prev => prev.map(n => n._id === id ? { ...n, read: true } : n)));
   }
 
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('orqo_theme', next);
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  }
+
+  const displayName = session?.name ?? session?.email ?? '…';
+  const initials    = displayName.slice(0, 1).toUpperCase();
+
   return (
     <div className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ flex: 1 }} />
 
-      {/* Notification bell */}
-      <div className="notif-wrap" ref={dropRef}>
+      {/* ── Assistant button ── */}
+      <button
+        style={btnStyle}
+        title="Asistente ORQO"
+        onClick={() => router.push('/dashboard/conversations')}
+      >
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M8 1.5a6 6 0 0 1 6 6v.5c0 1.1-.9 2-2 2H9.5A1.5 1.5 0 0 0 8 11.5v1A1.5 1.5 0 0 1 6.5 14H4a.5.5 0 0 1-.5-.5V12A6 6 0 0 1 8 1.5Z"/>
+          <circle cx="6" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
+          <circle cx="8" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
+          <circle cx="10" cy="7.5" r=".75" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+
+      {/* ── Help button ── */}
+      <button
+        style={btnStyle}
+        title="Centro de ayuda"
+        onClick={() => router.push('/dashboard/docs')}
+      >
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="8" cy="8" r="6.5"/>
+          <path d="M6.5 6.5a1.5 1.5 0 0 1 3 .5c0 1-1.5 1.5-1.5 2.5" strokeLinecap="round"/>
+          <circle cx="8" cy="11.5" r=".75" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+
+      {/* ── Notification bell ── */}
+      <div className="notif-wrap" ref={bellRef}>
         <button
-          className={`notif-bell${open ? ' open' : ''}`}
-          onClick={() => { setOpen(o => !o); if (!open) load(); }}
+          className={`notif-bell${bellOpen ? ' open' : ''}`}
+          onClick={() => { setBellOpen(o => !o); if (!bellOpen) loadNotifs(); }}
           aria-label="Notificaciones"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M8 1.5a5 5 0 0 1 5 5v2.5l1 2H2l1-2V6.5a5 5 0 0 1 5-5Z"/>
             <path d="M6.5 13.5a1.5 1.5 0 0 0 3 0" strokeLinecap="round"/>
           </svg>
-          {unread > 0 && (
-            <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>
-          )}
+          {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
         </button>
 
-        {open && (
+        {bellOpen && (
           <div className="notif-dropdown">
             <div className="notif-dropdown-header">
               <span>Notificaciones {unread > 0 && <span style={{ color: 'var(--acc)' }}>({unread})</span>}</span>
               {unread > 0 && (
-                <button
-                  onClick={markAllRead}
-                  style={{ fontSize: 11, color: 'var(--acc)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--f-body)', fontWeight: 600 }}
-                >
+                <button onClick={markAllRead} style={{ fontSize: 11, color: 'var(--acc)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--f-body)', fontWeight: 600 }}>
                   Marcar todas leídas
                 </button>
               )}
             </div>
-
             <div style={{ maxHeight: 360, overflowY: 'auto' }}>
               {notifs.length === 0 ? (
                 <div className="notif-empty">Sin notificaciones</div>
               ) : notifs.map(n => (
-                <div
-                  key={n._id}
-                  className={`notif-item${n.read ? '' : ' unread'}`}
-                  onClick={() => markRead(n._id)}
-                >
-                  <div className="notif-item-title" style={{ color: TYPE_COLOR[n.type] ?? 'var(--g07)' }}>
-                    {n.title}
-                  </div>
+                <div key={n._id} className={`notif-item${n.read ? '' : ' unread'}`} onClick={() => markRead(n._id)}>
+                  <div className="notif-item-title" style={{ color: TYPE_COLOR[n.type] ?? 'var(--g07)' }}>{n.title}</div>
                   <div className="notif-item-body">{n.body}</div>
                   <div className="notif-item-time">{fmtTime(n.createdAt)}</div>
                 </div>
               ))}
             </div>
-
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--g03)' }}>
               <button
                 style={{ fontSize: 12, color: 'var(--g05)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--f-body)' }}
-                onClick={() => { router.push('/dashboard/settings?tab=alerts'); setOpen(false); }}
+                onClick={() => { router.push('/dashboard/settings?tab=alerts'); setBellOpen(false); }}
               >
                 Configurar alertas →
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── User avatar + dropdown ── */}
+      <div className="notif-wrap" ref={userRef}>
+        <button
+          onClick={() => setUserOpen(o => !o)}
+          title={session?.email}
+          style={{ ...btnStyle, width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', padding: 0 }}
+        >
+          {session?.avatar ? (
+            <img src={session.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <span style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 13, color: 'var(--acc)' }}>
+              {initials}
+            </span>
+          )}
+        </button>
+
+        {userOpen && (
+          <div className="notif-dropdown" style={{ width: 220 }}>
+            {/* User info header */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--g03)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)', marginBottom: 2 }}>{displayName}</div>
+              <div style={{ fontSize: 11, color: 'var(--g05)' }}>{session?.email}</div>
+            </div>
+
+            {/* Theme toggle */}
+            <button className="user-popover-item" onClick={toggleTheme}>
+              <span style={{ color: 'var(--g05)' }}>{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</span>
+              {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            </button>
+
+            {/* Feedback */}
+            <button className="user-popover-item" onClick={() => { router.push('/dashboard/feedback'); setUserOpen(false); }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M8 1.5a6 6 0 1 1 0 12 6 6 0 0 1 0-12ZM8 5.5v3M8 10.5h.01" strokeLinecap="round"/>
+              </svg>
+              Enviar feedback
+            </button>
+
+            <hr className="user-popover-divider" />
+
+            {/* Logout */}
+            <button className="user-popover-item user-popover-item-danger" onClick={logout}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Cerrar sesión
+            </button>
           </div>
         )}
       </div>
