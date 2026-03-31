@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -14,6 +14,8 @@ type AccountCfg = {
   timezone: string;
   language: string;
   api_key: string;
+  widget_last_seen_at: number;
+  widget_seen_domains: string[];
   logo_url: string;
   sidebar_name: string;
   support_email: string;
@@ -42,6 +44,8 @@ const DEFAULTS: AccountCfg = {
   timezone: 'America/Bogota',
   language: 'es',
   api_key: '',
+  widget_last_seen_at: 0,
+  widget_seen_domains: [],
   logo_url: '',
   sidebar_name: '',
   support_email: '',
@@ -59,9 +63,9 @@ const DEFAULTS: AccountCfg = {
 };
 
 const INDUSTRIES = [
-  '', 'E-commerce / Retail', 'Salud y Bienestar', 'EducaciÃ³n', 'Servicios Financieros',
-  'Bienes RaÃ­ces', 'Hospitalidad y Turismo', 'TecnologÃ­a / SaaS', 'LogÃ­stica y Transporte',
-  'Manufactura', 'ConsultorÃ­a y Servicios Profesionales', 'Entretenimiento y Medios', 'Otro',
+  '', 'E-commerce / Retail', 'Salud y Bienestar', 'Educación', 'Servicios Financieros',
+  'Bienes Raíces', 'Hospitalidad y Turismo', 'Tecnología / SaaS', 'Logística y Transporte',
+  'Manufactura', 'Consultoría y Servicios Profesionales', 'Entretenimiento y Medios', 'Otro',
 ];
 
 const COLOR_PRESETS = [
@@ -108,8 +112,6 @@ type Props = { embedded?: boolean };
 
 export default function AccountPage({ embedded = false }: Props) {
   const [cfg, setCfg] = useState<AccountCfg>(DEFAULTS);
-  const [showKey, setShowKey] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoMode, setLogoMode] = useState<'url' | 'file'>('url');
@@ -171,12 +173,6 @@ export default function AccountPage({ embedded = false }: Props) {
     setTimeout(() => setSaved(false), 2500);
   }
 
-  function copyKey() {
-    navigator.clipboard.writeText(cfg.api_key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   const usagePct = cfg.interactions_limit > 0
     ? Math.min(100, Math.round((cfg.interactions_used / cfg.interactions_limit) * 100))
     : 0;
@@ -184,12 +180,18 @@ export default function AccountPage({ embedded = false }: Props) {
   const secondary = normalizeHex(cfg.brand_secondary_color, '#0B100D');
   const contrast = contrastRatio(primary, secondary);
   const contrastState = contrast >= 4.5 ? 'OK' : contrast >= 3 ? 'WARN' : 'LOW';
+  const widgetLastSeen = cfg.widget_last_seen_at
+    ? new Date(cfg.widget_last_seen_at).toLocaleString('es-CO', { hour12: false })
+    : '';
 
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--acc', primary);
     root.style.setProperty('--acc-g', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.12)`);
     root.style.setProperty('--acc-g2', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.06)`);
+    root.style.setProperty('--portal-brand-glow-1', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.22)`);
+    root.style.setProperty('--portal-brand-glow-2', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.1)`);
+    root.style.setProperty('--portal-brand-shadow', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.18)`);
     root.style.setProperty(
       '--portal-brand-gradient',
       `linear-gradient(135deg, rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.22), rgba(${hexToRgb(secondary).r}, ${hexToRgb(secondary).g}, ${hexToRgb(secondary).b}, 0.2))`
@@ -201,7 +203,7 @@ export default function AccountPage({ embedded = false }: Props) {
       {!embedded && (
         <div className="page-header">
           <h1 className="page-title">Cuenta</h1>
-          <p className="page-sub">Administra tu plan, identidad del dashboard y configuraciÃ³n del negocio</p>
+          <p className="page-sub">Administra tu plan, identidad del dashboard y configuración del negocio</p>
         </div>
       )}
 
@@ -233,7 +235,7 @@ export default function AccountPage({ embedded = false }: Props) {
           </div>
           <div style={{ marginTop: 16 }}>
             <button className="btn btn-ghost btn-sm" style={{ opacity: 0.5, cursor: 'not-allowed' }} disabled>
-              Actualizar plan â€” prÃ³ximamente
+              Actualizar plan — próximamente
             </button>
           </div>
         </div>
@@ -301,9 +303,9 @@ export default function AccountPage({ embedded = false }: Props) {
                     onChange={handleFileUpload}
                   />
                   <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>
-                    Elegir imagenâ€¦
+                    Elegir imagen…
                   </button>
-                  <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 6 }}>PNG, SVG, JPEG o WebP Â· mÃ¡x. 512 KB</div>
+                  <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 6 }}>PNG, SVG, JPEG o WebP · máx. 512 KB</div>
                 </>
               )}
 
@@ -326,7 +328,7 @@ export default function AccountPage({ embedded = false }: Props) {
               maxLength={32}
             />
             <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: 4 }}>
-              Si estÃ¡ vacÃ­o, se usa el nombre del negocio (o "ORQO" si tampoco estÃ¡ definido).
+              Si está vacío, se usa el nombre del negocio (o "ORQO" si tampoco está definido).
             </div>
           </div>
 
@@ -449,28 +451,29 @@ export default function AccountPage({ embedded = false }: Props) {
           </div>
         </div>
 
-        {/* â”€â”€ API Key â”€â”€ */}
+        {/* â”€â”€ Credenciales automáticas del widget â”€â”€ */}
         <div className="card">
-          <div className="card-title">API Key</div>
+          <div className="card-title">Credenciales automáticas del widget</div>
           <p style={{ fontSize: 12.5, color: 'var(--g05)', marginBottom: 12 }}>
-            Usa esta clave para autenticar el widget en tu sitio web. No la compartas pÃºblicamente.
+            La clave del widget se genera automáticamente al activar el canal Web Widget en Agentes.
           </p>
-          <div className="apikey-row">
-            <div className="apikey-val">
-              {showKey ? cfg.api_key || 'â€”' : 'â—'.repeat(Math.min(32, (cfg.api_key || '').length || 32))}
+          <div className="field-row">
+            <div className="field">
+              <label className="label">API key (solo lectura)</label>
+              <div className="apikey-val" title={cfg.api_key || ''}>
+                {cfg.api_key || 'Sin generar'}
+              </div>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowKey(p => !p)}>
-              {showKey ? 'Ocultar' : 'Mostrar'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={copyKey}>
-              {copied ? 'âœ“ Copiado' : 'Copiar'}
-            </button>
+            <div className="field">
+              <label className="label">Última detección del widget</label>
+              <input className="input" value={widgetLastSeen || 'Sin detecciones aún'} disabled readOnly />
+            </div>
           </div>
         </div>
 
-        {/* â”€â”€ InformaciÃ³n del negocio â”€â”€ */}
+        {/* â”€â”€ Información del negocio â”€â”€ */}
         <div className="card">
-          <div className="card-title">InformaciÃ³n del negocio</div>
+          <div className="card-title">Información del negocio</div>
           <div className="field-row">
             <div className="field">
               <label className="label">Nombre del negocio</label>
@@ -479,7 +482,7 @@ export default function AccountPage({ embedded = false }: Props) {
             <div className="field">
               <label className="label">Industria</label>
               <select className="input" value={cfg.industry} onChange={e => set('industry', e.target.value)}>
-                {INDUSTRIES.map(i => <option key={i} value={i}>{i || 'â€” Seleccionar â€”'}</option>)}
+                {INDUSTRIES.map(i => <option key={i} value={i}>{i || '— Seleccionar —'}</option>)}
               </select>
             </div>
           </div>
@@ -499,43 +502,46 @@ export default function AccountPage({ embedded = false }: Props) {
               <input className="input" value={cfg.website} onChange={e => set('website', e.target.value)} placeholder="https://miempresa.com"/>
             </div>
             <div className="field">
-              <label className="label">TelÃ©fono</label>
+              <label className="label">Teléfono</label>
               <input className="input" value={cfg.phone} onChange={e => set('phone', e.target.value)} placeholder="+57 300 000 0000"/>
             </div>
           </div>
           <div className="field">
-            <label className="label">DirecciÃ³n</label>
-            <input className="input" value={cfg.address} onChange={e => set('address', e.target.value)} placeholder="Calle 123 #45-67, BogotÃ¡, Colombia"/>
+            <label className="label">Dirección</label>
+            <input className="input" value={cfg.address} onChange={e => set('address', e.target.value)} placeholder="Calle 123 #45-67, Bogotá, Colombia"/>
           </div>
           <div className="field-row">
             <div className="field">
               <label className="label">Dominio activo</label>
-              <input className="input" value={cfg.active_domain} onChange={e => set('active_domain', e.target.value)} placeholder="miempresa.com"/>
+              <input className="input" value={cfg.active_domain} disabled readOnly placeholder="Se detecta automáticamente"/>
             </div>
             <div className="field">
-              <label className="label">PÃ¡gina donde aparece el widget</label>
-              <input className="input" value={cfg.widget_page_url} onChange={e => set('widget_page_url', e.target.value)} placeholder="https://miempresa.com"/>
+              <label className="label">Página donde aparece el widget</label>
+              <input className="input" value={cfg.widget_page_url} disabled readOnly placeholder="Se detecta automáticamente"/>
             </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--g04)', marginTop: -4 }}>
+            Estos campos se actualizan cuando el widget embebido carga o recibe mensajes desde el sitio del cliente.
           </div>
           <div className="field-row">
             <div className="field">
               <label className="label">Zona horaria</label>
               <select className="input" value={cfg.timezone} onChange={e => set('timezone', e.target.value)}>
-                <option value="America/Bogota">AmÃ©rica/BogotÃ¡ (COT)</option>
-                <option value="America/Mexico_City">AmÃ©rica/Ciudad de MÃ©xico (CST)</option>
-                <option value="America/Argentina/Buenos_Aires">AmÃ©rica/Buenos Aires (ART)</option>
-                <option value="America/Santiago">AmÃ©rica/Santiago (CLT)</option>
-                <option value="America/Lima">AmÃ©rica/Lima (PET)</option>
-                <option value="America/New_York">AmÃ©rica/Nueva York (EST)</option>
+                <option value="America/Bogota">América/Bogotá (COT)</option>
+                <option value="America/Mexico_City">América/Ciudad de México (CST)</option>
+                <option value="America/Argentina/Buenos_Aires">América/Buenos Aires (ART)</option>
+                <option value="America/Santiago">América/Santiago (CLT)</option>
+                <option value="America/Lima">América/Lima (PET)</option>
+                <option value="America/New_York">América/Nueva York (EST)</option>
                 <option value="Europe/Madrid">Europa/Madrid (CET)</option>
               </select>
             </div>
             <div className="field">
               <label className="label">Idioma del widget</label>
               <select className="input" value={cfg.language} onChange={e => set('language', e.target.value)}>
-                <option value="es">EspaÃ±ol</option>
+                <option value="es">Español</option>
                 <option value="en">English</option>
-                <option value="pt">PortuguÃªs</option>
+                <option value="pt">Português</option>
               </select>
             </div>
           </div>
@@ -619,17 +625,17 @@ export default function AccountPage({ embedded = false }: Props) {
           </div>
         </div>
 
-        {/* â”€â”€ Info Ãºtil â”€â”€ */}
+        {/* â”€â”€ Info útil â”€â”€ */}
         <div className="card" style={{ background: 'rgba(44,185,120,0.04)', borderColor: 'rgba(44,185,120,0.15)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>â„¹ï¸</div>
+            <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>ℹ️</div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--g07)', marginBottom: 4 }}>Â¿CÃ³mo se usa esta informaciÃ³n?</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--g07)', marginBottom: 4 }}>¿Cómo se usa esta información?</div>
               <ul style={{ fontSize: 12, color: 'var(--g05)', lineHeight: 1.8, paddingLeft: 16, margin: 0 }}>
                 <li>El <strong style={{ color: 'var(--g06)' }}>logo</strong> reemplaza el isotipo ORQO en la barra lateral del dashboard.</li>
                 <li>El <strong style={{ color: 'var(--g06)' }}>nombre en sidebar</strong> reemplaza "ORQO" en la barra lateral.</li>
                 <li>El <strong style={{ color: 'var(--g06)' }}>logo del cliente</strong> tambien se usa en exportaciones PDF gerenciales.</li>
-                <li>La <strong style={{ color: 'var(--g06)' }}>zona horaria</strong> afecta la presentaciÃ³n de fechas y horas en los logs y conversaciones.</li>
+                <li>La <strong style={{ color: 'var(--g06)' }}>zona horaria</strong> afecta la presentación de fechas y horas en los logs y conversaciones.</li>
                 <li>El <strong style={{ color: 'var(--g06)' }}>dominio activo</strong> se usa para validar solicitudes del widget embebido.</li>
                 <li>Los <strong style={{ color: 'var(--g06)' }}>datos operativos</strong> enriquecen el contexto para informes asistidos por AI.</li>
               </ul>
@@ -641,7 +647,7 @@ export default function AccountPage({ embedded = false }: Props) {
 
       <div className="save-bar">
         <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? 'Guardandoâ€¦' : saved ? 'âœ“ Guardado' : 'Guardar cambios'}
+          {saving ? 'Guardando…' : saved ? '✓ Guardado' : 'Guardar cambios'}
         </button>
       </div>
     </div>

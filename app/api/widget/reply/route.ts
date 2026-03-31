@@ -3,6 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import { generateAgentReply, type ChatTurn, type AgentRuntime } from '@/lib/ai-orchestrator';
 import { writeLog } from '@/app/api/admin/logs/route';
 import { bumpInteractionUsage } from '@/lib/usage-meter';
+import { trackWidgetInstallSource } from '@/lib/widget-install-tracker';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -195,6 +196,7 @@ export async function POST(req: Request) {
       });
       return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
     }
+    await trackWidgetInstallSource({ db, origin, referer }).catch(() => {});
 
     const history = sanitizeHistory(historyRaw);
     const modelHistory = historyForInference(history, messageForModel);

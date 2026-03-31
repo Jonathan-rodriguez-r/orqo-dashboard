@@ -23,27 +23,27 @@ type Role = { _id: string; slug: string; label: string; description?: string; pe
 type IntegrationDef = { id: string; name: string; desc: string; icon: string; color: string; status: 'connected' | 'available' | 'coming_soon' };
 const INTEGRATIONS: Record<string, IntegrationDef[]> = {
   'Meta': [
-    { id: 'whatsapp',  name: 'WhatsApp Business',   desc: 'Recepciona y responde mensajes via API oficial de Meta',   icon: 'ðŸ’¬', color: '#25D366', status: 'available' },
-    { id: 'instagram', name: 'Instagram Business',  desc: 'DMs de Instagram gestionados por tu agente IA',           icon: 'ðŸ“¸', color: '#E1306C', status: 'coming_soon' },
-    { id: 'facebook',  name: 'Facebook Messenger',  desc: 'Chatbot en tu pÃ¡gina de Facebook',                        icon: 'ðŸ“˜', color: '#1877F2', status: 'coming_soon' },
+    { id: 'whatsapp',  name: 'WhatsApp Business',   desc: 'Recepciona y responde mensajes via API oficial de Meta',   icon: '💬', color: '#25D366', status: 'available' },
+    { id: 'instagram', name: 'Instagram Business',  desc: 'DMs de Instagram gestionados por tu agente IA',           icon: '📸', color: '#E1306C', status: 'coming_soon' },
+    { id: 'facebook',  name: 'Facebook Messenger',  desc: 'Chatbot en tu página de Facebook',                        icon: '📘', color: '#1877F2', status: 'coming_soon' },
   ],
   'Motores de Base de Datos (MCP)': [
-    { id: 'postgresql', name: 'PostgreSQL',      desc: 'Consulta y escritura en tiempo real via MCP',   icon: 'ðŸ˜', color: '#336791', status: 'available' },
-    { id: 'mysql',      name: 'MySQL / MariaDB', desc: 'IntegraciÃ³n MCP para bases relacionales',       icon: 'ðŸ¬', color: '#4479A1', status: 'available' },
-    { id: 'mongodb',    name: 'MongoDB',         desc: 'Atlas o instancia propia via MCP',              icon: 'ðŸƒ', color: '#4DB33D', status: 'connected' },
-    { id: 'oracle',     name: 'Oracle DB',       desc: 'Consultas SQL sobre Oracle Enterprise',         icon: 'ðŸ”´', color: '#F80000', status: 'coming_soon' },
-    { id: 'dynamodb',   name: 'DynamoDB',        desc: 'AWS DynamoDB via servidor MCP',                 icon: 'â˜ï¸', color: '#FF9900', status: 'coming_soon' },
+    { id: 'postgresql', name: 'PostgreSQL',      desc: 'Consulta y escritura en tiempo real via MCP',   icon: '🐘', color: '#336791', status: 'available' },
+    { id: 'mysql',      name: 'MySQL / MariaDB', desc: 'Integración MCP para bases relacionales',       icon: '🐬', color: '#4479A1', status: 'available' },
+    { id: 'mongodb',    name: 'MongoDB',         desc: 'Atlas o instancia propia via MCP',              icon: '🍃', color: '#4DB33D', status: 'connected' },
+    { id: 'oracle',     name: 'Oracle DB',       desc: 'Consultas SQL sobre Oracle Enterprise',         icon: '🔴', color: '#F80000', status: 'coming_soon' },
+    { id: 'dynamodb',   name: 'DynamoDB',        desc: 'AWS DynamoDB via servidor MCP',                 icon: '☁️', color: '#FF9900', status: 'coming_soon' },
   ],
   'Fuentes de Datos': [
-    { id: 'gsheets',  name: 'Google Sheets',   desc: 'Lee y escribe en hojas de cÃ¡lculo como fuente de verdad', icon: 'ðŸ“Š', color: '#0F9D58', status: 'available' },
-    { id: 'excel',    name: 'Excel / OneDrive',desc: 'IntegraciÃ³n con archivos Excel en SharePoint',            icon: 'ðŸ“—', color: '#217346', status: 'coming_soon' },
-    { id: 'airtable', name: 'Airtable',        desc: 'Bases de datos no-code como contexto para tu agente',    icon: 'ðŸ—‚ï¸', color: '#18BFFF', status: 'coming_soon' },
+    { id: 'gsheets',  name: 'Google Sheets',   desc: 'Lee y escribe en hojas de cálculo como fuente de verdad', icon: '📊', color: '#0F9D58', status: 'available' },
+    { id: 'excel',    name: 'Excel / OneDrive',desc: 'Integración con archivos Excel en SharePoint',            icon: '📗', color: '#217346', status: 'coming_soon' },
+    { id: 'airtable', name: 'Airtable',        desc: 'Bases de datos no-code como contexto para tu agente',    icon: '🗂️', color: '#18BFFF', status: 'coming_soon' },
   ],
   'Sistemas Core': [
-    { id: 'shopify',     name: 'Shopify',                desc: 'Pedidos, inventario y clientes desde Shopify',      icon: 'ðŸ›ï¸', color: '#96BF48', status: 'available' },
-    { id: 'woocommerce', name: 'WordPress / WooCommerce',desc: 'Plugin ORQO para WP + WooCommerce nativo',          icon: 'ðŸ›’', color: '#7F54B3', status: 'available' },
-    { id: 'salesforce',  name: 'Salesforce CRM',         desc: 'Sincroniza leads y oportunidades en Salesforce',    icon: 'â˜ï¸', color: '#00A1E0', status: 'coming_soon' },
-    { id: 'hubspot',     name: 'HubSpot',                desc: 'CRM + marketing automation via MCP',                icon: 'ðŸŸ ', color: '#FF7A59', status: 'coming_soon' },
+    { id: 'shopify',     name: 'Shopify',                desc: 'Pedidos, inventario y clientes desde Shopify',      icon: '🛍️', color: '#96BF48', status: 'available' },
+    { id: 'woocommerce', name: 'WordPress / WooCommerce',desc: 'Plugin ORQO para WP + WooCommerce nativo',          icon: '🛒', color: '#7F54B3', status: 'available' },
+    { id: 'salesforce',  name: 'Salesforce CRM',         desc: 'Sincroniza leads y oportunidades en Salesforce',    icon: '☁️', color: '#00A1E0', status: 'coming_soon' },
+    { id: 'hubspot',     name: 'HubSpot',                desc: 'CRM + marketing automation via MCP',                icon: '🟠', color: '#FF7A59', status: 'coming_soon' },
   ],
 };
 
@@ -58,7 +58,7 @@ function roleColor(slug?: string) { return ROLE_COLOR[slug ?? ''] ?? '#7A9488'; 
 function StatusBadge({ status }: { status: IntegrationDef['status'] }) {
   if (status === 'connected') return <span className="badge badge-green">Conectado</span>;
   if (status === 'available') return <span className="badge badge-gray">Disponible</span>;
-  return <span className="badge" style={{ background: 'var(--g02)', color: 'var(--g05)', fontSize: 10 }}>PrÃ³ximamente</span>;
+  return <span className="badge" style={{ background: 'var(--g02)', color: 'var(--g05)', fontSize: 10 }}>Próximamente</span>;
 }
 
 function RoleBadge({ role }: { role?: string }) {
@@ -87,8 +87,8 @@ type WidgetCfg = {
   showBranding: boolean; soundEnabled: boolean; interactionLimit: number;
 };
 const DEFAULTS: WidgetCfg = {
-  title: 'Hola soy ORQO', subtitle: 'Tu Asistente de OrquestaciÃ³n',
-  placeholder: 'Â¿En quÃ© te puedo ayudar?',
+  title: 'Hola soy ORQO', subtitle: 'Tu Asistente de Orquestación',
+  placeholder: '¿En qué te puedo ayudar?',
   accentColor: '#2CB978', position: 'bottom-right',
   darkBg: '#0B100D', darkSurface: '#111812', lightBg: '#F4F7F4', lightSurface: '#FFFFFF',
   windowOpacity: 1.0, buttonOpacity: 1.0, iconMode: 'orqo',
@@ -239,7 +239,7 @@ export default function SettingsPage() {
 
   // â”€â”€ Delete user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function deleteUser(email: string, name?: string) {
-    if (!confirm(`Â¿Eliminar acceso de ${name ?? email}? Esta acciÃ³n no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar acceso de ${name ?? email}? Esta acción no se puede deshacer.`)) return;
     await fetch('/api/users', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -289,7 +289,7 @@ export default function SettingsPage() {
 
   // â”€â”€ Delete role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function deleteRole(slug: string, label: string) {
-    if (!confirm(`Â¿Eliminar el rol "${label}"? Los usuarios con este rol quedarÃ¡n sin permisos.`)) return;
+    if (!confirm(`¿Eliminar el rol "${label}"? Los usuarios con este rol quedarán sin permisos.`)) return;
     await fetch('/api/roles', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -299,7 +299,7 @@ export default function SettingsPage() {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'orchestration', label: 'OrquestaciÃ³n IA' },
+    { id: 'orchestration', label: 'Orquestación IA' },
     { id: 'widget',        label: 'Widget' },
     { id: 'integrations',  label: 'Integraciones' },
     { id: 'access',        label: 'Accesos' },
@@ -317,8 +317,8 @@ export default function SettingsPage() {
   return (
     <div className="dash-content">
       <div className="page-header">
-        <h1 className="page-title">ConfiguraciÃ³n</h1>
-        <p className="page-sub">OrquestaciÃ³n IA, widget, integraciones, accesos y cuenta</p>
+        <h1 className="page-title">Configuración</h1>
+        <p className="page-sub">Orquestación IA, widget, integraciones, accesos y cuenta</p>
       </div>
 
       {/* Main tab nav */}
@@ -342,10 +342,10 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="card">
               <div className="card-title">Textos</div>
-              {[{ label: 'TÃ­tulo', key: 'title' },{ label: 'SubtÃ­tulo', key: 'subtitle' },{ label: 'Placeholder', key: 'placeholder' }].map(({ label, key }) => (
+              {[{ label: 'Título', key: 'title' }, { label: 'Subtítulo', key: 'subtitle' }, { label: 'Placeholder', key: 'placeholder' }].map(({ label, key }) => (
                 <div key={key} className="field">
                   <label className="label">{label}</label>
-                  <input className="input" value={(cfg as any)[key]} onChange={e => setCfg(p => ({ ...p, [key]: e.target.value }))}/>
+                  <input className="input" value={(cfg as any)[key]} onChange={e => setCfg(p => ({ ...p, [key]: e.target.value }))} />
                 </div>
               ))}
             </div>
@@ -361,7 +361,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="field">
-                <label className="label">PosiciÃ³n</label>
+                <label className="label">Posición</label>
                 <div className="position-grid" style={{ maxWidth: 260 }}>
                   {POSITIONS.map(pos => (
                     <div key={pos} className={`pos-opt${cfg.position === pos ? ' selected' : ''}`} onClick={() => setCfg(p => ({ ...p, position: pos }))}>
@@ -383,8 +383,8 @@ export default function SettingsPage() {
                 </div>
               ))}
               <div className="field" style={{ marginTop: 12 }}>
-                <label className="label">LÃ­mite de interacciones (demo)</label>
-                <input type="number" className="input" style={{ maxWidth: 100 }} min={5} max={100} value={cfg.interactionLimit} onChange={e => setCfg(p => ({ ...p, interactionLimit: Number(e.target.value) }))}/>
+                <label className="label">Límite de interacciones (demo)</label>
+                <input type="number" className="input" style={{ maxWidth: 100 }} min={5} max={100} value={cfg.interactionLimit} onChange={e => setCfg(p => ({ ...p, interactionLimit: Number(e.target.value) }))} />
               </div>
             </div>
           </div>
@@ -409,7 +409,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={saveWidget} disabled={saving}>
-              {saving ? 'Guardando...' : saved ? 'âœ“ Guardado' : 'Guardar configuraciÃ³n'}
+              {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar configuración'}
             </button>
             <div className="card card-sm">
               <div style={{ fontSize: 12, color: 'var(--g05)' }}>
@@ -451,10 +451,10 @@ export default function SettingsPage() {
             </div>
           ))}
           <div className="card" style={{ textAlign: 'center', padding: '28px', borderStyle: 'dashed' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>ðŸ”Œ</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--g07)', marginBottom: 6 }}>Â¿Necesitas otra integraciÃ³n?</div>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🔌</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--g07)', marginBottom: 6 }}>¿Necesitas otra integración?</div>
             <p style={{ fontSize: 13, color: 'var(--g05)', marginBottom: 14 }}>Cualquier sistema con API o servidor MCP puede conectarse a ORQO.</p>
-            <a href="mailto:hello@orqo.io" className="btn btn-primary btn-sm">Solicitar integraciÃ³n</a>
+            <a href="mailto:hello@orqo.io" className="btn btn-primary btn-sm">Solicitar integración</a>
           </div>
         </div>
       )}
@@ -516,7 +516,7 @@ export default function SettingsPage() {
                   {inviteLink && (
                     <div style={{ marginTop: 16, padding: '12px 14px', background: 'rgba(44,185,120,0.08)', border: '1px solid rgba(44,185,120,0.25)', borderRadius: 8 }}>
                       <div style={{ fontSize: 12, color: 'var(--acc)', fontWeight: 600, marginBottom: 6 }}>
-                        âœ“ InvitaciÃ³n enviada. Comparte este link de activaciÃ³n (vÃ¡lido 72h):
+                        ✓ Invitación enviada. Comparte este link de activación (válido 72h):
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <code style={{ fontSize: 11, color: 'var(--g06)', wordBreak: 'break-all', flex: 1, background: 'var(--g02)', padding: '6px 8px', borderRadius: 6 }}>{inviteLink}</code>
@@ -539,7 +539,7 @@ export default function SettingsPage() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Ãšltimo acceso</th><th>Desde</th><th>Acciones</th></tr>
+                      <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Último acceso</th><th>Desde</th><th>Acciones</th></tr>
                     </thead>
                     <tbody>
                       {loadingUsers ? (
@@ -638,7 +638,7 @@ export default function SettingsPage() {
                       <div className="field" style={{ marginBottom: 0 }}>
                         <label className="label">ID del rol *</label>
                         <input className="input" placeholder="ej: supervisor" value={newSlug} onChange={e => setNewSlug(e.target.value)} required autoFocus/>
-                        <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>Solo minÃºsculas y guiones bajos</div>
+                      <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>Solo minúsculas y guiones bajos</div>
                       </div>
                       <div className="field" style={{ marginBottom: 0 }}>
                         <label className="label">Nombre visible *</label>
@@ -646,11 +646,11 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="field" style={{ marginBottom: 12 }}>
-                      <label className="label">DescripciÃ³n</label>
-                      <input className="input" placeholder="Â¿QuÃ© puede hacer este rol?" value={newDesc} onChange={e => setNewDesc(e.target.value)}/>
+                      <label className="label">Descripción</label>
+                      <input className="input" placeholder="¿Qué puede hacer este rol?" value={newDesc} onChange={e => setNewDesc(e.target.value)}/>
                     </div>
                     {createErr && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{createErr}</p>}
-                    <p style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 12 }}>El rol se crearÃ¡ sin permisos. EdÃ­talo para asignarlos.</p>
+                    <p style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 12 }}>El rol se creará sin permisos. Edítalo para asignarlos.</p>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="submit" className="btn btn-primary btn-sm" disabled={creatingRole}>{creatingRole ? 'Creando...' : 'Crear rol'}</button>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowCreate(false); setCreateErr(''); }}>Cancelar</button>
@@ -725,7 +725,7 @@ export default function SettingsPage() {
                           {editPerms.length}/{SYSTEM_MODULES.length} permisos
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--yellow)', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', padding: '2px 8px', borderRadius: 6 }}>
-                          âš  Los cambios aplican en el prÃ³ximo inicio de sesiÃ³n
+                          ⚠ Los cambios aplican en el próximo inicio de sesión
                         </span>
                       </div>
                     </div>

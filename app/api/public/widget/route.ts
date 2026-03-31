@@ -2,6 +2,7 @@
 import { getDb } from '@/lib/mongodb';
 import { writeLog } from '@/app/api/admin/logs/route';
 import { WIDGET_DEFAULTS } from '@/app/api/config/widget/route';
+import { trackWidgetInstallSource } from '@/lib/widget-install-tracker';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -55,6 +56,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const key = searchParams.get('key');
   const origin = req.headers.get('origin') ?? 'unknown';
+  const referer = req.headers.get('referer') ?? '';
   const agentId = String(searchParams.get('agentId') ?? '').trim();
   const agentToken = String(searchParams.get('agentToken') ?? '').trim();
 
@@ -68,6 +70,7 @@ export async function GET(req: Request) {
         await writeLog({ level: 'warn', source: 'public-api', msg: 'API key invalida rechazada', detail: `origin: ${origin}` });
         return Response.json({ active: false }, { headers: CORS_HEADERS });
       }
+      await trackWidgetInstallSource({ db, origin, referer }).catch(() => {});
     }
 
     // Primary source: widget_config
