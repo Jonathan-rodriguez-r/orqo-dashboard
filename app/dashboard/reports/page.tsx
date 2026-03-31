@@ -60,6 +60,9 @@ const PERIODS = [
   { label: '90 dias', value: 90 },
 ];
 
+const DEFAULT_REPORT_PROMPT =
+  'Genera un informe gerencial ejecutivo para direccion. Estructura obligatoria: resumen ejecutivo, KPIs clave, hallazgos por canal, riesgos operativos, oportunidades comerciales, recomendaciones priorizadas y plan de accion 30-60-90 dias.';
+
 const CT = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -117,13 +120,16 @@ export default function ReportsPage() {
 
   const [fromDate, setFromDate] = useState(subtractDaysIso(30));
   const [toDate, setToDate] = useState(todayIso());
-  const [reportPrompt, setReportPrompt] = useState(
-    'Genera un resumen gerencial con hallazgos, riesgos y acciones concretas por prioridad.'
-  );
-  const [generating, setGenerating] = useState(false);
-  const [reportSummary, setReportSummary] = useState('');
-  const [reportData, setReportData] = useState<GeneratedReport | null>(null);
-  const [reportError, setReportError] = useState('');
+
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsData, setStatsData] = useState<GeneratedReport | null>(null);
+  const [statsError, setStatsError] = useState('');
+
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+  const [aiData, setAiData] = useState<GeneratedReport | null>(null);
+  const [aiError, setAiError] = useState('');
+  const [reportPrompt, setReportPrompt] = useState(DEFAULT_REPORT_PROMPT);
 
   function load() {
     setLoading(true);
@@ -150,42 +156,58 @@ export default function ReportsPage() {
     load();
   }
 
-  async function runReportGeneration() {
-    setGenerating(true);
-    setReportError('');
+  async function runStatsReport() {
+    setStatsLoading(true);
+    setStatsError('');
     try {
       const res = await fetch('/api/reports/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          format: 'json',
-          from: fromDate,
-          to: toDate,
-          prompt: reportPrompt,
-        }),
+        body: JSON.stringify({ format: 'json', mode: 'stats', from: fromDate, to: toDate }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) throw new Error(json?.error || 'No fue posible generar el reporte');
-      setReportSummary(String(json?.aiSummary || '').trim());
-      setReportData((json?.report || null) as GeneratedReport | null);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || 'No fue posible generar el reporte estadistico');
+      setStatsData((json?.report || null) as GeneratedReport | null);
     } catch (e: any) {
-      setReportError(e?.message || 'Error generando reporte');
-      setReportSummary('');
-      setReportData(null);
+      setStatsError(e?.message || 'Error generando reporte estadistico');
+      setStatsData(null);
     } finally {
-      setGenerating(false);
+      setStatsLoading(false);
     }
   }
 
-  async function exportReport(format: 'xlsx' | 'pdf') {
+  async function runAiReport() {
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: 'json', mode: 'ai', from: fromDate, to: toDate, prompt: reportPrompt }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) throw new Error(json?.error || 'No fue posible generar el reporte AI');
+      setAiSummary(String(json?.aiSummary || '').trim());
+      setAiData((json?.report || null) as GeneratedReport | null);
+    } catch (e: any) {
+      setAiError(e?.message || 'Error generando reporte AI');
+      setAiSummary('');
+      setAiData(null);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function exportReport(format: 'xlsx' | 'pdf', mode: 'stats' | 'ai') {
     try {
       await downloadBlob(
         '/api/reports/generate',
-        { format, from: fromDate, to: toDate, prompt: reportPrompt },
+        { format, mode, from: fromDate, to: toDate, prompt: mode === 'ai' ? reportPrompt : undefined },
         format === 'xlsx' ? 'orqo_reporte.xlsx' : 'orqo_reporte.pdf'
       );
     } catch (e: any) {
-      setReportError(e?.message || 'No se pudo exportar el reporte');
+      if (mode === 'ai') setAiError(e?.message || 'No se pudo exportar el reporte AI');
+      else setStatsError(e?.message || 'No se pudo exportar el reporte estadistico');
     }
   }
 
@@ -200,7 +222,7 @@ export default function ReportsPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className="page-title">Informes</h1>
-          <p className="page-sub">Analisis de rendimiento, cierre conversacional y reporte gerencial asistido por AI</p>
+          <p className="page-sub">Analisis de rendimiento, cierre conversacional y reporteria ejecutiva</p>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {PERIODS.map((p) => (
@@ -243,35 +265,12 @@ export default function ReportsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="stats-grid">
             {[
-              {
-                l: 'Total Conversaciones',
-                v: data.totals.conversations.toLocaleString('es'),
-                s: `Tendencia: ${data.totals.trend >= 0 ? '+' : ''}${data.totals.trend}%`,
-              },
-              {
-                l: 'Tasa de Resolucion',
-                v: `${data.totals.resolucion}%`,
-                s: `${data.totals.resolved.toLocaleString('es')} resueltas`,
-                accent: true,
-              },
+              { l: 'Total Conversaciones', v: data.totals.conversations.toLocaleString('es'), s: `Tendencia: ${data.totals.trend >= 0 ? '+' : ''}${data.totals.trend}%` },
+              { l: 'Tasa de Resolucion', v: `${data.totals.resolucion}%`, s: `${data.totals.resolved.toLocaleString('es')} resueltas`, accent: true },
               { l: 'Desvio a Humano', v: `${data.totals.desvio}%`, s: `${data.totals.escalated} escaladas` },
-              {
-                l: 'Satisfaccion',
-                v: `${data.totals.satisfaction}%`,
-                s: `${data.totals.feedbackResponses} respuestas de feedback`,
-                accent: true,
-              },
-              {
-                l: 'Auto-cierre inactividad',
-                v: `${data.totals.closedByInactivity}`,
-                s: `${data.totals.closedConversations} conversaciones cerradas`,
-              },
-              {
-                l: 'Tiempo Prom. Respuesta',
-                v: `${data.totals.avgResponseTime}m`,
-                s: 'Por conversacion',
-                accent: true,
-              },
+              { l: 'Satisfaccion', v: `${data.totals.satisfaction}%`, s: `${data.totals.feedbackResponses} respuestas`, accent: true },
+              { l: 'Auto-cierre inactividad', v: `${data.totals.closedByInactivity}`, s: `${data.totals.closedConversations} cerradas` },
+              { l: 'Tiempo Prom. Respuesta', v: `${data.totals.avgResponseTime}m`, s: 'Por conversacion', accent: true },
             ].map((k, i) => (
               <div key={i} className="stat-card">
                 <div className="stat-label">{k.l}</div>
@@ -296,13 +295,7 @@ export default function ReportsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--g03)" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fill: 'var(--g05)' }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval={Math.max(0, Math.floor(data.daily.length / 7))}
-                />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--g05)' }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(data.daily.length / 7))} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--g05)' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CT />} />
                 <Area type="monotone" dataKey="conversations" name="Total" stroke="#2CB978" strokeWidth={2.5} fill="url(#gConv)" dot={false} />
@@ -314,9 +307,6 @@ export default function ReportsPage() {
           <div className="grid-2">
             <div className="card">
               <div className="card-title">Volumen por Canal (interactivo)</div>
-              <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 10 }}>
-                Haz clic sobre una barra o una porcion para enfocar el canal.
-              </div>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.byChannel} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--g03)" vertical={false} />
@@ -326,20 +316,11 @@ export default function ReportsPage() {
                   <Bar dataKey="count" name="Conversaciones" radius={[4, 4, 0, 0]}>
                     {data.byChannel.map((entry, idx) => {
                       const active = (selectedChannel || selectedChannelData?.channel) === entry.channel;
-                      return (
-                        <Cell
-                          key={idx}
-                          fill={entry.color}
-                          fillOpacity={active ? 1 : 0.55}
-                          cursor="pointer"
-                          onClick={() => setSelectedChannel(entry.channel)}
-                        />
-                      );
+                      return <Cell key={idx} fill={entry.color} fillOpacity={active ? 1 : 0.55} cursor="pointer" onClick={() => setSelectedChannel(entry.channel)} />;
                     })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-
               {selectedChannelData && (
                 <div style={{ marginTop: 10, fontSize: 12, color: 'var(--g06)' }}>
                   Canal foco: <strong>{selectedChannelData.label}</strong> · {selectedChannelData.count.toLocaleString('es')} conversaciones
@@ -355,15 +336,7 @@ export default function ReportsPage() {
                   <Pie data={data.byChannel} dataKey="count" nameKey="label" innerRadius={48} outerRadius={86} paddingAngle={2}>
                     {data.byChannel.map((entry, idx) => {
                       const active = (selectedChannel || selectedChannelData?.channel) === entry.channel;
-                      return (
-                        <Cell
-                          key={idx}
-                          fill={entry.color}
-                          fillOpacity={active ? 1 : 0.6}
-                          cursor="pointer"
-                          onClick={() => setSelectedChannel(entry.channel)}
-                        />
-                      );
+                      return <Cell key={idx} fill={entry.color} fillOpacity={active ? 1 : 0.6} cursor="pointer" onClick={() => setSelectedChannel(entry.channel)} />;
                     })}
                   </Pie>
                 </PieChart>
@@ -420,63 +393,89 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-title">Reporteador Gerencial Asistido por AI</div>
-            <p style={{ color: 'var(--g05)', fontSize: 12, marginBottom: 12 }}>
-              Genera reportes dinamicos por rango de fechas con resumen ejecutivo IA y exportacion a XLSX/PDF.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">Desde</label>
-                <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <div className="grid-2">
+            <div className="card">
+              <div className="card-title">Reporte estadistico por rango</div>
+              <p style={{ color: 'var(--g05)', fontSize: 12, marginBottom: 12 }}>
+                Reporte estadistico por fechas sin asistente AI.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Desde</label>
+                  <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Hasta</label>
+                  <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                </div>
               </div>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label className="label">Hasta</label>
-                <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={runStatsReport} disabled={statsLoading}>
+                  {statsLoading ? 'Generando...' : 'Ver reporte estadistico'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => exportReport('xlsx', 'stats')} disabled={statsLoading}>
+                  Descargar XLSX
+                </button>
+                <button className="btn btn-ghost" onClick={() => exportReport('pdf', 'stats')} disabled={statsLoading}>
+                  Descargar PDF
+                </button>
               </div>
+              {statsError && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 12 }}>{statsError}</div>}
+              {statsData && (
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--g05)', lineHeight: 1.7 }}>
+                  <div>{statsData.business.name} · {statsData.period.from} a {statsData.period.to}</div>
+                  <div>Conversaciones: {statsData.totals.conversations.toLocaleString('es')} · Resueltas: {statsData.totals.resolved.toLocaleString('es')}</div>
+                  <div>Escaladas: {statsData.totals.escalated.toLocaleString('es')} · Satisfaccion: {statsData.totals.satisfactionRate}%</div>
+                </div>
+              )}
             </div>
-            <div className="field" style={{ marginBottom: 10 }}>
-              <label className="label">Enfoque del informe</label>
-              <textarea
-                className="input"
-                rows={3}
-                value={reportPrompt}
-                onChange={(e) => setReportPrompt(e.target.value)}
-                placeholder="Ejemplo: Prioriza riesgos de operación, experiencia de cliente y acciones para el próximo mes."
-              />
+
+            <div className="card" style={{ borderColor: 'var(--acc)', background: 'var(--portal-brand-gradient, var(--g01))' }}>
+              <div className="card-title">Reporte gerencial asistido por AI</div>
+              <p style={{ color: 'var(--g05)', fontSize: 12, marginBottom: 12 }}>
+                Analisis ejecutivo con agente AI (funcionalidad separada del reporte estadistico).
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Desde</label>
+                  <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Hasta</label>
+                  <input className="input" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label className="label">Prompt ejecutivo</label>
+                <textarea className="input" rows={4} value={reportPrompt} onChange={(e) => setReportPrompt(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={runAiReport} disabled={aiLoading}>
+                  {aiLoading ? 'Generando...' : 'Generar informe AI'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => exportReport('xlsx', 'ai')} disabled={aiLoading}>
+                  Descargar XLSX
+                </button>
+                <button className="btn btn-ghost" onClick={() => exportReport('pdf', 'ai')} disabled={aiLoading}>
+                  Descargar PDF
+                </button>
+              </div>
+              {aiError && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 12 }}>{aiError}</div>}
+              {aiSummary && (
+                <div style={{ marginTop: 14, padding: 12, border: '1px solid var(--g03)', borderRadius: 10, background: 'var(--g01)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 6 }}>Resumen ejecutivo IA</div>
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--g07)', lineHeight: 1.6 }}>{aiSummary}</div>
+                </div>
+              )}
+              {aiData && (
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--g05)' }}>
+                  Reporte listo: {aiData.business.name} · {aiData.period.from} a {aiData.period.to}
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={runReportGeneration} disabled={generating}>
-                {generating ? 'Generando...' : 'Generar resumen IA'}
-              </button>
-              <button className="btn btn-ghost" onClick={() => exportReport('xlsx')} disabled={generating}>
-                Exportar XLSX
-              </button>
-              <button className="btn btn-ghost" onClick={() => exportReport('pdf')} disabled={generating}>
-                Exportar PDF
-              </button>
-            </div>
-            {reportError && (
-              <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 12 }}>
-                {reportError}
-              </div>
-            )}
-            {reportSummary && (
-              <div style={{ marginTop: 14, padding: 12, border: '1px solid var(--g03)', borderRadius: 10, background: 'var(--g01)' }}>
-                <div style={{ fontSize: 12, color: 'var(--g05)', marginBottom: 6 }}>Resumen ejecutivo IA</div>
-                <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--g07)', lineHeight: 1.6 }}>{reportSummary}</div>
-              </div>
-            )}
-            {reportData && (
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--g05)' }}>
-                Reporte listo: {reportData.business.name} · {reportData.period.from} a {reportData.period.to} ·{' '}
-                {reportData.totals.conversations.toLocaleString('es')} conversaciones
-              </div>
-            )}
           </div>
         </div>
       )}
     </div>
   );
 }
-

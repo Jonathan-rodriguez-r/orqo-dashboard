@@ -4,9 +4,29 @@ import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 
 type Props = { userEmail?: string; userName?: string };
+type BrandingState = { logoUrl: string; brandName: string };
+
+function parseHexColor(value: string) {
+  const hex = String(value || '').trim();
+  const normalized = hex.startsWith('#') ? hex.slice(1) : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null;
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function toRgba(hex: string, alpha: number, fallback: string) {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return fallback;
+  const safeAlpha = Math.max(0, Math.min(1, alpha));
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${safeAlpha})`;
+}
 
 export default function DashboardNav({ userEmail, userName }: Props) {
   const [open, setOpen] = useState(false);
+  const [branding, setBranding] = useState<BrandingState>({ logoUrl: '', brandName: 'ORQO' });
 
   // Close on route change (pathname change)
   useEffect(() => {
@@ -20,6 +40,38 @@ export default function DashboardNav({ userEmail, userName }: Props) {
     document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const accountRes = await fetch('/api/account', { cache: 'no-store' });
+        const account = await accountRes.json().catch(() => ({}));
+        if (cancelled) return;
+
+        const logoUrl = String(account?.logo_url || '').trim();
+        const brandName = String(account?.sidebar_name || account?.business_name || 'ORQO').trim();
+        setBranding({ logoUrl, brandName: brandName || 'ORQO' });
+
+        const accent = String(account?.brand_primary_color || '#2CB978').trim();
+        const secondary = String(account?.brand_secondary_color || '#0B100D').trim();
+        if (accent) {
+          const root = document.documentElement;
+          root.style.setProperty('--acc', accent);
+          root.style.setProperty('--acc-g', toRgba(accent, 0.12, 'rgba(44,185,120,0.12)'));
+          root.style.setProperty('--acc-g2', toRgba(accent, 0.06, 'rgba(44,185,120,0.06)'));
+          root.style.setProperty('--portal-brand-gradient', `linear-gradient(135deg, ${toRgba(accent, 0.22, 'rgba(44,185,120,0.22)')}, ${toRgba(secondary, 0.2, 'rgba(11,16,13,0.2)')})`);
+        }
+      } catch {
+        // Ignore branding fetch errors; dashboard keeps defaults.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -36,13 +88,21 @@ export default function DashboardNav({ userEmail, userName }: Props) {
         </button>
 
         <div className="mobile-logo">
-          <svg width="22" height="22" viewBox="0 0 72 72" fill="none">
-            <circle cx="36" cy="36" r="30" stroke="#2E4038" strokeWidth="2"/>
-            <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#E9EDE9" strokeWidth="3" fill="none" strokeLinecap="round"/>
-            <line x1="59.5" y1="52" x2="66" y2="58" stroke="#E9EDE9" strokeWidth="3" strokeLinecap="round"/>
-            <circle cx="66" cy="58" r="3.5" fill="#2CB978"/>
-          </svg>
-          <span className="mobile-logo-text">OR<span>QO</span></span>
+          {branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={branding.brandName || 'Logo'}
+              style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }}
+            />
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 72 72" fill="none">
+              <circle cx="36" cy="36" r="30" stroke="#2E4038" strokeWidth="2"/>
+              <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="#E9EDE9" strokeWidth="3" fill="none" strokeLinecap="round"/>
+              <line x1="59.5" y1="52" x2="66" y2="58" stroke="#E9EDE9" strokeWidth="3" strokeLinecap="round"/>
+              <circle cx="66" cy="58" r="3.5" fill="var(--acc)"/>
+            </svg>
+          )}
+          <span className="mobile-logo-text">{branding.brandName || 'ORQO'}</span>
         </div>
 
         {/* Spacer */}
