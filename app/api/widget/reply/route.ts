@@ -142,6 +142,16 @@ function buildUsageEstimate(args: {
   };
 }
 
+function baseWidgetConversationRef(visitorId: string, agentId: string) {
+  return `W-${visitorId.slice(0, 12)}-${agentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+function toSafePositiveInt(value: unknown, fallback: number, min = 1, max = 10_000) {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -161,6 +171,7 @@ export async function POST(req: Request) {
 
     const db = await getDb();
     const account = await db.collection('config').findOne({ _id: 'account' as any });
+    const widgetCfg = await db.collection('widget_config').findOne({ widgetId: 'default' });
 
     const trustedOrigins = new Set(['https://orqo.io', 'https://www.orqo.io', 'http://localhost:3000']);
     const trustedByOrigin = trustedOrigins.has(origin);
@@ -188,9 +199,7 @@ export async function POST(req: Request) {
     const history = sanitizeHistory(historyRaw);
     const modelHistory = historyForInference(history, messageForModel);
     const safeAgentId = agentId || 'default';
-    const convId = visitorId
-      ? `W-${visitorId.slice(0, 12)}-${safeAgentId.slice(0, 6)}`.replace(/[^A-Za-z0-9_-]/g, '')
-      : '';
+    const convBase = visitorId ? baseWidgetConversationRef(visitorId, safeAgentId) : '';
 
     let agentDoc: any = null;
     if (agentId && agentId !== 'default' && ObjectId.isValid(agentId)) {
@@ -261,9 +270,50 @@ export async function POST(req: Request) {
       reply: result.reply,
     });
 
+    let persistedConvRef = convBase;
+
     if (visitorId) {
       const now = new Date();
       const nowMs = now.getTime();
+      const inactivityEnabled = widgetCfg?.closeOnInactivity !== false;
+      const inactivityMinutes = toSafePositiveInt(widgetCfg?.inactivityCloseMinutes, 15, 1, 240);
+      const inactivityCutoffMs = nowMs - inactivityMinutes * 60 * 1000;
+
+      const latestOpen = await db.collection('conversations').findOne(
+        { channel: 'widget', visitor_id: visitorId, agent_id: safeAgentId, status: 'open' },
+        { sort: { updatedAt: -1 }, projection: { _id: 1, conv_id: 1, updatedAt: 1 } }
+      );
+
+      if (latestOpen?.conv_id) persistedConvRef = String(latestOpen.conv_id);
+
+      if (
+        inactivityEnabled &&
+        latestOpen?._id &&
+        Number(latestOpen.updatedAt ?? 0) > 0 &&
+        Number(latestOpen.updatedAt) < inactivityCutoffMs
+      ) {
+        await db.collection('conversations').updateOne(
+          { _id: latestOpen._id },
+          {
+            $set: {
+              status: 'closed',
+              closedAt: nowMs,
+              closureReason: 'inactivity_timeout',
+              autoClosed: true,
+              updatedAt: nowMs,
+            },
+          }
+        );
+
+        persistedConvRef = `${convBase}-${nowMs.toString(36)}`;
+        await writeLog({
+          level: 'info',
+          source: 'widget-conversation',
+          msg: 'Conversacion cerrada por inactividad',
+          detail: `${latestOpen.conv_id} (${inactivityMinutes}m)`,
+        }).catch(() => {});
+      }
+
       const previewMessage = result.reply.slice(0, 280);
       const who = visitorId.startsWith('v_') ? 'Visitante web' : visitorId;
       const newTurns: PersistedWidgetMessage[] = [
@@ -272,7 +322,7 @@ export async function POST(req: Request) {
       ];
 
       await db.collection('conversations').updateOne(
-        { conv_id: convId, channel: 'widget' },
+        { conv_id: persistedConvRef, channel: 'widget' },
         {
           $set: {
             workspaceId,
@@ -287,6 +337,9 @@ export async function POST(req: Request) {
             model_provider: result.provider,
             visitor_id: visitorId,
             agent_id: safeAgentId,
+            closedAt: null,
+            closureReason: null,
+            autoClosed: false,
             updatedAt: nowMs,
           },
           $inc: {
@@ -303,7 +356,7 @@ export async function POST(req: Request) {
           },
           $setOnInsert: {
             createdAt: now,
-            conv_id: convId || genConvId(),
+            conv_id: persistedConvRef || genConvId(),
           },
         } as any,
         { upsert: true }
@@ -317,7 +370,7 @@ export async function POST(req: Request) {
         count: 1,
         provider: result.provider,
         model: result.model,
-        conversationRef: convId || undefined,
+        conversationRef: persistedConvRef || undefined,
         visitorId: visitorId || undefined,
         agentId: safeAgentId || undefined,
         preview: message.slice(0, 200),
@@ -339,7 +392,7 @@ export async function POST(req: Request) {
       detail: `${result.provider}/${result.model}`,
     }).catch(() => {});
 
-    return Response.json({ ...result, usage }, { headers: CORS });
+    return Response.json({ ...result, usage, conversationRef: persistedConvRef || null }, { headers: CORS });
   } catch (e: any) {
     await writeLog({
       level: 'error',

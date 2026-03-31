@@ -59,6 +59,10 @@ let recordingStream = null;
 let recordingChunks = [];
 let isRecordingVoice = false;
 let dragDepth = 0;
+let CLOSE_ON_INACTIVITY = true;
+let AUTO_CLOSE_MINUTES = 15;
+let ASK_FEEDBACK_ON_CLOSE = true;
+let inactivityCloseTimer = null;
 
 function currentUsagePeriodKey() {
   const now = new Date();
@@ -125,6 +129,118 @@ const S = {
   },
   remaining: () => Math.max(0, TOTAL_INT - S.usedInt()),
 };
+
+function getActiveConversation() {
+  if (!activeConvId) return null;
+  const convs = S.convs();
+  return convs.find((c) => c.id === activeConvId) || null;
+}
+
+function setConversationFields(convId, patch) {
+  const convs = S.convs();
+  const conv = convs.find((c) => c.id === convId);
+  if (!conv) return null;
+  Object.assign(conv, patch || {});
+  S.saveConvs(convs);
+  return conv;
+}
+
+function clearInactivityTimer() {
+  if (inactivityCloseTimer) {
+    clearTimeout(inactivityCloseTimer);
+    inactivityCloseTimer = null;
+  }
+}
+
+function feedbackPromptHtml(convId) {
+  return `
+    <div id="conv-feedback-${convId}" style="margin-top:0.55rem;display:flex;gap:0.4rem;flex-wrap:wrap;">
+      <button onclick="submitConvFeedback('${convId}', true)" style="border:1px solid rgba(44,185,120,0.4);background:rgba(44,185,120,0.14);color:var(--acc);padding:0.36rem 0.62rem;border-radius:8px;cursor:pointer;font-size:0.74rem;">Si, me ayudo</button>
+      <button onclick="submitConvFeedback('${convId}', false)" style="border:1px solid rgba(220,72,72,0.35);background:rgba(220,72,72,0.14);color:#ff8e8e;padding:0.36rem 0.62rem;border-radius:8px;cursor:pointer;font-size:0.74rem;">No, necesito apoyo</button>
+    </div>
+  `;
+}
+
+function scheduleInactivityClose(convId) {
+  clearInactivityTimer();
+  if (!CLOSE_ON_INACTIVITY) return;
+  const ms = Math.max(1, Number(AUTO_CLOSE_MINUTES || 15)) * 60 * 1000;
+  inactivityCloseTimer = setTimeout(() => {
+    closeConversationByInactivity(convId);
+  }, ms);
+}
+
+function closeConversationByInactivity(convId) {
+  const conv = setConversationFields(convId, {
+    status: 'closed',
+    closedAt: new Date().toISOString(),
+    closureReason: 'inactivity_timeout',
+  });
+  if (!conv) return;
+  if (conv.serverRef) {
+    fetch(API_BASE + '/api/widget/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: apiKey,
+        visitorId: convId,
+        agentId: scriptAgentId || 'default',
+        conversationRef: conv.serverRef,
+        reason: 'inactivity_timeout',
+      }),
+    }).catch(() => {});
+  }
+  if (activeConvId === convId) {
+    const msg = 'Cierro esta conversación por inactividad. ¿Te fue útil este chat?';
+    appendBubble('bot', msg, new Date().toISOString(), true);
+    if (ASK_FEEDBACK_ON_CLOSE) {
+      const chat = document.getElementById('chat-msgs');
+      if (chat) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bub-wrap bot';
+        wrap.innerHTML = `<div style="margin-left:2rem;">${feedbackPromptHtml(convId)}</div>`;
+        chat.appendChild(wrap);
+        scrollMsgs();
+      }
+    }
+  }
+  renderMsgsList();
+  renderHome();
+}
+
+async function submitConvFeedback(convId, helpful) {
+  const conv = setConversationFields(convId, {
+    status: 'closed',
+    closedAt: new Date().toISOString(),
+    closureReason: 'user_feedback',
+    feedback: { helpful: !!helpful, submittedAt: new Date().toISOString() },
+  });
+  if (!conv) return;
+
+  const prompt = document.getElementById(`conv-feedback-${convId}`);
+  if (prompt) {
+    prompt.innerHTML = `<div style="font-size:0.74rem;color:var(--g05);">${helpful ? 'Gracias por tu feedback.' : 'Gracias. Tomamos nota para mejorar.'}</div>`;
+  }
+
+  try {
+    await fetch(API_BASE + '/api/widget/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: apiKey,
+        visitorId: convId,
+        agentId: scriptAgentId || 'default',
+        conversationRef: conv.serverRef || '',
+        helpful: !!helpful,
+      }),
+    });
+  } catch (e) {
+    console.warn('[ORQO] feedback send failed', e?.message || e);
+  }
+
+  renderMsgsList();
+  renderHome();
+}
 
 function bytesToLabel(bytes) {
   const n = Number(bytes || 0);
@@ -224,6 +340,7 @@ async function deleteConversation(convId) {
   } catch (_) {}
 
   if (activeConvId === convId) {
+    clearInactivityTimer();
     activeConvId = null;
     const chatMsgs = document.getElementById('chat-msgs');
     if (chatMsgs) chatMsgs.innerHTML = '';
@@ -418,6 +535,7 @@ function toggleWidget() {
     renderHome(); renderHomeArticles(); renderMsgsList(); updateTokenUI();
   } else {
     if (isRecordingVoice) toggleVoiceRecording();
+    clearInactivityTimer();
     win.classList.add('w-hidden');
     btn.classList.remove('open');
   }
@@ -456,8 +574,14 @@ function clearAllChats() {
   hlTab('messages');
 }
 
-document.getElementById('btn-close').onclick = () => { if (isRecordingVoice) toggleVoiceRecording(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
-document.getElementById('btn-min').onclick  = () => { if (isRecordingVoice) toggleVoiceRecording(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
+document.getElementById('btn-close').onclick = () => {
+  if (isRecordingVoice) toggleVoiceRecording();
+  clearInactivityTimer();
+  isOpen = false;
+  document.getElementById('orqo-window').classList.add('w-hidden');
+  document.getElementById('orqo-trigger').classList.remove('open');
+};
+document.getElementById('btn-min').onclick  = () => { if (isRecordingVoice) toggleVoiceRecording(); clearInactivityTimer(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
 document.getElementById('btn-clear').onclick = () => { clearAllChats(); };
 document.getElementById('btn-max').onclick  = () => {
   isMax = !isMax;
@@ -532,13 +656,24 @@ function startWithSugg(el) {
 function startNewConv(initial) {
   const id = 'conv_' + Date.now();
   const convs = S.convs();
-  convs.unshift({ id, title: initial ? initial.slice(0,42) : 'Nueva conversación', createdAt: new Date().toISOString(), messages: [] });
+  convs.unshift({
+    id,
+    title: initial ? initial.slice(0,42) : 'Nueva conversación',
+    createdAt: new Date().toISOString(),
+    messages: [],
+    status: 'open',
+    closedAt: null,
+    closureReason: null,
+    feedback: null,
+    serverRef: null,
+  });
   S.saveConvs(convs);
   openConv(id, initial);
 }
 
 function openConv(id, initial) {
   activeConvId = id;
+  clearInactivityTimer();
   pendingAttachments = [];
   renderPendingAttachments();
   renderChatMsgs(id);
@@ -550,6 +685,10 @@ function openConv(id, initial) {
     setTimeout(() => addBotMsg(id, '¡Hola! Soy ORQO Agent. ¿En qué puedo ayudarte hoy?'), 350);
   }
   if (initial) setTimeout(() => sendMessage(initial), 400);
+  if (conv && conv.status !== 'closed') {
+    const last = conv.messages && conv.messages.length ? conv.messages[conv.messages.length - 1] : null;
+    if (last && last.role === 'bot') scheduleInactivityClose(id);
+  }
 }
 
 const NOTCH_SM = `<svg width="14" height="14" viewBox="0 0 72 72" fill="none" style="color:var(--g07)"><path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="currentColor" stroke-width="5" stroke-linecap="round" fill="none"/><line x1="59.5" y1="52" x2="66" y2="58" stroke="#2CB978" stroke-width="5" stroke-linecap="round"/><circle cx="66" cy="58" r="6" fill="#2CB978"/></svg>`;
@@ -604,14 +743,20 @@ function playNotificationSound() {
   } catch {}
 }
 
-function addBotMsg(convId, text) {
+function addBotMsg(convId, text, meta) {
   const convs = S.convs();
   const conv = convs.find(c => c.id === convId);
   if (!conv) return;
-  const m = { role: 'bot', content: text, timestamp: new Date().toISOString() };
-  conv.messages.push(m); S.saveConvs(convs);
+  const nowIso = new Date().toISOString();
+  const m = { role: 'bot', content: text, timestamp: nowIso };
+  conv.messages.push(m);
+  conv.status = conv.status === 'closed' ? 'closed' : 'open';
+  conv.lastBotAt = nowIso;
+  if (meta && meta.serverRef) conv.serverRef = meta.serverRef;
+  S.saveConvs(convs);
   appendBubble('bot', text, m.timestamp, true);
   playNotificationSound();
+  if (conv.status !== 'closed') scheduleInactivityClose(convId);
 }
 
 function showTyping() {
@@ -637,9 +782,22 @@ function sendMessage(override) {
   const convs = S.convs();
   const conv = convs.find(c => c.id === activeConvId);
   if (!conv) return;
+  if (conv.status === 'closed') {
+    startNewConv(text || 'Nueva conversación');
+    ta.value = '';
+    ta.style.height = 'auto';
+    pendingAttachments = [];
+    renderPendingAttachments();
+    return;
+  }
+  clearInactivityTimer();
   const contentForStore = text || describeAttachments(attachments);
   const m = { role: 'user', content: contentForStore, timestamp: new Date().toISOString(), attachments };
   conv.messages.push(m);
+  conv.status = 'open';
+  conv.closedAt = null;
+  conv.closureReason = null;
+  conv.lastUserAt = m.timestamp;
   if (conv.messages.filter(x => x.role === 'user').length === 1) conv.title = contentForStore.slice(0, 42);
   S.saveConvs(convs);
   S.incInt(1);
@@ -649,9 +807,9 @@ function sendMessage(override) {
   renderPendingAttachments();
   updateTokenUI(); showTyping();
   (async () => {
-    const reply = await getBotReplyFromApi(activeConvId, contentForStore, conv.messages, attachments);
+    const apiResult = await getBotReplyFromApi(activeConvId, contentForStore, conv.messages, attachments);
     removeTyping();
-    addBotMsg(activeConvId, reply || getBotReply(text || contentForStore));
+    addBotMsg(activeConvId, (apiResult.reply || getBotReply(text || contentForStore)), apiResult);
     updateTokenUI(); renderHome();
     const dot = document.getElementById('tab-msgs-dot');
     if (dot) dot.style.display = 'none';
@@ -681,10 +839,13 @@ async function getBotReplyFromApi(convId, userText, messages, attachments) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-    return String(data?.reply || '').trim();
+    return {
+      reply: String(data?.reply || '').trim(),
+      serverRef: String(data?.conversationRef || '').trim(),
+    };
   } catch (e) {
     console.warn('[ORQO] widget reply fallback local:', e?.message || e);
-    return '';
+    return { reply: '', serverRef: '' };
   }
 }
 
@@ -706,7 +867,10 @@ function renderMsgsList() {
   el.innerHTML = convs.map(c => {
     const last = c.messages[c.messages.length - 1];
     const prev = last ? last.content.slice(0, 48) + (last.content.length > 48 ? '…' : '') : '—';
-    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span><button title="Borrar conversación" aria-label="Borrar conversación" onclick="event.stopPropagation();deleteConversation('${c.id}')" style="margin-left:0.42rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(220,72,72,0.45);background:rgba(220,72,72,0.14);color:rgba(255,153,153,0.95);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg></button></div>`;
+    const status = c.status === 'closed'
+      ? '<span style="font-size:0.58rem;padding:1px 6px;border-radius:20px;background:rgba(107,114,128,0.2);color:rgba(233,237,233,0.55);margin-left:0.35rem;">cerrada</span>'
+      : '';
+    return `<div class="m-item" onclick="openConv('${c.id}')"><div class="m-item-ico">${NOTCH_SM}</div><div style="flex:1;min-width:0;"><div class="m-item-title">${escHtml(c.title)}${status}</div><div class="m-item-prev">${escHtml(prev)}</div></div><span class="m-item-time">${wRelTime(c.createdAt)}</span><button title="Borrar conversación" aria-label="Borrar conversación" onclick="event.stopPropagation();deleteConversation('${c.id}')" style="margin-left:0.42rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(220,72,72,0.45);background:rgba(220,72,72,0.14);color:rgba(255,153,153,0.95);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg></button></div>`;
   }).join('');
 }
 
@@ -914,6 +1078,7 @@ window.openConv = openConv;
 window.goToArticle = goToArticle;
 window.deleteConversation = deleteConversation;
 window.removePendingAttachment = removePendingAttachment;
+window.submitConvFeedback = submitConvFeedback;
 
 updateTokenUI();
 if (S.convs().length > 0) {
@@ -1080,10 +1245,15 @@ if (S.convs().length > 0) {
       updateTokenUI();
     }
 
-    // 8. Sonido de respuesta (default true si no está definido)
+    // 8. Cierre por inactividad y encuesta de utilidad
+    CLOSE_ON_INACTIVITY = cfg.closeOnInactivity !== false;
+    AUTO_CLOSE_MINUTES = Math.max(1, Math.min(240, Number(cfg.inactivityCloseMinutes || 15)));
+    ASK_FEEDBACK_ON_CLOSE = cfg.askForHelpfulnessOnClose !== false;
+
+    // 9. Sonido de respuesta (default true si no está definido)
     window._ORQO_SOUND = cfg.soundEnabled !== false;
 
-    // 9. Auto-abrir en modo preview (?preview=1)
+    // 10. Auto-abrir en modo preview (?preview=1)
     const params = new URLSearchParams(window.location.search);
     if (params.get('preview') === '1' && !isOpen) {
       setTimeout(toggleWidget, 600);

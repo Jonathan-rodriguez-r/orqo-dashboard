@@ -23,6 +23,9 @@ export const WIDGET_DEFAULTS = {
   agentPhoto: '',         // '' | preset key | custom URL
   // Behavior
   interactionLimit: 20,
+  closeOnInactivity: true,
+  inactivityCloseMinutes: 15,
+  askForHelpfulnessOnClose: true,
   showBranding: true,
   soundEnabled: true,
   // Home screen articles (ordered list of article ids)
