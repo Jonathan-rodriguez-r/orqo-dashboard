@@ -2,6 +2,22 @@
 
 All notable changes to this dashboard are documented in this file.
 
+## [1.6.2] - 2026-03-31
+
+### Added
+
+- `Settings > Widget` now uses the full widget configuration module (embedded), including:
+- `themeMode` selector (`auto`, `dark`, `light`).
+- Dynamic help article management with editable content for widget help/inicio.
+
+### Changed
+
+- Public widget config API now normalizes and serves help content for widget consumption:
+- Articles are exposed in `Ayuda` category for consistent widget help rendering.
+- Home article IDs are normalized against available articles.
+- `public/widget.js` now sends `agentId/agentToken` to public config endpoint for agent-level visual overrides.
+- `public/widget.js` now applies widget light/dark theme mode without forcing host site theme.
+
 ## [1.6.1] - 2026-03-31
 
 ### Fixed
