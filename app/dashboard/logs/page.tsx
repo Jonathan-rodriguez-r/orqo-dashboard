@@ -416,8 +416,43 @@ export default function LogsPage() {
           </div>
         </div>
 
-        {/* ── Table ── */}
-        <div className="table-wrap">
+        {/* ── Mobile cards (≤767px) ── */}
+        <div className="log-cards">
+          {loading ? (
+            <div style={{ textAlign: 'center', color: 'var(--g05)', padding: 32, fontSize: 13 }}>Cargando...</div>
+          ) : logs.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">🔍</div>
+              <div className="empty-text">
+                {total === 0 && !q && !level && !category
+                  ? 'Sin logs aún. Los eventos se registran automáticamente.'
+                  : 'Sin resultados para estos filtros'}
+              </div>
+            </div>
+          ) : logs.map(entry => {
+            const isExp = expandedId === entry._id;
+            return (
+              <div key={entry._id} className={`log-card${isExp ? ' lc-expanded' : ''}`} onClick={() => setExpandedId(isExp ? null : entry._id)}>
+                <div className="log-card-top">
+                  <LevelBadge level={entry.level} />
+                  <CategoryBadge category={entry.category} />
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--g05)' }} title={fmtAbsTime(entry.createdAt)}>
+                    {fmtTime(entry.createdAt)}
+                  </span>
+                </div>
+                <div className="log-card-msg">{entry.message}</div>
+                <div className="log-card-sub">
+                  <code style={{ fontFamily: 'monospace', fontSize: 10.5 }}>{entry.action}</code>
+                  {entry.actor?.email && <span style={{ marginLeft: 8 }}>· {entry.actor.email}</span>}
+                </div>
+                {isExp && <ExpandedRow log={entry} />}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Table (≥768px) ── */}
+        <div className="logs-table-wrap table-wrap">
           <table>
             <thead>
               <tr>

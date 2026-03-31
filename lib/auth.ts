@@ -7,7 +7,7 @@ const SECRET = new TextEncoder().encode(
 );
 
 export const COOKIE = 'orqo_session';
-export const SESSION_DAYS = 7;
+export const SESSION_DAYS = 1;
 
 export type AuthProvider = 'magic_link' | 'google';
 
