@@ -162,16 +162,22 @@
       mode = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
     }
     if (mode === 'light') {
+      var lightSurface = cfg.lightSurface || '#FFFFFF';
       widgetEl.style.setProperty('--orqo-g00', cfg.lightBg || '#F4F7F4');
-      widgetEl.style.setProperty('--orqo-g01', cfg.lightSurface || '#FFFFFF');
+      widgetEl.style.setProperty('--orqo-g01', lightSurface);
       widgetEl.style.setProperty('--orqo-g02', '#EDF2ED');
       widgetEl.style.setProperty('--orqo-g06', '#527060');
       widgetEl.style.setProperty('--orqo-g07', '#152018');
       widgetEl.style.setProperty('--orqo-g08', '#0B130D');
+      // Keep the original light-mode personality from landing: dark-to-light hero gradient.
+      winEl.style.background = 'linear-gradient(180deg, #0D1A12 0%, #152018 230px, ' + lightSurface + ' 310px, ' + lightSurface + ' 100%)';
+      msgs.style.background = 'transparent';
     } else {
       widgetEl.style.setProperty('--orqo-g00', cfg.darkBg || '#060908');
       widgetEl.style.setProperty('--orqo-g01', cfg.darkSurface || '#0B100D');
       widgetEl.style.setProperty('--orqo-g02', '#111812');
+      winEl.style.background = cfg.darkSurface || '#0B100D';
+      msgs.style.background = '';
     }
 
     if (cfg.position && cfg.position !== 'bottom-right') {
