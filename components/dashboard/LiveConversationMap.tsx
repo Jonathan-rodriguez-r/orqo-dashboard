@@ -64,7 +64,7 @@ const FALLBACK_CITIES = [
 
 function project(lng: number, lat: number) {
   const x = ((lng + 180) / 360) * 1000;
-  const y = ((90 - lat) / 180) * 420;
+  const y = ((90 - lat) / 180) * 300;
   return { x, y };
 }
 
@@ -112,7 +112,7 @@ export default function LiveConversationMap({ channels }: Props) {
       </div>
 
       <div className="world-map-wrap">
-        <svg viewBox="0 0 1000 420" className="world-map-svg" role="img" aria-label="Mapa mundial de conversaciones">
+        <svg viewBox="0 0 1000 300" className="world-map-svg" role="img" aria-label="Mapa mundial de conversaciones">
           <defs>
             <linearGradient id="worldBgGrad" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="rgba(13,17,15,0.92)" />
@@ -124,21 +124,21 @@ export default function LiveConversationMap({ channels }: Props) {
             </linearGradient>
           </defs>
 
-          <rect x="0" y="0" width="1000" height="420" fill="url(#worldBgGrad)" rx="14" />
+          <rect x="0" y="0" width="1000" height="300" fill="url(#worldBgGrad)" rx="14" />
 
-          {Array.from({ length: 9 }).map((_, i) => (
-            <line key={`h-${i}`} x1="0" y1={48 + i * 38} x2="1000" y2={48 + i * 38} stroke="rgba(120,155,138,0.12)" strokeWidth="1" />
+          {Array.from({ length: 7 }).map((_, i) => (
+            <line key={`h-${i}`} x1="0" y1={36 + i * 34} x2="1000" y2={36 + i * 34} stroke="rgba(120,155,138,0.12)" strokeWidth="1" />
           ))}
           {Array.from({ length: 15 }).map((_, i) => (
             <line key={`v-${i}`} x1={40 + i * 66} y1="0" x2={40 + i * 66} y2="420" stroke="rgba(120,155,138,0.08)" strokeWidth="1" />
           ))}
 
-          <path d="M86 120L140 102L190 116L216 148L196 184L142 188L106 165Z" fill="url(#continentGrad)" />
-          <path d="M216 190L244 196L262 238L246 282L214 300L194 260Z" fill="url(#continentGrad)" />
-          <path d="M426 110L468 92L526 104L584 124L620 144L602 172L536 174L482 156L444 134Z" fill="url(#continentGrad)" />
-          <path d="M496 182L548 198L568 242L548 286L504 300L468 264L476 220Z" fill="url(#continentGrad)" />
-          <path d="M648 122L694 102L760 118L812 144L852 182L824 204L754 196L708 172L666 154Z" fill="url(#continentGrad)" />
-          <path d="M788 258L846 272L870 300L842 336L782 328L758 286Z" fill="url(#continentGrad)" />
+          <path d="M86 90L140 74L190 88L216 120L196 154L142 158L106 138Z" fill="url(#continentGrad)" />
+          <path d="M216 158L244 164L262 204L246 246L214 260L194 222Z" fill="url(#continentGrad)" />
+          <path d="M426 82L468 64L526 76L584 96L620 116L602 142L536 144L482 128L444 108Z" fill="url(#continentGrad)" />
+          <path d="M496 150L548 166L568 208L548 250L504 262L468 226L476 186Z" fill="url(#continentGrad)" />
+          <path d="M648 92L694 72L760 88L812 114L852 146L824 166L754 160L708 138L666 120Z" fill="url(#continentGrad)" />
+          <path d="M788 220L846 234L870 262L842 294L782 286L758 246Z" fill="url(#continentGrad)" />
 
           {leader && topHotspots.slice(1).map((p) => {
             const from = project(leader.lng, leader.lat);

@@ -114,7 +114,7 @@ export default function OverviewBoard(props: Props) {
       world: {
         title: 'Vista global',
         subtitle: 'Distribucion geografica de conversaciones',
-        wide: true,
+        wide: false,
         body: <LiveConversationMap channels={channelStats} />,
       },
       recent: {

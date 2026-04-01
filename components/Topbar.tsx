@@ -140,6 +140,10 @@ export default function Topbar() {
 
   return (
     <div className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+      <div className="topbar-left-chip" aria-hidden="true">
+        <span className="topbar-left-dot" />
+        <span>Control</span>
+      </div>
       <div style={{ flex: 1 }} />
 
       {/* ── Help button ── */}
