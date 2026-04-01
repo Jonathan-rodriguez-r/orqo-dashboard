@@ -430,7 +430,7 @@ export default function DocsPage() {
     s === 'ok' ? 'OK' : s === 'warn' ? 'WARN' : s === 'error' ? 'ERR' : '...';
 
   return (
-    <div className="dash-content" style={{ maxWidth: 1120 }}>
+    <div className="dash-content">
       <div
         style={{
           marginBottom: 22,

@@ -638,7 +638,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                 <button key={t} onClick={() => setPreviewTheme(t)}
                   className={`btn btn-sm ${previewTheme === t ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
-                  {t === 'dark' ? 'ðŸŒ™ Oscuro' : 'â˜€ï¸ Claro'}
+                  {t === 'dark' ? 'Modo oscuro' : 'Modo claro'}
                 </button>
               ))}
             </div>
