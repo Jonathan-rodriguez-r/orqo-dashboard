@@ -159,7 +159,13 @@ export default function LiveConversationMap({ channels }: Props) {
 
       <div className="world-main world-main-full">
         <div className="world-map-wrap world-pulse-wrap">
-          <svg viewBox="0 0 1000 320" className="world-pulse-svg" role="img" aria-label="Pulso global de conversaciones">
+          <svg
+            viewBox="0 0 1000 320"
+            preserveAspectRatio="xMidYMid slice"
+            className="world-pulse-svg"
+            role="img"
+            aria-label="Pulso global de conversaciones"
+          >
             <defs>
               <linearGradient id="pulseBgGrad" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0%" stopColor="rgba(12,17,16,0.96)" />
