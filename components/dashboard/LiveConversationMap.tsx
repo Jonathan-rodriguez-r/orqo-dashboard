@@ -64,7 +64,7 @@ const FALLBACK_CITIES = [
 
 function project(lng: number, lat: number) {
   const x = ((lng + 180) / 360) * 1000;
-  const y = ((90 - lat) / 180) * 300;
+  const y = ((90 - lat) / 180) * 320;
   return { x, y };
 }
 
@@ -97,6 +97,15 @@ export default function LiveConversationMap({ channels }: Props) {
   const hotspots = buildHotspots(channels);
   const topHotspots = [...hotspots].sort((a, b) => b.count - a.count).slice(0, 4);
   const leader = topHotspots[0];
+  const totalLoad = hotspots.reduce((sum, item) => sum + item.count, 0);
+  const uniqueCities = new Set(hotspots.map((item) => item.city)).size;
+  const byChannel = hotspots.reduce<Record<string, { label: string; color: string; total: number }>>((acc, item) => {
+    const key = item.channel;
+    if (!acc[key]) acc[key] = { label: item.channel, color: item.color, total: 0 };
+    acc[key].total += item.count;
+    return acc;
+  }, {});
+  const topChannels = Object.values(byChannel).sort((a, b) => b.total - a.total).slice(0, 3);
 
   return (
     <div className="world-card">
@@ -111,73 +120,100 @@ export default function LiveConversationMap({ channels }: Props) {
         </div>
       </div>
 
-      <div className="world-map-wrap">
-        <svg viewBox="0 0 1000 300" className="world-map-svg" role="img" aria-label="Mapa mundial de conversaciones">
-          <defs>
-            <linearGradient id="worldBgGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="rgba(13,17,15,0.92)" />
-              <stop offset="100%" stopColor="rgba(9,12,11,0.98)" />
-            </linearGradient>
-            <linearGradient id="continentGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="rgba(44,185,120,0.18)" />
-              <stop offset="100%" stopColor="rgba(44,185,120,0.05)" />
-            </linearGradient>
-          </defs>
+      <div className="world-main">
+        <div className="world-map-wrap">
+          <svg viewBox="0 0 1000 320" className="world-map-svg" role="img" aria-label="Mapa mundial de conversaciones">
+            <defs>
+              <linearGradient id="worldBgGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="rgba(13,17,15,0.92)" />
+                <stop offset="100%" stopColor="rgba(9,12,11,0.98)" />
+              </linearGradient>
+              <linearGradient id="continentGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="rgba(44,185,120,0.24)" />
+                <stop offset="100%" stopColor="rgba(44,185,120,0.06)" />
+              </linearGradient>
+            </defs>
 
-          <rect x="0" y="0" width="1000" height="300" fill="url(#worldBgGrad)" rx="14" />
+            <rect x="0" y="0" width="1000" height="320" fill="url(#worldBgGrad)" rx="14" />
 
-          {Array.from({ length: 7 }).map((_, i) => (
-            <line key={`h-${i}`} x1="0" y1={36 + i * 34} x2="1000" y2={36 + i * 34} stroke="rgba(120,155,138,0.12)" strokeWidth="1" />
-          ))}
-          {Array.from({ length: 15 }).map((_, i) => (
-            <line key={`v-${i}`} x1={40 + i * 66} y1="0" x2={40 + i * 66} y2="420" stroke="rgba(120,155,138,0.08)" strokeWidth="1" />
-          ))}
+            {Array.from({ length: 8 }).map((_, i) => (
+              <line key={`h-${i}`} x1="0" y1={26 + i * 36} x2="1000" y2={26 + i * 36} stroke="rgba(120,155,138,0.12)" strokeWidth="1" />
+            ))}
+            {Array.from({ length: 16 }).map((_, i) => (
+              <line key={`v-${i}`} x1={20 + i * 64} y1="0" x2={20 + i * 64} y2="320" stroke="rgba(120,155,138,0.08)" strokeWidth="1" />
+            ))}
 
-          <path d="M86 90L140 74L190 88L216 120L196 154L142 158L106 138Z" fill="url(#continentGrad)" />
-          <path d="M216 158L244 164L262 204L246 246L214 260L194 222Z" fill="url(#continentGrad)" />
-          <path d="M426 82L468 64L526 76L584 96L620 116L602 142L536 144L482 128L444 108Z" fill="url(#continentGrad)" />
-          <path d="M496 150L548 166L568 208L548 250L504 262L468 226L476 186Z" fill="url(#continentGrad)" />
-          <path d="M648 92L694 72L760 88L812 114L852 146L824 166L754 160L708 138L666 120Z" fill="url(#continentGrad)" />
-          <path d="M788 220L846 234L870 262L842 294L782 286L758 246Z" fill="url(#continentGrad)" />
+            <g fill="url(#continentGrad)" stroke="rgba(44,185,120,0.2)" strokeWidth="1">
+              <path d="M84 94L134 74L206 86L252 116L236 140L210 144L198 162L146 164L102 140Z" />
+              <path d="M254 64L286 52L326 60L332 82L302 94L266 88Z" />
+              <path d="M208 168L244 174L270 216L252 268L222 292L194 246L196 204Z" />
+              <path d="M420 92L456 80L486 88L504 102L490 118L452 122L428 112Z" />
+              <path d="M448 128L494 138L520 174L504 236L462 270L420 226L428 170Z" />
+              <path d="M504 90L560 70L634 80L706 98L760 126L744 146L688 150L646 134L598 136L544 120Z" />
+              <path d="M614 146L648 150L674 178L654 220L622 208L606 178Z" />
+              <path d="M756 214L808 226L842 252L820 284L768 274L744 238Z" />
+              <path d="M790 150L806 138L820 148L812 166Z" />
+            </g>
 
-          {leader && topHotspots.slice(1).map((p) => {
-            const from = project(leader.lng, leader.lat);
-            const to = project(p.lng, p.lat);
-            const cx = (from.x + to.x) / 2;
-            const cy = Math.min(from.y, to.y) - 36;
-            return (
-              <path
-                key={`arc-${p.id}`}
-                d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
-                fill="none"
-                stroke="rgba(44,185,120,0.25)"
-                strokeWidth="1.5"
-                strokeDasharray="4 4"
-              />
-            );
-          })}
-
-          {hotspots.map((p, idx) => {
-            const { x, y } = project(p.lng, p.lat);
-            const radius = 2.8 + Math.min(8, p.count / 12);
-            return (
-              <g key={p.id}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={radius + 4}
+            {leader && topHotspots.slice(1).map((p) => {
+              const from = project(leader.lng, leader.lat);
+              const to = project(p.lng, p.lat);
+              const cx = (from.x + to.x) / 2;
+              const cy = Math.min(from.y, to.y) - 44;
+              return (
+                <path
+                  key={`arc-${p.id}`}
+                  d={`M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`}
                   fill="none"
-                  stroke={p.color}
-                  strokeWidth="1.4"
-                  opacity="0.55"
-                  className="world-pulse-ring"
-                  style={{ animationDelay: `${idx * 140}ms` }}
+                  stroke="rgba(44,185,120,0.28)"
+                  strokeWidth="1.6"
+                  strokeDasharray="4 4"
                 />
-                <circle cx={x} cy={y} r={radius} fill={p.color} />
-              </g>
-            );
-          })}
-        </svg>
+              );
+            })}
+
+            {hotspots.map((p, idx) => {
+              const { x, y } = project(p.lng, p.lat);
+              const radius = 2.8 + Math.min(8, p.count / 12);
+              return (
+                <g key={p.id}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={radius + 4}
+                    fill="none"
+                    stroke={p.color}
+                    strokeWidth="1.4"
+                    opacity="0.55"
+                    className="world-pulse-ring"
+                    style={{ animationDelay: `${idx * 140}ms` }}
+                  />
+                  <circle cx={x} cy={y} r={radius} fill={p.color} />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        <aside className="world-side-card" aria-label="Resumen geografico">
+          <div className="world-side-metric">
+            <span>Cobertura activa</span>
+            <strong>{uniqueCities} ciudades</strong>
+          </div>
+          <div className="world-side-metric">
+            <span>Volumen estimado</span>
+            <strong>{totalLoad}</strong>
+          </div>
+          <div className="world-side-list">
+            {topChannels.map((item) => (
+              <div key={item.label} className="world-side-row">
+                <span className="world-hotspot-dot" style={{ background: item.color }} />
+                <span className="world-side-label">{item.label}</span>
+                <strong>{item.total}</strong>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
 
       <div className="world-hotspots">

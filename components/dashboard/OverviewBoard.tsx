@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import HomeCharts from './HomeCharts';
 import LiveConversationMap from './LiveConversationMap';
 
@@ -78,9 +78,32 @@ function moveCard(order: BoardCardId[], dragId: BoardCardId, targetId: BoardCard
   return next;
 }
 
+function moveCardByOffset(order: BoardCardId[], cardId: BoardCardId, offset: number) {
+  const from = order.indexOf(cardId);
+  if (from < 0) return order;
+  const to = Math.max(0, Math.min(order.length - 1, from + offset));
+  if (from === to) return order;
+  const next = [...order];
+  next.splice(from, 1);
+  next.splice(to, 0, cardId);
+  return next;
+}
+
 export default function OverviewBoard(props: Props) {
   const [order, setOrder] = useState<BoardCardId[]>(DEFAULT_ORDER);
   const [dragId, setDragId] = useState<BoardCardId | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const scrollHostRef = useRef<HTMLElement | null>(null);
+  const dragImageRef = useRef<HTMLImageElement | null>(null);
+
+  const maybeAutoScroll = (clientY: number) => {
+    const host = scrollHostRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const threshold = 94;
+    if (clientY < rect.top + threshold) host.scrollBy({ top: -20, behavior: 'auto' });
+    else if (clientY > rect.bottom - threshold) host.scrollBy({ top: 20, behavior: 'auto' });
+  };
 
   useEffect(() => {
     try {
@@ -98,6 +121,13 @@ export default function OverviewBoard(props: Props) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
   }, [order]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src =
+      'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz4=';
+    dragImageRef.current = img;
+  }, []);
 
   const cards = useMemo(() => {
     const channelStats = props.channelStats.length > 0
@@ -256,29 +286,29 @@ export default function OverviewBoard(props: Props) {
   }, [props]);
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
+    <div
+      ref={boardRef}
+      style={{ display: 'grid', gap: 14 }}
+      onDragOver={(e) => maybeAutoScroll(e.clientY)}
+    >
       <div className="overview-hint">
         Arrastra las tarjetas para ordenar la vista general segun la preferencia del cliente.
       </div>
 
       <div className="overview-grid">
-        {order.map((cardId) => {
+        {order.map((cardId, index) => {
           const card = cards[cardId];
           const isDragging = dragId === cardId;
+          const canMoveUp = index > 0;
+          const canMoveDown = index < order.length - 1;
           return (
             <section
               key={cardId}
               className={`overview-panel${card.wide ? ' overview-panel-wide' : ''}${isDragging ? ' dragging' : ''}`}
-              draggable
-              onDragStart={(e) => {
-                setDragId(cardId);
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', cardId);
-              }}
-              onDragEnd={() => setDragId(null)}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
+                maybeAutoScroll(e.clientY);
               }}
               onDrop={(e) => {
                 e.preventDefault();
@@ -286,6 +316,7 @@ export default function OverviewBoard(props: Props) {
                 if (!source) return;
                 setOrder((prev) => moveCard(prev, source, cardId));
                 setDragId(null);
+                scrollHostRef.current = null;
               }}
             >
               <div className="overview-panel-head">
@@ -293,16 +324,55 @@ export default function OverviewBoard(props: Props) {
                   <div className="overview-panel-title">{card.title}</div>
                   <div className="overview-panel-sub">{card.subtitle}</div>
                 </div>
-                <button className="drag-handle" type="button" aria-label="Arrastrar tarjeta" title="Arrastrar tarjeta">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <circle cx="5" cy="4" r="1.1" fill="currentColor" />
-                    <circle cx="11" cy="4" r="1.1" fill="currentColor" />
-                    <circle cx="5" cy="8" r="1.1" fill="currentColor" />
-                    <circle cx="11" cy="8" r="1.1" fill="currentColor" />
-                    <circle cx="5" cy="12" r="1.1" fill="currentColor" />
-                    <circle cx="11" cy="12" r="1.1" fill="currentColor" />
-                  </svg>
-                </button>
+                <div className="overview-panel-tools">
+                  <button
+                    className="drag-sort-btn"
+                    type="button"
+                    disabled={!canMoveUp}
+                    onClick={() => setOrder((prev) => moveCardByOffset(prev, cardId, -1))}
+                    aria-label="Mover tarjeta arriba"
+                    title="Mover arriba"
+                  >
+                    Up
+                  </button>
+                  <button
+                    className="drag-sort-btn"
+                    type="button"
+                    disabled={!canMoveDown}
+                    onClick={() => setOrder((prev) => moveCardByOffset(prev, cardId, 1))}
+                    aria-label="Mover tarjeta abajo"
+                    title="Mover abajo"
+                  >
+                    Dn
+                  </button>
+                  <button
+                    className="drag-handle"
+                    type="button"
+                    draggable
+                    aria-label="Arrastrar tarjeta"
+                    title="Arrastrar tarjeta"
+                    onDragStart={(e) => {
+                      scrollHostRef.current = boardRef.current?.closest('.dash-content') as HTMLElement | null;
+                      setDragId(cardId);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', cardId);
+                      if (dragImageRef.current) e.dataTransfer.setDragImage(dragImageRef.current, 0, 0);
+                    }}
+                    onDragEnd={() => {
+                      setDragId(null);
+                      scrollHostRef.current = null;
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <circle cx="5" cy="4" r="1.1" fill="currentColor" />
+                      <circle cx="11" cy="4" r="1.1" fill="currentColor" />
+                      <circle cx="5" cy="8" r="1.1" fill="currentColor" />
+                      <circle cx="11" cy="8" r="1.1" fill="currentColor" />
+                      <circle cx="5" cy="12" r="1.1" fill="currentColor" />
+                      <circle cx="11" cy="12" r="1.1" fill="currentColor" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               <div className="overview-panel-body">{card.body}</div>
