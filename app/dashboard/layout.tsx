@@ -3,6 +3,7 @@ import Topbar from '@/components/Topbar';
 import InactivityGuard from '@/components/InactivityGuard';
 import { getSession } from '@/lib/auth';
 import { getDb } from '@/lib/mongodb';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
 import { redirect } from 'next/navigation';
 import type { CSSProperties } from 'react';
 
@@ -29,7 +30,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let secondary = '#0B100D';
   try {
     const db = await getDb();
-    const account = await db.collection<any>('config').findOne({ _id: 'account' as any }, { projection: { brand_primary_color: 1, brand_secondary_color: 1 } });
+    const account = await getWorkspaceConfig(db, session.workspaceId, 'account', {
+      defaults: { brand_primary_color: '#2CB978', brand_secondary_color: '#0B100D' } as any,
+    });
     primary = normalizeHexColor(String(account?.brand_primary_color ?? ''), '#2CB978');
     secondary = normalizeHexColor(String(account?.brand_secondary_color ?? ''), '#0B100D');
   } catch {

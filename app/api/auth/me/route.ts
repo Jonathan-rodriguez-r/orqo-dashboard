@@ -14,6 +14,7 @@ export async function GET() {
     email:       session.email,
     name:        session.name,
     avatar:      session.avatar,
+    workspaceId: session.workspaceId,
     role:        session.role,
     permissions: session.permissions,
     provider:    session.provider,

@@ -1,6 +1,8 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 /**
  * GET /api/logs/security
@@ -18,8 +20,14 @@ export async function GET(req: Request) {
   const offset = Math.max(0, Number(searchParams.get('offset') ?? 0));
   const type   = searchParams.get('type')  ?? '';
   const email  = searchParams.get('email') ?? '';
+  const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
-  const filter: Record<string, any> = { category: 'security' };
+  const workspaceFilter =
+    workspaceId === getDefaultWorkspaceId()
+      ? { $or: [{ workspaceId }, { workspaceId: { $exists: false } }] }
+      : { workspaceId };
+
+  const filter: Record<string, any> = { ...workspaceFilter, category: 'security' };
   if (type)  filter.type  = type;
   if (email) filter.email = { $regex: email, $options: 'i' };
 

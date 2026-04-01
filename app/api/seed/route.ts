@@ -1,5 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { randomUUID } from 'crypto';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { DEFAULT_CLIENT_ID, DEFAULT_CLIENT_NAME } from '@/lib/clients';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +62,7 @@ function makeHourDist(total: number): Record<number, number> {
 export async function POST() {
   try {
     const db = await getDb();
+    const workspaceId = getDefaultWorkspaceId();
 
     // Idempotency check — only skip if BOTH analytics AND conversations are populated
     const [analyticsCount, convCount, logsCount] = await Promise.all([
@@ -97,7 +100,7 @@ export async function POST() {
       };
 
       analyticsToInsert.push({
-        workspaceId: 'default',
+        workspaceId,
         date: dateStr,
         conversations,
         resolved,
@@ -126,7 +129,7 @@ export async function POST() {
       const tokOutput = msgCount * rand(120, 280) + rand(100, 500);
 
       conversationsToInsert.push({
-        workspaceId:    'default',
+        workspaceId,
         conv_id:        genConvId(),
         user_name:      name,
         user_email:     email,
@@ -262,9 +265,21 @@ export async function POST() {
     );
 
     // ── Config doc ────────────────────────────────────────────────────────
-    await db.collection('config').updateOne(
-      { _id: 'account' as any },
-      { $setOnInsert: { plan: 'Starter', interactions_limit: 1000, business_name: 'Mi Negocio' } },
+    await db.collection('workspace_configs').updateOne(
+      { workspaceId, key: 'account' },
+      {
+        $setOnInsert: {
+          workspaceId,
+          key: 'account',
+          plan: 'Starter',
+          interactions_limit: 1000,
+          business_name: 'Mi Negocio',
+          clientId: DEFAULT_CLIENT_ID,
+          clientName: DEFAULT_CLIENT_NAME,
+          createdAt: new Date(),
+        },
+        $set: { updatedAt: new Date() },
+      },
       { upsert: true }
     );
 

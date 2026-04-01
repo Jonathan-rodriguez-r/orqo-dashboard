@@ -1,6 +1,9 @@
 ﻿import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
 import { generateAgentReply, type AgentRuntime } from '@/lib/ai-orchestrator';
 import { writeLog } from '@/app/api/admin/logs/route';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 import * as XLSX from 'xlsx';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
@@ -113,7 +116,11 @@ function statsNarrative(report: any) {
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
     const body = await req.json().catch(() => ({}));
+    const workspaceId = resolveScopedWorkspaceId(session, body?.workspaceId ?? body?.workspace_id ?? null);
     const format: ReportFormat = ['xlsx', 'pdf'].includes(String(body?.format)) ? body.format : 'json';
     const mode: ReportMode = String(body?.mode) === 'ai' ? 'ai' : 'stats';
 
@@ -131,24 +138,24 @@ export async function POST(req: Request) {
 
     const db = await getDb();
     const [account, dailyRows, byChannelRows, byModelRows, byStatusRows, feedbackRows] = await Promise.all([
-      db.collection('config').findOne({ _id: 'account' as any }),
-      db.collection('analytics_daily').find({ date: { $gte: fromStr, $lte: toStr } }).sort({ date: 1 }).toArray(),
+      getWorkspaceConfig(db, workspaceId, 'account', { defaults: {} as any }),
+      db.collection('analytics_daily').find({ workspaceId, date: { $gte: fromStr, $lte: toStr } }).sort({ date: 1 }).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: '$channel', count: { $sum: 1 }, tokens: { $sum: '$tokens.total' } } },
         { $sort: { count: -1 } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: { provider: '$model_provider', model: '$model' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         {
           $group: {
             _id: null,
@@ -246,7 +253,7 @@ export async function POST(req: Request) {
 
         const aiResult = await generateAgentReply({
           db,
-          workspaceId: 'default',
+          workspaceId,
           agent,
           message: `${prompt}\n\nDatos estructurados del periodo:\n${JSON.stringify(reportData)}`,
         });
@@ -261,6 +268,7 @@ export async function POST(req: Request) {
       await writeLog({
         level: 'info',
         source: 'reports',
+        workspaceId,
         msg: `Reporte ${mode === 'ai' ? 'AI' : 'estadistico'} generado`,
         detail: `${fromStr}..${toStr}`,
       }).catch(() => {});
@@ -299,6 +307,7 @@ export async function POST(req: Request) {
       await writeLog({
         level: 'info',
         source: 'reports',
+        workspaceId,
         msg: `Reporte XLSX ${mode} generado`,
         detail: filename,
       }).catch(() => {});
@@ -429,6 +438,7 @@ export async function POST(req: Request) {
     await writeLog({
       level: 'info',
       source: 'reports',
+      workspaceId,
       msg: `Reporte PDF ${mode} generado`,
       detail: filename,
     }).catch(() => {});
@@ -444,6 +454,7 @@ export async function POST(req: Request) {
     await writeLog({
       level: 'error',
       source: 'reports',
+      workspaceId: 'unknown',
       msg: 'Error generando reporte gerencial',
       detail: e?.message ?? 'unknown',
     }).catch(() => {});
@@ -451,3 +462,4 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: e?.message ?? 'Internal error' }, { status: 500 });
   }
 }
+

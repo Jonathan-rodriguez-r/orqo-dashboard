@@ -1,24 +1,30 @@
 import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 export const dynamic = 'force-dynamic';
 
 const CHANNEL_META: Record<string, { label: string; color: string }> = {
-  whatsapp:   { label: 'WhatsApp',           color: '#25D366' },
-  instagram:  { label: 'Instagram Business', color: '#E1306C' },
-  facebook:   { label: 'Facebook Messenger', color: '#1877F2' },
-  shopify:    { label: 'Shopify',            color: '#96BF48' },
-  woocommerce:{ label: 'WooCommerce Widget', color: '#7F54B3' },
-  widget:     { label: 'Widget Web',         color: '#2CB978' },
+  whatsapp: { label: 'WhatsApp', color: '#25D366' },
+  instagram: { label: 'Instagram Business', color: '#E1306C' },
+  facebook: { label: 'Facebook Messenger', color: '#1877F2' },
+  shopify: { label: 'Shopify', color: '#96BF48' },
+  woocommerce: { label: 'WooCommerce Widget', color: '#7F54B3' },
+  widget: { label: 'Widget Web', color: '#2CB978' },
 };
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
     const { searchParams } = new URL(req.url);
     const days = Math.min(90, Math.max(7, Number(searchParams.get('days') ?? 30)));
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
 
-    // Date range
     const from = new Date();
     from.setDate(from.getDate() - days + 1);
     from.setHours(0, 0, 0, 0);
@@ -26,14 +32,17 @@ export async function GET(req: Request) {
     const fromMs = from.getTime();
     const toMs = Date.now();
 
-    // Auto-close stale widget conversations by inactivity policy so reports reflect real lifecycle.
-    const widgetCfg = await db.collection('widget_config').findOne({ widgetId: 'default' });
+    const widgetCfg = await getWorkspaceConfig(db, workspaceId, 'widget', {
+      defaults: { closeOnInactivity: true, inactivityCloseMinutes: 15 } as any,
+    });
+
     const inactivityEnabled = widgetCfg?.closeOnInactivity !== false;
     const inactivityMinutes = Math.max(1, Math.min(240, Number(widgetCfg?.inactivityCloseMinutes ?? 15)));
     if (inactivityEnabled) {
       const cutoff = Date.now() - inactivityMinutes * 60 * 1000;
       await db.collection('conversations').updateMany(
         {
+          workspaceId,
           channel: 'widget',
           status: 'open',
           updatedAt: { $lt: cutoff },
@@ -49,15 +58,15 @@ export async function GET(req: Request) {
       );
     }
 
-    // Analytics daily
     const daily = await db
       .collection('analytics_daily')
-      .find({ date: { $gte: fromStr } })
+      .find({ workspaceId, date: { $gte: fromStr } })
       .sort({ date: 1 })
       .toArray();
 
-    // Totals
-    let totalConv = 0, totalResolved = 0, totalEscalated = 0;
+    let totalConv = 0,
+      totalResolved = 0,
+      totalEscalated = 0;
     const byChannelMap: Record<string, number> = {};
     const byHourMap: Record<number, number> = {};
 
@@ -89,42 +98,45 @@ export async function GET(req: Request) {
       count: byHourMap[i] ?? 0,
     }));
 
-    // Previous period comparison
     const prevFrom = new Date(from);
     prevFrom.setDate(prevFrom.getDate() - days);
     const prevFromStr = prevFrom.toISOString().split('T')[0];
 
     const prevDaily = await db
       .collection('analytics_daily')
-      .find({ date: { $gte: prevFromStr, $lt: fromStr } })
+      .find({ workspaceId, date: { $gte: prevFromStr, $lt: fromStr } })
       .toArray();
 
     const prevConv = prevDaily.reduce((s, d) => s + (d.conversations ?? 0), 0);
 
-    // Avg response time
-    const avgResponse = daily.length > 0
-      ? daily.reduce((s, d) => s + (d.avgResponseTime ?? 1.5), 0) / daily.length
-      : 1.5;
+    const avgResponse =
+      daily.length > 0 ? daily.reduce((s, d) => s + (d.avgResponseTime ?? 1.5), 0) / daily.length : 1.5;
 
     const [feedbackAgg, byChannelLive] = await Promise.all([
-      db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
-        {
-          $group: {
-            _id: null,
-            helpfulYes: { $sum: { $cond: [{ $eq: ['$feedback.helpful', true] }, 1, 0] } },
-            helpfulNo: { $sum: { $cond: [{ $eq: ['$feedback.helpful', false] }, 1, 0] } },
-            feedbackResponses: { $sum: { $cond: [{ $in: ['$feedback.helpful', [true, false]] }, 1, 0] } },
-            closedByInactivity: { $sum: { $cond: [{ $eq: ['$closureReason', 'inactivity_timeout'] }, 1, 0] } },
-            closedConversations: { $sum: { $cond: [{ $in: ['$status', ['closed', 'resolved']] }, 1, 0] } },
+      db
+        .collection('conversations')
+        .aggregate([
+          { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+          {
+            $group: {
+              _id: null,
+              helpfulYes: { $sum: { $cond: [{ $eq: ['$feedback.helpful', true] }, 1, 0] } },
+              helpfulNo: { $sum: { $cond: [{ $eq: ['$feedback.helpful', false] }, 1, 0] } },
+              feedbackResponses: { $sum: { $cond: [{ $in: ['$feedback.helpful', [true, false]] }, 1, 0] } },
+              closedByInactivity: { $sum: { $cond: [{ $eq: ['$closureReason', 'inactivity_timeout'] }, 1, 0] } },
+              closedConversations: { $sum: { $cond: [{ $in: ['$status', ['closed', 'resolved']] }, 1, 0] } },
+            },
           },
-        },
-      ]).toArray(),
-      db.collection('conversations').aggregate([
-        { $match: { updatedAt: { $gte: fromMs, $lte: toMs } } },
-        { $group: { _id: '$channel', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]).toArray(),
+        ])
+        .toArray(),
+      db
+        .collection('conversations')
+        .aggregate([
+          { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+          { $group: { _id: '$channel', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ])
+        .toArray(),
     ]);
 
     if (Array.isArray(byChannelLive) && byChannelLive.length > 0) {
@@ -165,7 +177,7 @@ export async function GET(req: Request) {
         closedByInactivity: Number(feedback.closedByInactivity ?? 0),
         closedConversations: Number(feedback.closedConversations ?? 0),
       },
-      daily: daily.map(d => ({
+      daily: daily.map((d) => ({
         date: d.date,
         label: new Date(d.date + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }),
         conversations: d.conversations ?? 0,

@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { randomUUID } from 'crypto';
+import { getDb } from '@/lib/mongodb';
+import { readHostFromHeaders, resolveWorkspaceFromHost } from '@/lib/tenant';
 
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'orqo-dev-secret-change-in-production'
@@ -45,7 +47,25 @@ export async function getSession(): Promise<SessionPayload | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
-  return verifySession(token);
+
+  const session = await verifySession(token);
+  if (!session) return null;
+
+  try {
+    const reqHeaders = await headers();
+    const host = readHostFromHeaders(reqHeaders);
+    const db = await getDb();
+    const tenant = await resolveWorkspaceFromHost(db, host);
+
+    if (!tenant) return null;
+    if (tenant.workspaceId !== session.workspaceId) {
+      return null;
+    }
+  } catch {
+    // If request headers are unavailable (non-request execution), keep JWT session fallback.
+  }
+
+  return session;
 }
 
 /** Build a fresh SessionPayload from a DB user document + role permissions */

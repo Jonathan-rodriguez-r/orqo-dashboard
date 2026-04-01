@@ -1,27 +1,34 @@
 import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { searchParams } = new URL(req.url);
-    const page    = Math.max(1, Number(searchParams.get('page')  ?? 1));
-    const limit   = Math.min(50, Math.max(1, Number(searchParams.get('limit') ?? 20)));
-    const q       = searchParams.get('q')       ?? '';
+    const page = Math.max(1, Number(searchParams.get('page') ?? 1));
+    const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit') ?? 20)));
+    const q = searchParams.get('q') ?? '';
     const channel = searchParams.get('channel') ?? '';
-    const status  = searchParams.get('status')  ?? '';
-    const model   = searchParams.get('model')   ?? '';
+    const status = searchParams.get('status') ?? '';
+    const model = searchParams.get('model') ?? '';
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
 
-    const filter: Record<string, any> = {};
-    if (q)       filter.$or     = [
-      { user_name:    { $regex: q, $options: 'i' } },
-      { last_message: { $regex: q, $options: 'i' } },
-      { user_email:   { $regex: q, $options: 'i' } },
-      { conv_id:      { $regex: q, $options: 'i' } },
-    ];
+    const filter: Record<string, any> = { workspaceId };
+    if (q)
+      filter.$or = [
+        { user_name: { $regex: q, $options: 'i' } },
+        { last_message: { $regex: q, $options: 'i' } },
+        { user_email: { $regex: q, $options: 'i' } },
+        { conv_id: { $regex: q, $options: 'i' } },
+      ];
     if (channel) filter.channel = channel;
-    if (status)  filter.status  = status;
-    if (model)   filter.model   = model;
+    if (status) filter.status = status;
+    if (model) filter.model = model;
 
     const [items, total] = await Promise.all([
       db.collection('conversations')

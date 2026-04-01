@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
-import { ROUTE_PERMISSIONS } from '@/lib/rbac';
+import { ROUTE_PERMISSIONS, getDefaultPermissions } from '@/lib/rbac';
 import type { SessionPayload } from '@/lib/auth';
 
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'orqo-dev-secret-change-in-production'
 );
 
-// Paths that never require auth
 const PUBLIC_PREFIXES = [
   '/login',
-  '/api/auth',       // login, verify, logout, google OAuth
+  '/api/auth',
   '/api/public',
   '/api/widget',
   '/_next',
@@ -21,17 +20,15 @@ const PUBLIC_PREFIXES = [
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Only gate /dashboard and /api
   if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 
   const token = req.cookies.get('orqo_session')?.value;
-
   if (!token) {
     return redirectToLogin(req, 'unauthenticated');
   }
@@ -46,33 +43,33 @@ export async function proxy(req: NextRequest) {
     return res;
   }
 
-  // Route-level permission check — runs at Edge, no DB query
-  // Guard: old tokens without permissions → force re-login
   if (!Array.isArray(session.permissions)) {
     const res = redirectToLogin(req, 'expired');
     res.cookies.delete('orqo_session');
     return res;
   }
 
+  const effectivePermissions = Array.from(
+    new Set([...(session.permissions ?? []), ...getDefaultPermissions(session.role)])
+  );
+
   for (const { pattern, permission } of ROUTE_PERMISSIONS) {
     if (pattern.test(pathname)) {
-      if (!session.permissions.includes(permission)) {
-        // Authenticated but unauthorized — redirect to dashboard root
+      if (!effectivePermissions.includes(permission)) {
         const url = req.nextUrl.clone();
         url.pathname = '/dashboard';
         url.searchParams.set('denied', permission);
         return NextResponse.redirect(url);
       }
-      break; // first matching pattern wins (most-specific first)
+      break;
     }
   }
 
-  // Inject identity headers for server components / API routes
   const res = NextResponse.next();
-  res.headers.set('x-orqo-user-id',    session.sub);
-  res.headers.set('x-orqo-email',      session.email);
-  res.headers.set('x-orqo-role',       session.role);
-  res.headers.set('x-orqo-workspace',  session.workspaceId);
+  res.headers.set('x-orqo-user-id', session.sub);
+  res.headers.set('x-orqo-email', session.email);
+  res.headers.set('x-orqo-role', session.role);
+  res.headers.set('x-orqo-workspace', session.workspaceId);
   return res;
 }
 
