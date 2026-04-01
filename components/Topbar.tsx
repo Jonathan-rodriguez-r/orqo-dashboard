@@ -139,7 +139,7 @@ export default function Topbar() {
   const initials    = displayName.slice(0, 1).toUpperCase();
 
   return (
-    <div className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+    <div className="topbar">
       <div className="topbar-left-chip" aria-hidden="true">
         <span className="topbar-left-dot" />
         <span>Control</span>

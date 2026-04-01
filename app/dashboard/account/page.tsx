@@ -75,6 +75,7 @@ const COLOR_PRESETS = [
   { name: 'Graphite', primary: '#22C55E', secondary: '#111827' },
   { name: 'Sunset', primary: '#F97316', secondary: '#1F2937' },
 ];
+const BRAND_THEME_KEY = 'orqo_brand_theme_v1';
 
 function normalizeHex(value: string, fallback: string) {
   const raw = String(value || '').trim();
@@ -111,7 +112,21 @@ function contrastRatio(foreground: string, background: string) {
 type Props = { embedded?: boolean };
 
 export default function AccountPage({ embedded = false }: Props) {
-  const [cfg, setCfg] = useState<AccountCfg>(DEFAULTS);
+  const [cfg, setCfg] = useState<AccountCfg>(() => {
+    if (typeof window === 'undefined') return DEFAULTS;
+    try {
+      const raw = localStorage.getItem(BRAND_THEME_KEY);
+      if (!raw) return DEFAULTS;
+      const cached = JSON.parse(raw);
+      return {
+        ...DEFAULTS,
+        brand_primary_color: normalizeHex(String(cached?.primary ?? ''), '#2CB978'),
+        brand_secondary_color: normalizeHex(String(cached?.secondary ?? ''), '#0B100D'),
+      };
+    } catch {
+      return DEFAULTS;
+    }
+  });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoMode, setLogoMode] = useState<'url' | 'file'>('url');
@@ -122,7 +137,10 @@ export default function AccountPage({ embedded = false }: Props) {
   useEffect(() => {
     fetch('/api/account').then(r => r.json()).then(d => {
       if (d && !d.error) {
-        setCfg({ ...DEFAULTS, ...d });
+        const primary = normalizeHex(String(d.brand_primary_color ?? ''), '#2CB978');
+        const secondary = normalizeHex(String(d.brand_secondary_color ?? ''), '#0B100D');
+        setCfg({ ...DEFAULTS, ...d, brand_primary_color: primary, brand_secondary_color: secondary });
+        localStorage.setItem(BRAND_THEME_KEY, JSON.stringify({ primary, secondary, updatedAt: Date.now() }));
         if (d.logo_url) setLogoPreview(d.logo_url);
       }
     });
@@ -168,6 +186,9 @@ export default function AccountPage({ embedded = false }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cfg),
     });
+    const primary = normalizeHex(cfg.brand_primary_color, '#2CB978');
+    const secondary = normalizeHex(cfg.brand_secondary_color, '#0B100D');
+    localStorage.setItem(BRAND_THEME_KEY, JSON.stringify({ primary, secondary, updatedAt: Date.now() }));
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -181,16 +202,18 @@ export default function AccountPage({ embedded = false }: Props) {
   const contrast = contrastRatio(primary, secondary);
   const contrastState = contrast >= 4.5 ? 'OK' : contrast >= 3 ? 'WARN' : 'LOW';
   useEffect(() => {
+    const p = hexToRgb(primary);
+    const s = hexToRgb(secondary);
     const root = document.documentElement;
     root.style.setProperty('--acc', primary);
-    root.style.setProperty('--acc-g', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.12)`);
-    root.style.setProperty('--acc-g2', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.06)`);
-    root.style.setProperty('--portal-brand-glow-1', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.22)`);
-    root.style.setProperty('--portal-brand-glow-2', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.1)`);
-    root.style.setProperty('--portal-brand-shadow', `rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.18)`);
+    root.style.setProperty('--acc-g', `rgba(${p.r}, ${p.g}, ${p.b}, 0.12)`);
+    root.style.setProperty('--acc-g2', `rgba(${p.r}, ${p.g}, ${p.b}, 0.06)`);
+    root.style.setProperty('--portal-brand-glow-1', `rgba(${p.r}, ${p.g}, ${p.b}, 0.22)`);
+    root.style.setProperty('--portal-brand-glow-2', `rgba(${p.r}, ${p.g}, ${p.b}, 0.1)`);
+    root.style.setProperty('--portal-brand-shadow', `rgba(${p.r}, ${p.g}, ${p.b}, 0.18)`);
     root.style.setProperty(
       '--portal-brand-gradient',
-      `linear-gradient(135deg, rgba(${hexToRgb(primary).r}, ${hexToRgb(primary).g}, ${hexToRgb(primary).b}, 0.22), rgba(${hexToRgb(secondary).r}, ${hexToRgb(secondary).g}, ${hexToRgb(secondary).b}, 0.2))`
+      `linear-gradient(135deg, rgba(${p.r}, ${p.g}, ${p.b}, 0.22), rgba(${s.r}, ${s.g}, ${s.b}, 0.2))`
     );
   }, [primary, secondary]);
 
@@ -253,7 +276,7 @@ export default function AccountPage({ embedded = false }: Props) {
                 <svg width="32" height="32" viewBox="0 0 72 72" fill="none" opacity={0.3}>
                   <path d="M52 59.5 A30 30 0 1 1 59.5 52" stroke="var(--g07)" strokeWidth="3" fill="none" strokeLinecap="round"/>
                   <line x1="59.5" y1="52" x2="66" y2="58" stroke="var(--g07)" strokeWidth="3" strokeLinecap="round"/>
-                  <circle cx="66" cy="58" r="3.5" fill="#2CB978"/>
+                  <circle cx="66" cy="58" r="3.5" fill="var(--acc)"/>
                 </svg>
               )}
             </div>
@@ -389,7 +412,7 @@ export default function AccountPage({ embedded = false }: Props) {
             <button
               type="button"
               className="btn btn-sm"
-              style={{ background: 'rgba(44,185,120,0.12)', color: 'var(--acc)', border: '1px solid rgba(44,185,120,0.35)' }}
+              style={{ background: 'color-mix(in srgb, var(--acc) 14%, transparent)', color: 'var(--acc)', border: '1px solid color-mix(in srgb, var(--acc) 45%, var(--g03) 55%)' }}
               onClick={() => {
                 set('brand_primary_color', '#2CB978');
                 set('brand_secondary_color', '#0B100D');
@@ -602,7 +625,7 @@ export default function AccountPage({ embedded = false }: Props) {
         </div>
 
         {/* â”€â”€ Info útil â”€â”€ */}
-        <div className="card" style={{ background: 'rgba(44,185,120,0.04)', borderColor: 'rgba(44,185,120,0.15)' }}>
+        <div className="card" style={{ background: 'color-mix(in srgb, var(--acc) 5%, var(--g01) 95%)', borderColor: 'color-mix(in srgb, var(--acc) 20%, var(--g03) 80%)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>ℹ️</div>
             <div>

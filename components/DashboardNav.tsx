@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 
 type Props = { userEmail?: string; userName?: string };
 type BrandingState = { logoUrl: string; brandName: string };
+const BRAND_THEME_KEY = 'orqo_brand_theme_v1';
 
 function parseHexColor(value: string) {
   const hex = String(value || '').trim();
@@ -22,6 +23,25 @@ function toRgba(hex: string, alpha: number, fallback: string) {
   if (!rgb) return fallback;
   const safeAlpha = Math.max(0, Math.min(1, alpha));
   return `rgba(${rgb.r},${rgb.g},${rgb.b},${safeAlpha})`;
+}
+
+function normalizeHexColor(value: string, fallback: string) {
+  const raw = String(value || '').trim();
+  const withHash = raw.startsWith('#') ? raw : `#${raw}`;
+  return /^[0-9a-fA-F]{6}$/.test(withHash.slice(1)) ? withHash.toUpperCase() : fallback;
+}
+
+function applyBrandTheme(accentRaw: string, secondaryRaw: string) {
+  const accent = normalizeHexColor(accentRaw, '#2CB978');
+  const secondary = normalizeHexColor(secondaryRaw, '#0B100D');
+  const root = document.documentElement;
+  root.style.setProperty('--acc', accent);
+  root.style.setProperty('--acc-g', toRgba(accent, 0.12, 'rgba(44,185,120,0.12)'));
+  root.style.setProperty('--acc-g2', toRgba(accent, 0.06, 'rgba(44,185,120,0.06)'));
+  root.style.setProperty('--portal-brand-glow-1', toRgba(accent, 0.2, 'rgba(44,185,120,0.2)'));
+  root.style.setProperty('--portal-brand-glow-2', toRgba(accent, 0.08, 'rgba(44,185,120,0.08)'));
+  root.style.setProperty('--portal-brand-shadow', toRgba(accent, 0.18, 'rgba(44,185,120,0.18)'));
+  root.style.setProperty('--portal-brand-gradient', `linear-gradient(135deg, ${toRgba(accent, 0.22, 'rgba(44,185,120,0.22)')}, ${toRgba(secondary, 0.2, 'rgba(11,16,13,0.2)')})`);
 }
 
 export default function DashboardNav({ userEmail, userName }: Props) {
@@ -42,6 +62,16 @@ export default function DashboardNav({ userEmail, userName }: Props) {
   }, [open]);
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem(BRAND_THEME_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        applyBrandTheme(String(parsed?.primary ?? ''), String(parsed?.secondary ?? ''));
+      }
+    } catch {
+      // ignore parse errors from stale cache
+    }
+
     let cancelled = false;
 
     (async () => {
@@ -56,16 +86,12 @@ export default function DashboardNav({ userEmail, userName }: Props) {
 
         const accent = String(account?.brand_primary_color || '#2CB978').trim();
         const secondary = String(account?.brand_secondary_color || '#0B100D').trim();
-        if (accent) {
-          const root = document.documentElement;
-          root.style.setProperty('--acc', accent);
-          root.style.setProperty('--acc-g', toRgba(accent, 0.12, 'rgba(44,185,120,0.12)'));
-          root.style.setProperty('--acc-g2', toRgba(accent, 0.06, 'rgba(44,185,120,0.06)'));
-          root.style.setProperty('--portal-brand-glow-1', toRgba(accent, 0.2, 'rgba(44,185,120,0.2)'));
-          root.style.setProperty('--portal-brand-glow-2', toRgba(accent, 0.08, 'rgba(44,185,120,0.08)'));
-          root.style.setProperty('--portal-brand-shadow', toRgba(accent, 0.18, 'rgba(44,185,120,0.18)'));
-          root.style.setProperty('--portal-brand-gradient', `linear-gradient(135deg, ${toRgba(accent, 0.22, 'rgba(44,185,120,0.22)')}, ${toRgba(secondary, 0.2, 'rgba(11,16,13,0.2)')})`);
-        }
+        applyBrandTheme(accent, secondary);
+        localStorage.setItem(BRAND_THEME_KEY, JSON.stringify({
+          primary: normalizeHexColor(accent, '#2CB978'),
+          secondary: normalizeHexColor(secondary, '#0B100D'),
+          updatedAt: Date.now(),
+        }));
       } catch {
         // Ignore branding fetch errors; dashboard keeps defaults.
       }

@@ -475,7 +475,7 @@ export default function SettingsPage() {
                   </form>
 
                   {inviteLink && (
-                    <div style={{ marginTop: 16, padding: '12px 14px', background: 'rgba(44,185,120,0.08)', border: '1px solid rgba(44,185,120,0.25)', borderRadius: 8 }}>
+                    <div style={{ marginTop: 16, padding: '12px 14px', background: 'color-mix(in srgb, var(--acc) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--acc) 35%, var(--g03) 65%)', borderRadius: 8 }}>
                       <div style={{ fontSize: 12, color: 'var(--acc)', fontWeight: 600, marginBottom: 6 }}>
                         ✓ Invitación enviada. Comparte este link de activación (válido 72h):
                       </div>
