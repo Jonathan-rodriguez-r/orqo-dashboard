@@ -1,0 +1,26 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="720" fill="#0A0F18"/>
+  <rect x="26" y="26" width="1148" height="668" rx="30" fill="url(#bg2)" stroke="#2CB978" stroke-opacity="0.28"/>
+  <path d="M88 552C212 456 312 452 408 524C504 596 606 598 710 530C814 462 930 458 1084 544" stroke="#2CB978" stroke-opacity="0.36" stroke-width="5"/>
+  <text x="86" y="120" fill="#E7FFF2" font-size="58" font-family="Arial" font-weight="700">ORQO Campaign AI</text>
+  <text x="86" y="178" fill="#92D7B2" font-size="30" font-family="Arial">Mensajes personalizados para cada segmento</text>
+  <rect x="86" y="236" width="370" height="72" rx="14" fill="#2CB978"/>
+  <text x="116" y="283" fill="#FFFFFF" font-size="30" font-family="Arial" font-weight="700">+42% conversion</text>
+  <rect x="86" y="346" width="510" height="250" rx="20" fill="#101A28" stroke="#2CB978" stroke-opacity="0.34"/>
+  <rect x="118" y="384" width="446" height="40" rx="8" fill="#2CB978" fill-opacity="0.14"/>
+  <rect x="118" y="438" width="378" height="40" rx="8" fill="#2CB978" fill-opacity="0.1"/>
+  <rect x="118" y="492" width="338" height="40" rx="8" fill="#2CB978" fill-opacity="0.08"/>
+  <rect x="118" y="546" width="248" height="40" rx="8" fill="#2CB978" fill-opacity="0.08"/>
+  <rect x="694" y="242" width="406" height="354" rx="24" fill="#0F1B16" stroke="#2CB978" stroke-opacity="0.42"/>
+  <circle cx="782" cy="328" r="48" fill="#2CB978" fill-opacity="0.2"/>
+  <circle cx="898" cy="328" r="48" fill="#2CB978" fill-opacity="0.16"/>
+  <circle cx="1014" cy="328" r="48" fill="#2CB978" fill-opacity="0.12"/>
+  <text x="742" y="430" fill="#D3F2E1" font-size="26" font-family="Arial">Audiencias activas</text>
+  <text x="742" y="474" fill="#7EC89F" font-size="22" font-family="Arial">E-commerce · Retail · Servicios</text>
+  <defs>
+    <linearGradient id="bg2" x1="110" y1="64" x2="1060" y2="660" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#112039"/>
+      <stop offset="1" stop-color="#0A151F"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { AgentAvatarIcon, normalizeAgentAvatarIcon, type AgentAvatarIconId } from '@/components/dashboard/AgentAvatarIcons';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Status = 'active' | 'inactive' | 'draft';
@@ -52,7 +53,18 @@ type AgentFull = AgentSummary & {
 type FormState = Omit<AgentFull, '_id' | 'createdAt'>;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const AVATARS = ['🤖', '💼', '🎧', '🏠', '📣', '📚', '🛒', '🌎', '🔬', '✨'];
+const AVATAR_OPTIONS: { id: AgentAvatarIconId; label: string }[] = [
+  { id: 'ai-core', label: 'AI Core' },
+  { id: 'sales', label: 'Ventas' },
+  { id: 'support', label: 'Soporte' },
+  { id: 'host', label: 'Anfitrion' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'academy', label: 'Academia' },
+  { id: 'commerce', label: 'Comercio' },
+  { id: 'global', label: 'Global' },
+  { id: 'lab', label: 'Lab' },
+  { id: 'spark', label: 'Spark' },
+];
 
 const PERSONALITIES = [
   { id: 'young',        label: 'Joven' },
@@ -87,30 +99,30 @@ const TIMEZONES = [
 const GEO_COUNTRIES = ['CO', 'MX', 'PE', 'CL', 'AR', 'VE', 'EC', 'ES', 'US'];
 
 const SKILLS_GROUPS = [
-  { id: 'ventas', name: 'Ventas', icon: '💼', skills: [
+  { id: 'ventas', name: 'Ventas', icon: 'sales' as AgentAvatarIconId, skills: [
     { id: 'leads', label: 'Buscar leads' }, { id: 'convert', label: 'Convertir leads' },
     { id: 'escalate', label: 'Escalar a agente humano' }, { id: 'consult', label: 'Agendar consulta' },
     { id: 'appt', label: 'Agendar cita' }, { id: 'prices', label: 'Manejar precios' },
     { id: 'inventory', label: 'Manejar inventario' }, { id: 'star', label: 'Vendedor estrella' },
   ]},
-  { id: 'soporte', name: 'Soporte', icon: '🎧', skills: [
+  { id: 'soporte', name: 'Soporte', icon: 'support' as AgentAvatarIconId, skills: [
     { id: 'advisor', label: 'Asesor de soporte' }, { id: 'solutions', label: 'Sugerir soluciones' },
     { id: 'technical', label: 'Respuestas técnicas' }, { id: 'trainer', label: 'Capacitador' },
   ]},
-  { id: 'multiidioma', name: 'Multi-idioma', icon: '🌎', skills: [
+  { id: 'multiidioma', name: 'Multi-idioma', icon: 'global' as AgentAvatarIconId, skills: [
     { id: 'multilang', label: 'Asesor multi-idioma' }, { id: 'translate', label: 'Traducción en tiempo real' },
     { id: 'locale', label: 'Adaptación cultural' },
   ]},
-  { id: 'anfitrion', name: 'Anfitrión Digital', icon: '🏠', skills: [
+  { id: 'anfitrion', name: 'Anfitrion Digital', icon: 'host' as AgentAvatarIconId, skills: [
     { id: 'reservas', label: 'Captura de reservas' }, { id: 'disponibilidad', label: 'Consultar disponibilidad' },
     { id: 'checkin', label: 'Guía de check-in' },
   ]},
-  { id: 'ecommerce', name: 'E-commerce', icon: '🛒', skills: [
+  { id: 'ecommerce', name: 'E-commerce', icon: 'commerce' as AgentAvatarIconId, skills: [
     { id: 'cart', label: 'Asistir carrito' }, { id: 'returns', label: 'Gestionar devoluciones' },
     { id: 'tracking', label: 'Rastrear pedidos' }, { id: 'upsell', label: 'Upsell & cross-sell' },
     { id: 'catalog', label: 'Catálogo de productos' },
   ]},
-  { id: 'educacion', name: 'Educación', icon: '📚', skills: [
+  { id: 'educacion', name: 'Educacion', icon: 'academy' as AgentAvatarIconId, skills: [
     { id: 'faq', label: 'Preguntas frecuentes' }, { id: 'quiz', label: 'Generar quizzes' },
     { id: 'summarize', label: 'Resumir documentos' }, { id: 'explain', label: 'Explicar conceptos' },
     { id: 'onboard', label: 'Onboarding de usuarios' },
@@ -131,7 +143,7 @@ const LANG_LABEL: Record<string, string> = {
 const DEFAULT_FORM: FormState = {
   name: '',
   status: 'draft',
-  avatar: '🤖',
+  avatar: 'ai-core',
   webWidgetToken: '',
   channels: { whatsapp: false, instagram: false, messenger: false, web: true, woocommerce: false, shopify: false },
   profile: { systemPrompt: '', personality: 'professional', languages: ['auto'], responseLength: 'standard' },
@@ -313,10 +325,14 @@ function PreviewDrawer({ agent, onClose }: { agent: FormState; onClose: () => vo
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
-            width: 36, height: 36, borderRadius: '50%',
+            width: 44, height: 44, borderRadius: '50%',
             background: 'color-mix(in srgb, var(--acc) 15%, var(--g01))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-          }}>{agent.avatar}</span>
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--acc)',
+            border: '1px solid color-mix(in srgb, var(--acc) 35%, var(--g03))',
+          }}>
+            <AgentAvatarIcon id={agent.avatar} size={30} />
+          </span>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--g08)' }}>
               {agent.name || 'Mi agente'}
@@ -432,7 +448,9 @@ export default function AgentsPage() {
     try {
       const r = await fetch('/api/agents');
       const data = await r.json();
-      if (Array.isArray(data)) setAgents(data);
+      if (Array.isArray(data)) {
+        setAgents(data.map((agent: any) => ({ ...agent, avatar: normalizeAgentAvatarIcon(agent?.avatar) })));
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -476,7 +494,7 @@ export default function AgentsPage() {
         // Backward compat: ensure preChatForm and tokenLimits exist
         if (!rest.preChatForm) rest.preChatForm = DEFAULT_FORM.preChatForm;
         if (!rest.tokenLimits) rest.tokenLimits = DEFAULT_FORM.tokenLimits;
-        setForm(rest);
+        setForm({ ...rest, avatar: normalizeAgentAvatarIcon(rest.avatar) });
       }
     } catch {}
     setFormLoading(false);
@@ -533,7 +551,7 @@ export default function AgentsPage() {
         if (selectedId === 'new' && data._id) {
           const { _id, createdAt, aiProvider: _ai, ...rest } = data as any;
           setSelectedId(data._id);
-          setForm(prev => ({ ...prev, ...rest }));
+          setForm(prev => ({ ...prev, ...rest, avatar: normalizeAgentAvatarIcon(rest.avatar) }));
         }
       }
     } catch {
@@ -597,7 +615,9 @@ export default function AgentsPage() {
             </div>
           ) : agents.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🤖</div>
+              <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}>
+                <AgentAvatarIcon id="ai-core" size={54} />
+              </div>
               <div style={{ fontSize: 13, color: 'var(--g06)', fontWeight: 600, marginBottom: 8 }}>
                 Crea tu primer agente
               </div>
@@ -622,11 +642,13 @@ export default function AgentsPage() {
                   }}
                 >
                   <span style={{
-                    width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
                     background: 'color-mix(in srgb, var(--acc) 15%, var(--g01))',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--acc)',
+                    border: '1px solid color-mix(in srgb, var(--acc) 35%, var(--g03))',
                   }}>
-                    {agent.avatar}
+                    <AgentAvatarIcon id={agent.avatar} size={30} />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--g08)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -651,7 +673,9 @@ export default function AgentsPage() {
         {selectedId === null ? (
           // Empty state
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-            <div style={{ fontSize: 64 }}>🤖</div>
+            <div style={{ color: 'var(--acc)' }}>
+              <AgentAvatarIcon id="ai-core" size={82} />
+            </div>
             <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 18, color: 'var(--g07)' }}>
               Selecciona un agente
             </div>
@@ -681,7 +705,15 @@ export default function AgentsPage() {
                     >
                       ← Agentes
                     </button>
-                    <div style={{ fontSize: 24 }}>{form.avatar}</div>
+                    <div style={{
+                      width: 48, height: 48, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'color-mix(in srgb, var(--acc) 14%, var(--g01))',
+                      border: '1px solid color-mix(in srgb, var(--acc) 32%, var(--g03))',
+                      color: 'var(--acc)',
+                    }}>
+                      <AgentAvatarIcon id={form.avatar} size={32} />
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 15, color: 'var(--g08)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {form.name || 'Nuevo agente'}
@@ -756,20 +788,22 @@ export default function AgentsPage() {
                       <div className="field" style={{ marginTop: 14 }}>
                         <label className="label">Avatar</label>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                          {AVATARS.map(em => (
+                          {AVATAR_OPTIONS.map(avatar => (
                             <button
-                              key={em}
+                              key={avatar.id}
                               type="button"
-                              onClick={() => setF('avatar', em)}
+                              onClick={() => setF('avatar', avatar.id)}
+                              title={avatar.label}
                               style={{
-                                width: 38, height: 38, borderRadius: '50%', fontSize: 20,
-                                border: `2px solid ${form.avatar === em ? 'var(--acc)' : 'var(--g03)'}`,
-                                background: form.avatar === em ? 'color-mix(in srgb, var(--acc) 12%, var(--g01))' : 'var(--g01)',
+                                width: 50, height: 50, borderRadius: '50%',
+                                border: `2px solid ${form.avatar === avatar.id ? 'var(--acc)' : 'var(--g03)'}`,
+                                background: form.avatar === avatar.id ? 'color-mix(in srgb, var(--acc) 12%, var(--g01))' : 'var(--g01)',
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: form.avatar === avatar.id ? 'var(--acc)' : 'var(--g05)',
                                 transition: 'all .15s',
                               }}
                             >
-                              {em}
+                              <AgentAvatarIcon id={avatar.id} size={34} />
                             </button>
                           ))}
                         </div>
@@ -1067,8 +1101,11 @@ export default function AgentsPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {SKILLS_GROUPS.map(group => (
                           <div key={group.id}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--g06)', marginBottom: 8 }}>
-                              {group.icon} {group.name}
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--g06)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: 'var(--acc)', display: 'inline-flex' }}>
+                                <AgentAvatarIcon id={group.icon} size={20} />
+                              </span>
+                              {group.name}
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {group.skills.map(skill => {

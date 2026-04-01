@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HomeCharts from './HomeCharts';
 import LiveConversationMap from './LiveConversationMap';
+import MarketingFlyerSlider from './MarketingFlyerSlider';
 
 type ChannelStat = {
   channel: string;
@@ -42,11 +43,11 @@ type Props = {
   recentUsage: UsageItem[];
 };
 
-type BoardCardId = 'analytics' | 'world' | 'recent' | 'system';
+type BoardCardId = 'analytics' | 'world' | 'recent' | 'system' | 'marketing';
 
 const STORAGE_KEY = 'orqo_overview_layout_v2';
 
-const DEFAULT_ORDER: BoardCardId[] = ['analytics', 'world', 'recent', 'system'];
+const DEFAULT_ORDER: BoardCardId[] = ['analytics', 'world', 'recent', 'system', 'marketing'];
 
 const CH_COLORS: Record<string, string> = {
   whatsapp: '#25D366',
@@ -281,6 +282,12 @@ export default function OverviewBoard(props: Props) {
             </a>
           </>
         ),
+      },
+      marketing: {
+        title: 'Orqo Marketing',
+        subtitle: 'Flyers e imagenes para campañas en canales',
+        wide: false,
+        body: <MarketingFlyerSlider />,
       },
     };
   }, [props]);

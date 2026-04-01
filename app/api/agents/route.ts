@@ -5,7 +5,7 @@ import { randomBytes } from 'crypto';
 const DEFAULT_AGENT = {
   name: 'Asistente Informativo',
   status: 'active' as const,
-  avatar: '📚',
+  avatar: 'ai-core',
   channels: { whatsapp: false, instagram: false, messenger: false, web: true, woocommerce: false, shopify: false },
   profile: {
     systemPrompt: 'Eres un asistente informativo amigable. Tu objetivo es responder las preguntas de los usuarios de manera clara, precisa y concisa. Siempre mantén un tono profesional y útil.',
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
       workspaceId: session.workspaceId,
       name: body.name ?? 'Nuevo agente',
       status: body.status ?? 'draft',
-      avatar: body.avatar ?? '🤖',
+      avatar: body.avatar ?? 'ai-core',
       aiProvider: body.aiProvider ?? { provider: 'google', model: 'gemini-2.0-flash' },
       channels: body.channels ?? {
         whatsapp: false, instagram: false, messenger: false,
