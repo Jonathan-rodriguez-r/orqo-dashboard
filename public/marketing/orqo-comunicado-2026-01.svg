@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
+  <defs>
+    <linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#08120F"/>
+      <stop offset="100%" stop-color="#0C1A15"/>
+    </linearGradient>
+    <linearGradient id="line1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2CB978" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#2CB978" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#2CB978" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" rx="28" fill="url(#bg1)"/>
+  <g opacity="0.16" stroke="#6FAE92">
+    <path d="M0 170H1600M0 250H1600M0 330H1600M0 410H1600M0 490H1600M0 570H1600M0 650H1600M0 730H1600"/>
+    <path d="M120 0V900M240 0V900M360 0V900M480 0V900M600 0V900M720 0V900M840 0V900M960 0V900M1080 0V900M1200 0V900M1320 0V900M1440 0V900"/>
+  </g>
+  <rect x="90" y="116" width="1420" height="130" rx="20" fill="#11271F" stroke="#2CB978" stroke-opacity="0.38"/>
+  <text x="130" y="172" fill="#E7FFF4" font-family="Poppins, Arial, sans-serif" font-size="48" font-weight="700">ORQO | Comunicado global 2026</text>
+  <text x="130" y="216" fill="#A8D7C1" font-family="Poppins, Arial, sans-serif" font-size="28">Operacion reforzada para temporadas de alto trafico y eventos internacionales</text>
+  <path d="M120 430C250 360 390 520 540 445C665 385 840 520 980 456C1120 392 1290 510 1460 438" stroke="url(#line1)" stroke-width="8" stroke-linecap="round"/>
+  <g>
+    <circle cx="540" cy="445" r="12" fill="#2CB978"/>
+    <circle cx="980" cy="456" r="12" fill="#2CB978"/>
+    <circle cx="1280" cy="463" r="12" fill="#2CB978"/>
+  </g>
+  <rect x="120" y="608" width="560" height="190" rx="18" fill="#10261E" stroke="#2CB978" stroke-opacity="0.34"/>
+  <text x="156" y="666" fill="#E7FFF4" font-family="Poppins, Arial, sans-serif" font-size="34" font-weight="700">Ruta Mundial 2026</text>
+  <text x="156" y="716" fill="#B0DCC8" font-family="Poppins, Arial, sans-serif" font-size="24">Activa respuestas en tiempo real por canal</text>
+  <text x="156" y="756" fill="#B0DCC8" font-family="Poppins, Arial, sans-serif" font-size="24">y monitorea conversion en vivo desde ORQO.</text>
+  <rect x="820" y="608" width="660" height="190" rx="18" fill="#10261E" stroke="#2CB978" stroke-opacity="0.34"/>
+  <text x="856" y="670" fill="#E7FFF4" font-family="Poppins, Arial, sans-serif" font-size="30" font-weight="700">Canales recomendados</text>
+  <text x="856" y="718" fill="#B0DCC8" font-family="Poppins, Arial, sans-serif" font-size="24">WhatsApp | Web Widget | Instagram | Shopify</text>
+  <text x="856" y="760" fill="#80C9A8" font-family="Poppins, Arial, sans-serif" font-size="22">Comunicacion consistente, visual limpia y trazabilidad.</text>
+</svg>

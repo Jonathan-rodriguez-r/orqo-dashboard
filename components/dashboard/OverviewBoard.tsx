@@ -284,8 +284,8 @@ export default function OverviewBoard(props: Props) {
         ),
       },
       marketing: {
-        title: 'Orqo Marketing',
-        subtitle: 'Flyers e imagenes para campañas en canales',
+        title: 'Comunicados ORQO',
+        subtitle: 'Piezas listas para campañas y activaciones 2026',
         wide: false,
         body: <MarketingFlyerSlider />,
       },
@@ -311,7 +311,7 @@ export default function OverviewBoard(props: Props) {
           return (
             <section
               key={cardId}
-              className={`overview-panel${card.wide ? ' overview-panel-wide' : ''}${isDragging ? ' dragging' : ''}`}
+              className={`overview-panel overview-panel-${cardId}${card.wide ? ' overview-panel-wide' : ''}${isDragging ? ' dragging' : ''}`}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
