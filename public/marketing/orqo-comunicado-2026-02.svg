@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#091411"/>
+      <stop offset="100%" stop-color="#0D211A"/>
+    </linearGradient>
+    <linearGradient id="orb2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2CB978" stop-opacity="0.44"/>
+      <stop offset="100%" stop-color="#2CB978" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" rx="28" fill="url(#bg2)"/>
+  <circle cx="1320" cy="170" r="220" fill="url(#orb2)"/>
+  <circle cx="290" cy="760" r="210" fill="url(#orb2)"/>
+  <g opacity="0.17" stroke="#78BA9B">
+    <path d="M0 210H1600M0 300H1600M0 390H1600M0 480H1600M0 570H1600M0 660H1600M0 750H1600"/>
+    <path d="M140 0V900M300 0V900M460 0V900M620 0V900M780 0V900M940 0V900M1100 0V900M1260 0V900M1420 0V900"/>
+  </g>
+  <rect x="84" y="96" width="1432" height="146" rx="20" fill="#112A22" stroke="#2CB978" stroke-opacity="0.36"/>
+  <text x="126" y="162" fill="#F1FFF8" font-family="Poppins, Arial, sans-serif" font-size="50" font-weight="700">Comunicados ORQO - Activacion omnicanal</text>
+  <text x="126" y="210" fill="#B8E1CF" font-family="Poppins, Arial, sans-serif" font-size="28">Preparacion de mensajes para etapas de mayor demanda en 2026</text>
+  <rect x="120" y="314" width="420" height="470" rx="20" fill="#10261E" stroke="#2CB978" stroke-opacity="0.32"/>
+  <text x="154" y="376" fill="#EAFEF4" font-family="Poppins, Arial, sans-serif" font-size="32" font-weight="700">Brief ejecutivo</text>
+  <text x="154" y="428" fill="#B8E1CF" font-family="Poppins, Arial, sans-serif" font-size="23">1. Mensaje base por fase del torneo</text>
+  <text x="154" y="470" fill="#B8E1CF" font-family="Poppins, Arial, sans-serif" font-size="23">2. Segmentacion por pais y horario</text>
+  <text x="154" y="512" fill="#B8E1CF" font-family="Poppins, Arial, sans-serif" font-size="23">3. Flujos de contingencia por canal</text>
+  <text x="154" y="554" fill="#B8E1CF" font-family="Poppins, Arial, sans-serif" font-size="23">4. Escalamiento a humano definido</text>
+  <text x="154" y="612" fill="#8CD0AF" font-family="Poppins, Arial, sans-serif" font-size="22">Estado recomendado: activo 24/7</text>
+  <rect x="592" y="314" width="888" height="470" rx="20" fill="#0F231C" stroke="#2CB978" stroke-opacity="0.30"/>
+  <path d="M642 670C770 520 846 574 956 486C1046 416 1132 480 1212 430C1300 374 1364 446 1434 404" stroke="#2CB978" stroke-width="7" stroke-linecap="round"/>
+  <g fill="#2CB978">
+    <circle cx="956" cy="486" r="10"/>
+    <circle cx="1212" cy="430" r="10"/>
+    <circle cx="1434" cy="404" r="10"/>
+  </g>
+  <text x="640" y="392" fill="#EAFEF4" font-family="Poppins, Arial, sans-serif" font-size="34" font-weight="700">Mundial 2026: tablero de comunicacion</text>
+  <text x="640" y="440" fill="#B5E0CC" font-family="Poppins, Arial, sans-serif" font-size="24">Visual minimalista para anuncio de activaciones y cobertura digital.</text>
+  <text x="640" y="482" fill="#B5E0CC" font-family="Poppins, Arial, sans-serif" font-size="24">Disenado para web, widget y pauta en redes.</text>
+</svg>

@@ -12,28 +12,28 @@ type FlyerSlide = {
 
 const BASE_SLIDES: FlyerSlide[] = [
   {
-    id: 'flyer-1',
-    title: 'Campana Conversion',
-    subtitle: 'Lanzamiento omnicanal ORQO',
-    image: '/marketing/orqo-flyer-01.svg',
+    id: 'com-2026-1',
+    title: 'Comunicado global ORQO',
+    subtitle: 'Preparacion operativa rumbo a Mundial 2026',
+    image: '/marketing/orqo-comunicado-2026-01.svg',
   },
   {
-    id: 'flyer-2',
-    title: 'Segmentacion AI',
-    subtitle: 'Mensajes personalizados por audiencia',
-    image: '/marketing/orqo-flyer-02.svg',
+    id: 'com-2026-2',
+    title: 'Activacion omnicanal 2026',
+    subtitle: 'WhatsApp, Web Widget e Instagram sincronizados',
+    image: '/marketing/orqo-comunicado-2026-02.svg',
   },
   {
-    id: 'flyer-3',
-    title: 'Flyer Pack',
-    subtitle: 'Creatividades listas para publicar',
-    image: '/marketing/orqo-flyer-03.svg',
+    id: 'com-2026-3',
+    title: 'Cobertura en dias de pico',
+    subtitle: 'Guia de atencion para trafico alto en eventos',
+    image: '/marketing/orqo-comunicado-2026-03.svg',
   },
   {
-    id: 'flyer-4',
-    title: 'Marketing Kit',
-    subtitle: 'Plantillas para WhatsApp y Web',
-    image: '/marketing/orqo-flyer-04.svg',
+    id: 'com-2026-4',
+    title: 'Comunicado comercial ORQO',
+    subtitle: 'Plantilla ejecutiva para anuncios y promociones',
+    image: '/marketing/orqo-comunicado-2026-04.svg',
   },
 ];
 
@@ -78,7 +78,7 @@ export default function MarketingFlyerSlider() {
     if (next.length > 0) {
       setSlides((prev) => [...next, ...prev]);
       setActive(0);
-      setStatus(`Se cargaron ${next.length} imagen(es) para envio.`);
+      setStatus(`Se cargaron ${next.length} imagen(es) para comunicados.`);
       setTimeout(() => setStatus(''), 2600);
     }
 
@@ -87,7 +87,7 @@ export default function MarketingFlyerSlider() {
   };
 
   const sendCampaign = () => {
-    setStatus(`Flyer "${current?.title ?? 'ORQO'}" listo para distribuir en canales.`);
+    setStatus(`Comunicado "${current?.title ?? 'ORQO'}" listo para distribuir en canales.`);
     setTimeout(() => setStatus(''), 2600);
   };
 
@@ -96,7 +96,7 @@ export default function MarketingFlyerSlider() {
       <div className="marketing-preview-wrap">
         <img className="marketing-preview-image" src={current.image} alt={current.title} />
         <div className="marketing-overlay">
-          <div className="marketing-badge">Orqo marketing</div>
+          <div className="marketing-badge">Comunicado ORQO</div>
           <strong>{current.title}</strong>
           <span>{current.subtitle}</span>
         </div>
@@ -140,10 +140,10 @@ export default function MarketingFlyerSlider() {
           onChange={onPickFiles}
         />
         <button className="btn btn-ghost btn-sm" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          {uploading ? 'Cargando...' : 'Cargar flyers'}
+          {uploading ? 'Cargando...' : 'Cargar artes'}
         </button>
         <button className="btn btn-primary btn-sm" type="button" onClick={sendCampaign}>
-          Enviar campaña
+          Publicar comunicado
         </button>
       </div>
 
