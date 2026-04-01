@@ -431,34 +431,11 @@ export default function DocsPage() {
 
   return (
     <div className="dash-content">
-      <div
-        style={{
-          marginBottom: 22,
-          border: '1px solid var(--g03)',
-          borderRadius: 'var(--radius-xl)',
-          background: 'linear-gradient(135deg, rgba(44,185,120,0.12), rgba(11,16,13,0.65))',
-          padding: 22,
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 14,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 800, fontSize: 26, color: 'var(--g08)', letterSpacing: '-0.3px' }}>
-            Centro de ayuda
-          </div>
-          <div style={{ color: 'var(--g05)', fontSize: 13, marginTop: 4, maxWidth: 680 }}>
-            Manual ampliado, FAQ util por rol, diagnostico operativo y changelog consolidado para un uso empresarial.
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {['Onboarding guiado', 'Operacion asistida', 'Listo para auditoria'].map((item) => (
-            <span key={item} style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--acc)', background: 'rgba(44,185,120,0.11)', border: '1px solid rgba(44,185,120,0.35)', borderRadius: 999, padding: '6px 10px' }}>
-              {item}
-            </span>
-          ))}
-        </div>
+      <div className="page-header">
+        <h1 className="page-title">Centro de ayuda</h1>
+        <p className="page-sub">
+          Manual ampliado, FAQ util por rol, diagnostico operativo y changelog consolidado para un uso empresarial.
+        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--g03)', paddingBottom: 12, flexWrap: 'wrap' }}>
@@ -520,7 +497,7 @@ export default function DocsPage() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
               <div style={{ border: '1px solid var(--g03)', borderRadius: 12, background: 'var(--g00)', padding: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--g04)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 9 }}>
                   Checklist rapido
@@ -532,29 +509,6 @@ export default function DocsPage() {
                 </ul>
               </div>
 
-              <div style={{ border: '1px solid var(--g03)', borderRadius: 12, background: 'var(--g00)', padding: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--g04)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 9 }}>
-                  Vista operativa
-                </div>
-                <div style={{ border: '1px solid rgba(44,185,120,0.2)', borderRadius: 10, padding: 8, background: 'linear-gradient(180deg, rgba(17,24,18,0.96), rgba(11,16,13,0.96))', minHeight: 168 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.8fr', gap: 8, minHeight: 150 }}>
-                    <div style={{ display: 'grid', gap: 7 }}>
-                      <div style={{ borderRadius: 8, border: '1px solid rgba(44,185,120,0.2)', background: 'rgba(44,185,120,0.16)' }} />
-                      <div style={{ borderRadius: 8, border: '1px solid rgba(44,185,120,0.2)', background: 'rgba(44,185,120,0.08)' }} />
-                    </div>
-                    <div style={{ display: 'grid', gap: 7 }}>
-                      <div style={{ height: 20, borderRadius: 8, border: '1px solid rgba(44,185,120,0.22)', background: 'rgba(44,185,120,0.08)' }} />
-                      <div style={{ height: 20, borderRadius: 8, border: '1px solid rgba(44,185,120,0.22)', background: 'rgba(44,185,120,0.08)' }} />
-                      <div style={{ height: 20, width: '70%', borderRadius: 8, border: '1px solid rgba(44,185,120,0.22)', background: 'rgba(44,185,120,0.08)' }} />
-                      <div style={{ marginTop: 'auto', height: 58, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 6 }}>
-                        {[42, 58, 36, 69, 52].map((h) => (
-                          <span key={h} style={{ borderRadius: 4, alignSelf: 'end', height: `${h}%`, background: 'linear-gradient(180deg, rgba(44,185,120,0.3), rgba(44,185,120,0.92))' }} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
