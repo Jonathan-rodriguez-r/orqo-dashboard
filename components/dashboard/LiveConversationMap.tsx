@@ -129,30 +129,30 @@ export default function LiveConversationMap({ channels }: Props) {
                 <stop offset="100%" stopColor="rgba(9,12,11,0.98)" />
               </linearGradient>
               <linearGradient id="continentGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="rgba(44,185,120,0.24)" />
-                <stop offset="100%" stopColor="rgba(44,185,120,0.06)" />
+                <stop offset="0%" stopColor="rgba(44,185,120,0.34)" />
+                <stop offset="100%" stopColor="rgba(44,185,120,0.10)" />
               </linearGradient>
             </defs>
 
             <rect x="0" y="0" width="1000" height="320" fill="url(#worldBgGrad)" rx="14" />
 
             {Array.from({ length: 8 }).map((_, i) => (
-              <line key={`h-${i}`} x1="0" y1={26 + i * 36} x2="1000" y2={26 + i * 36} stroke="rgba(120,155,138,0.12)" strokeWidth="1" />
+              <line key={`h-${i}`} x1="0" y1={26 + i * 36} x2="1000" y2={26 + i * 36} stroke="rgba(120,155,138,0.16)" strokeWidth="1" />
             ))}
             {Array.from({ length: 16 }).map((_, i) => (
-              <line key={`v-${i}`} x1={20 + i * 64} y1="0" x2={20 + i * 64} y2="320" stroke="rgba(120,155,138,0.08)" strokeWidth="1" />
+              <line key={`v-${i}`} x1={20 + i * 64} y1="0" x2={20 + i * 64} y2="320" stroke="rgba(120,155,138,0.1)" strokeWidth="1" />
             ))}
 
-            <g fill="url(#continentGrad)" stroke="rgba(44,185,120,0.2)" strokeWidth="1">
-              <path d="M84 94L134 74L206 86L252 116L236 140L210 144L198 162L146 164L102 140Z" />
-              <path d="M254 64L286 52L326 60L332 82L302 94L266 88Z" />
-              <path d="M208 168L244 174L270 216L252 268L222 292L194 246L196 204Z" />
-              <path d="M420 92L456 80L486 88L504 102L490 118L452 122L428 112Z" />
-              <path d="M448 128L494 138L520 174L504 236L462 270L420 226L428 170Z" />
-              <path d="M504 90L560 70L634 80L706 98L760 126L744 146L688 150L646 134L598 136L544 120Z" />
-              <path d="M614 146L648 150L674 178L654 220L622 208L606 178Z" />
-              <path d="M756 214L808 226L842 252L820 284L768 274L744 238Z" />
-              <path d="M790 150L806 138L820 148L812 166Z" />
+            <g fill="url(#continentGrad)" stroke="rgba(44,185,120,0.42)" strokeWidth="1.2">
+              <path d="M66 124L128 102L190 110L236 128L272 154L252 182L214 188L196 206L138 206L92 186L72 158Z" />
+              <path d="M192 96L230 84L266 92L282 108L262 124L222 126L202 116Z" />
+              <path d="M248 210L286 222L312 256L294 314L266 352L236 328L222 282L226 238Z" />
+              <path d="M430 122L466 108L502 116L524 132L510 150L474 156L444 146Z" />
+              <path d="M458 166L508 176L538 218L526 286L488 332L454 298L438 246L444 200Z" />
+              <path d="M520 114L588 92L670 102L750 122L824 156L808 182L748 188L704 176L654 180L596 162L544 148Z" />
+              <path d="M618 196L658 202L692 226L680 262L646 266L618 244L608 220Z" />
+              <path d="M734 196L754 182L774 194L764 214Z" />
+              <path d="M736 268L796 282L848 314L824 348L760 342L724 302Z" />
             </g>
 
             {leader && topHotspots.slice(1).map((p) => {

@@ -1,0 +1,24 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="720" fill="#0A1217"/>
+  <rect x="30" y="30" width="1140" height="660" rx="30" fill="url(#bg4)" stroke="#2CB978" stroke-opacity="0.34"/>
+  <path d="M80 610H1120" stroke="#2CB978" stroke-opacity="0.3"/>
+  <path d="M80 548H1120" stroke="#2CB978" stroke-opacity="0.22"/>
+  <path d="M80 486H1120" stroke="#2CB978" stroke-opacity="0.14"/>
+  <text x="88" y="128" fill="#E7F8EE" font-size="58" font-family="Arial" font-weight="700">ORQO Marketing Kit</text>
+  <text x="88" y="184" fill="#8FCFB0" font-size="30" font-family="Arial">Plantillas listas para WhatsApp, Web y RRSS</text>
+  <rect x="88" y="236" width="280" height="68" rx="12" fill="#2CB978"/>
+  <text x="124" y="280" fill="#FFFFFF" font-size="30" font-family="Arial" font-weight="700">Descargar pack</text>
+  <rect x="88" y="340" width="508" height="252" rx="22" fill="#0D1A20" stroke="#2CB978" stroke-opacity="0.35"/>
+  <rect x="122" y="376" width="440" height="42" rx="9" fill="#2CB978" fill-opacity="0.16"/>
+  <rect x="122" y="434" width="388" height="42" rx="9" fill="#2CB978" fill-opacity="0.12"/>
+  <rect x="122" y="492" width="318" height="42" rx="9" fill="#2CB978" fill-opacity="0.1"/>
+  <rect x="628" y="236" width="484" height="356" rx="22" fill="#101718" stroke="#2CB978" stroke-opacity="0.4"/>
+  <rect x="664" y="272" width="412" height="132" rx="14" fill="#2CB978" fill-opacity="0.12"/>
+  <rect x="664" y="426" width="412" height="132" rx="14" fill="#2CB978" fill-opacity="0.08"/>
+  <defs>
+    <linearGradient id="bg4" x1="84" y1="58" x2="1112" y2="676" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11242E"/>
+      <stop offset="1" stop-color="#0B1419"/>
+    </linearGradient>
+  </defs>
+</svg>
