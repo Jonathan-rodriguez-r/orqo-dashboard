@@ -63,6 +63,179 @@ let CLOSE_ON_INACTIVITY = true;
 let AUTO_CLOSE_MINUTES = 15;
 let ASK_FEEDBACK_ON_CLOSE = true;
 let inactivityCloseTimer = null;
+let PRE_CHAT_FORM = {
+  enabled: false,
+  fields: {
+    name: { enabled: true, required: true },
+    email: { enabled: true, required: false },
+    phone: { enabled: false, required: false },
+  },
+};
+
+function toBool(value, fallback) {
+  if (typeof value === 'boolean') return value;
+  const str = String(value == null ? '' : value).trim().toLowerCase();
+  if (!str) return fallback;
+  if (['true', '1', 'yes', 'si', 'on'].includes(str)) return true;
+  if (['false', '0', 'no', 'off'].includes(str)) return false;
+  return fallback;
+}
+
+function normalizePreChatForm(raw) {
+  const base = {
+    enabled: false,
+    fields: {
+      name: { enabled: true, required: true },
+      email: { enabled: true, required: false },
+      phone: { enabled: false, required: false },
+    },
+  };
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const fields = src.fields && typeof src.fields === 'object' ? src.fields : {};
+  const pickField = (key) => {
+    const fallback = base.fields[key];
+    const item = fields[key] && typeof fields[key] === 'object' ? fields[key] : {};
+    const enabled = toBool(item.enabled, fallback.enabled);
+    const required = enabled ? toBool(item.required, fallback.required) : false;
+    return { enabled, required };
+  };
+  return {
+    enabled: toBool(src.enabled, base.enabled),
+    fields: {
+      name: pickField('name'),
+      email: pickField('email'),
+      phone: pickField('phone'),
+    },
+  };
+}
+
+function getSavedPreChatData() {
+  const raw = S.load().preChatData;
+  return raw && typeof raw === 'object' ? raw : {};
+}
+
+function savePreChatData(data) {
+  const store = S.load();
+  store.preChatData = data && typeof data === 'object' ? data : {};
+  S.save(store);
+}
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function validPhone(value) {
+  return /^\+?[0-9()\-\s]{7,20}$/.test(String(value || '').trim());
+}
+
+function renderPreChatForm() {
+  const screen = document.getElementById('screen-disclaimer');
+  if (!screen) return;
+  const wrap = screen.querySelector('.d-wrap');
+  if (!wrap) return;
+
+  let host = document.getElementById('orqo-prechat-form');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'orqo-prechat-form';
+    host.style.marginBottom = '1rem';
+    host.style.padding = '0.9rem';
+    host.style.border = '1px solid rgba(233,237,233,0.08)';
+    host.style.borderRadius = '12px';
+    host.style.background = 'var(--g02)';
+    const tokenBox = wrap.querySelector('.d-token-box');
+    if (tokenBox && tokenBox.parentNode) tokenBox.parentNode.insertBefore(host, tokenBox);
+    else wrap.appendChild(host);
+  }
+
+  const cfg = normalizePreChatForm(PRE_CHAT_FORM);
+  PRE_CHAT_FORM = cfg;
+  const activeFields = ['name', 'email', 'phone'].filter((key) => cfg.fields[key].enabled);
+  if (!cfg.enabled || activeFields.length === 0) {
+    host.style.display = 'none';
+    host.innerHTML = '';
+    return;
+  }
+
+  const labels = { name: 'Nombre', email: 'Correo', phone: 'Telefono' };
+  const placeholders = {
+    name: 'Tu nombre',
+    email: 'nombre@empresa.com',
+    phone: '+57 300 000 0000',
+  };
+  const inputTypes = { name: 'text', email: 'email', phone: 'tel' };
+  const saved = getSavedPreChatData();
+  host.style.display = '';
+  host.innerHTML =
+    `<div style="font-family:var(--f-body);font-size:0.74rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--g06);margin-bottom:0.6rem;">Formulario pre-chat</div>` +
+    activeFields.map((field) => {
+      const rule = cfg.fields[field];
+      const reqMark = rule.required ? ' *' : '';
+      const value = String(saved[field] || '').replace(/"/g, '&quot;');
+      return (
+        `<label for="orqo-prechat-${field}" style="display:block;font-family:var(--f-body);font-size:0.76rem;color:var(--g06);margin:0.45rem 0 0.25rem;">${labels[field]}${reqMark}</label>` +
+        `<input id="orqo-prechat-${field}" type="${inputTypes[field]}" value="${value}" placeholder="${placeholders[field]}" style="width:100%;height:36px;border-radius:9px;border:1px solid rgba(233,237,233,0.14);background:var(--g01);color:var(--g07);padding:0 10px;font-size:0.8rem;outline:none;" />`
+      );
+    }).join('') +
+    `<div id="orqo-prechat-error" style="display:none;color:#FF8E8E;font-size:0.72rem;margin-top:0.55rem;"></div>`;
+}
+
+function collectPreChatData() {
+  const cfg = normalizePreChatForm(PRE_CHAT_FORM);
+  PRE_CHAT_FORM = cfg;
+  if (!cfg.enabled) return { ok: true, data: getSavedPreChatData() };
+
+  const data = { ...getSavedPreChatData() };
+  const activeFields = ['name', 'email', 'phone'].filter((key) => cfg.fields[key].enabled);
+  const errorEl = document.getElementById('orqo-prechat-error');
+  const fail = (msg) => {
+    if (errorEl) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    } else {
+      window.alert(msg);
+    }
+    return { ok: false, data: null };
+  };
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+  }
+
+  for (const field of activeFields) {
+    const input = document.getElementById(`orqo-prechat-${field}`);
+    const value = String(input && 'value' in input ? input.value : data[field] || '').trim();
+    data[field] = value;
+    if (cfg.fields[field].required && !value) return fail(`Completa el campo: ${field}.`);
+    if (field === 'email' && value && !validEmail(value)) return fail('Correo invalido.');
+    if (field === 'phone' && value && !validPhone(value)) return fail('Telefono invalido.');
+  }
+
+  savePreChatData(data);
+  return { ok: true, data };
+}
+
+function hasRequiredPreChatData() {
+  const cfg = normalizePreChatForm(PRE_CHAT_FORM);
+  PRE_CHAT_FORM = cfg;
+  if (!cfg.enabled) return true;
+  const data = getSavedPreChatData();
+  const needed = ['name', 'email', 'phone'].filter((key) => cfg.fields[key].enabled && cfg.fields[key].required);
+  for (const field of needed) {
+    const value = String(data[field] || '').trim();
+    if (!value) return false;
+    if (field === 'email' && !validEmail(value)) return false;
+    if (field === 'phone' && !validPhone(value)) return false;
+  }
+  return true;
+}
+
+function openDisclaimerForNewChat() {
+  updateTokenUI();
+  renderPreChatForm();
+  showScreen('disclaimer', true, 'Nuevo mensaje');
+  hlTab('messages');
+}
 
 function currentUsagePeriodKey() {
   const now = new Date();
@@ -535,7 +708,6 @@ function toggleWidget() {
     renderHome(); renderHomeArticles(); renderMsgsList(); updateTokenUI();
   } else {
     if (isRecordingVoice) toggleVoiceRecording();
-    clearInactivityTimer();
     win.classList.add('w-hidden');
     btn.classList.remove('open');
   }
@@ -576,12 +748,11 @@ function clearAllChats() {
 
 document.getElementById('btn-close').onclick = () => {
   if (isRecordingVoice) toggleVoiceRecording();
-  clearInactivityTimer();
   isOpen = false;
   document.getElementById('orqo-window').classList.add('w-hidden');
   document.getElementById('orqo-trigger').classList.remove('open');
 };
-document.getElementById('btn-min').onclick  = () => { if (isRecordingVoice) toggleVoiceRecording(); clearInactivityTimer(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
+document.getElementById('btn-min').onclick  = () => { if (isRecordingVoice) toggleVoiceRecording(); isOpen = false; document.getElementById('orqo-window').classList.add('w-hidden'); document.getElementById('orqo-trigger').classList.remove('open'); };
 document.getElementById('btn-clear').onclick = () => { clearAllChats(); };
 document.getElementById('btn-max').onclick  = () => {
   isMax = !isMax;
@@ -626,11 +797,16 @@ function hlTab(tab) {
 }
 
 function goToNewChat() {
-  if (!S.disclaimerOk()) { updateTokenUI(); showScreen('disclaimer', true, 'Nuevo mensaje'); hlTab('messages'); }
-  else { startNewConv(); }
+  if (!S.disclaimerOk() || !hasRequiredPreChatData()) {
+    openDisclaimerForNewChat();
+  } else {
+    startNewConv();
+  }
 }
 
 function acceptDisclaimer() {
+  const preChatResult = collectPreChatData();
+  if (!preChatResult.ok) return;
   S.acceptDisclaimer();
   startNewConv(pendingSugg || '');
   pendingSugg = '';
@@ -649,13 +825,18 @@ function declineDisclaimer() {
 
 function startWithSugg(el) {
   pendingSugg = el.textContent;
-  if (!S.disclaimerOk()) { updateTokenUI(); showScreen('disclaimer', true, 'Nuevo mensaje'); hlTab('messages'); }
-  else { startNewConv(pendingSugg); pendingSugg = ''; }
+  if (!S.disclaimerOk() || !hasRequiredPreChatData()) {
+    openDisclaimerForNewChat();
+  } else {
+    startNewConv(pendingSugg);
+    pendingSugg = '';
+  }
 }
 
 function startNewConv(initial) {
   const id = 'conv_' + Date.now();
   const convs = S.convs();
+  const leadData = getSavedPreChatData();
   convs.unshift({
     id,
     title: initial ? initial.slice(0,42) : 'Nueva conversación',
@@ -666,6 +847,7 @@ function startNewConv(initial) {
     closureReason: null,
     feedback: null,
     serverRef: null,
+    lead: leadData && typeof leadData === 'object' ? leadData : {},
   });
   S.saveConvs(convs);
   openConv(id, initial);
@@ -807,7 +989,7 @@ function sendMessage(override) {
   renderPendingAttachments();
   updateTokenUI(); showTyping();
   (async () => {
-    const apiResult = await getBotReplyFromApi(activeConvId, contentForStore, conv.messages, attachments);
+    const apiResult = await getBotReplyFromApi(activeConvId, contentForStore, conv.messages, attachments, conv.lead || null);
     removeTyping();
     addBotMsg(activeConvId, (apiResult.reply || getBotReply(text || contentForStore)), apiResult);
     updateTokenUI(); renderHome();
@@ -816,7 +998,7 @@ function sendMessage(override) {
   })();
 }
 
-async function getBotReplyFromApi(convId, userText, messages, attachments) {
+async function getBotReplyFromApi(convId, userText, messages, attachments, leadData) {
   try {
     const history = (messages || [])
       .slice(0, -1)
@@ -835,6 +1017,7 @@ async function getBotReplyFromApi(convId, userText, messages, attachments) {
         message: userText,
         history,
         attachments: Array.isArray(attachments) ? attachments : [],
+        lead: leadData && typeof leadData === 'object' ? leadData : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1139,15 +1322,54 @@ if (S.convs().length > 0) {
         `#orqo-widget[data-theme="light"]{` +
         `--g00:${lightBg};--g01:${lightSurface};--g02:#EDF2ED;--g03:#D5E3D5;--g04:#B0C8B0;--g05:#527060;--g06:#2A4434;--g07:#152018;--g08:#090F0A;` +
         `}`;
+      const normalizeWidgetThemeMode = (value) => {
+        const mode = String(value || '').toLowerCase();
+        if (mode === 'dark' || mode === 'night' || mode === 'oscuro') return 'dark';
+        if (mode === 'light' || mode === 'day' || mode === 'claro') return 'light';
+        return 'auto';
+      };
+      const readDashboardTheme = () => {
+        const attrTheme = String(document.documentElement.getAttribute('data-theme') || '').toLowerCase();
+        if (attrTheme === 'light' || attrTheme === 'dark') return attrTheme;
+        try {
+          const storedTheme = String(window.localStorage.getItem('orqo_theme') || '').toLowerCase();
+          if (storedTheme === 'light' || storedTheme === 'dark') return storedTheme;
+        } catch (_) {}
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+        return 'dark';
+      };
       const applyWidgetThemeVars = (theme) => {
         if (!widgetEl) return;
-        const mode = String(cfg.themeMode || 'auto').toLowerCase();
+        const mode = normalizeWidgetThemeMode(cfg.themeMode);
         const resolved = (mode === 'light' || mode === 'dark') ? mode : (theme === 'light' ? 'light' : 'dark');
         widgetEl.setAttribute('data-theme', resolved);
       };
       window.__orqoApplyWidgetThemeVars = applyWidgetThemeVars;
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-      applyWidgetThemeVars(currentTheme);
+      if (typeof window.__orqoThemeSyncCleanup === 'function') {
+        window.__orqoThemeSyncCleanup();
+      }
+      const syncTheme = () => applyWidgetThemeVars(readDashboardTheme());
+      syncTheme();
+      const themeObserver = new MutationObserver(syncTheme);
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      const onStorageTheme = (event) => {
+        if (event.key === 'orqo_theme') syncTheme();
+      };
+      window.addEventListener('storage', onStorageTheme);
+      const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+      const onMediaTheme = () => syncTheme();
+      if (mediaQuery) {
+        if (typeof mediaQuery.addEventListener === 'function') mediaQuery.addEventListener('change', onMediaTheme);
+        else if (typeof mediaQuery.addListener === 'function') mediaQuery.addListener(onMediaTheme);
+      }
+      window.__orqoThemeSyncCleanup = function () {
+        themeObserver.disconnect();
+        window.removeEventListener('storage', onStorageTheme);
+        if (mediaQuery) {
+          if (typeof mediaQuery.removeEventListener === 'function') mediaQuery.removeEventListener('change', onMediaTheme);
+          else if (typeof mediaQuery.removeListener === 'function') mediaQuery.removeListener(onMediaTheme);
+        }
+      };
     }
 
     // 4. Opacidad ventana y botón
@@ -1246,9 +1468,21 @@ if (S.convs().length > 0) {
     }
 
     // 8. Cierre por inactividad y encuesta de utilidad
-    CLOSE_ON_INACTIVITY = cfg.closeOnInactivity !== false;
-    AUTO_CLOSE_MINUTES = Math.max(1, Math.min(240, Number(cfg.inactivityCloseMinutes || 15)));
-    ASK_FEEDBACK_ON_CLOSE = cfg.askForHelpfulnessOnClose !== false;
+    CLOSE_ON_INACTIVITY = toBool(cfg.closeOnInactivity, true);
+    const rawMinutes = Number(cfg.inactivityCloseMinutes);
+    AUTO_CLOSE_MINUTES = Number.isFinite(rawMinutes) ? Math.max(1, Math.min(240, rawMinutes)) : 15;
+    ASK_FEEDBACK_ON_CLOSE = toBool(cfg.askForHelpfulnessOnClose, true);
+    PRE_CHAT_FORM = normalizePreChatForm(cfg.preChatForm);
+    renderPreChatForm();
+    const activeConv = getActiveConversation();
+    if (!CLOSE_ON_INACTIVITY) {
+      clearInactivityTimer();
+    } else if (activeConv && activeConv.status !== 'closed') {
+      const last = Array.isArray(activeConv.messages) && activeConv.messages.length
+        ? activeConv.messages[activeConv.messages.length - 1]
+        : null;
+      if (last && last.role === 'bot') scheduleInactivityClose(activeConv.id);
+    }
 
     // 9. Sonido de respuesta (default true si no está definido)
     window._ORQO_SOUND = cfg.soundEnabled !== false;

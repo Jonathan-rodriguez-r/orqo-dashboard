@@ -54,6 +54,42 @@ function normalizeHomeArticles(homeArticles: any, articles: Array<{ id: string }
   return articles.slice(0, 4).map((a) => a.id);
 }
 
+function normalizePreChatForm(raw: any) {
+  const toBool = (value: any, fallback: boolean) => {
+    if (typeof value === 'boolean') return value;
+    const str = String(value ?? '').trim().toLowerCase();
+    if (!str) return fallback;
+    if (['true', '1', 'yes', 'si', 'on'].includes(str)) return true;
+    if (['false', '0', 'no', 'off'].includes(str)) return false;
+    return fallback;
+  };
+  const defaults = {
+    enabled: false,
+    fields: {
+      name: { enabled: true, required: true },
+      email: { enabled: true, required: false },
+      phone: { enabled: false, required: false },
+    },
+  };
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const fields = src.fields && typeof src.fields === 'object' ? src.fields : {};
+  const read = (key: 'name' | 'email' | 'phone') => {
+    const base = (defaults.fields as any)[key];
+    const item = fields[key] && typeof fields[key] === 'object' ? fields[key] : {};
+    const enabled = item.enabled !== undefined ? toBool(item.enabled, base.enabled) : base.enabled;
+    const required = enabled && (item.required !== undefined ? toBool(item.required, base.required) : base.required);
+    return { enabled, required };
+  };
+  return {
+    enabled: src.enabled !== undefined ? toBool(src.enabled, defaults.enabled) : defaults.enabled,
+    fields: {
+      name: read('name'),
+      email: read('email'),
+      phone: read('phone'),
+    },
+  };
+}
+
 async function resolveWorkspaceId(db: Awaited<ReturnType<typeof getDb>>, req: Request, key: string) {
   if (key) {
     const fromKey = await findWorkspaceByApiKey(db, key);
@@ -95,7 +131,16 @@ export async function GET(req: Request) {
     if (agentId && ObjectId.isValid(agentId)) {
       const agent = await db.collection('agents_v2').findOne(
         { _id: new ObjectId(agentId), workspaceId },
-        { projection: { _id: 1, avatar: 1, avatarImageUrl: 1, webWidgetToken: 1, status: 1 } }
+        {
+          projection: {
+            _id: 1,
+            avatar: 1,
+            avatarImageUrl: 1,
+            webWidgetToken: 1,
+            status: 1,
+            preChatForm: 1,
+          },
+        }
       );
 
       if (agent && String(agent?.status ?? '') !== 'inactive') {
@@ -105,6 +150,9 @@ export async function GET(req: Request) {
           if (photo) {
             cfg.iconMode = 'photo';
             cfg.agentPhoto = photo;
+          }
+          if (agent?.preChatForm) {
+            cfg.preChatForm = normalizePreChatForm(agent.preChatForm);
           }
         }
       }
