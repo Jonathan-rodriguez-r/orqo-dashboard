@@ -28,9 +28,10 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings', label: 'ConfiguraciÃ³n',   icon: I.settings, permission: 'settings.widget' },
-  { href: '/dashboard/clients',  label: 'Clientes', icon: I.clients, permission: 'admin.clients' },
-  { href: '/dashboard/logs',     label: 'Logs & AuditorÃ­a', icon: I.logs,  permission: 'admin.logs'      },
+  { href: '/dashboard/settings',              label: 'Configuracion',      icon: I.settings, permission: 'settings.widget'        },
+  { href: '/dashboard/settings/integrations', label: 'MCP / Integraciones', icon: I.plug,     permission: 'settings.integrations'  },
+  { href: '/dashboard/clients',               label: 'Clientes',           icon: I.clients,  permission: 'admin.clients'          },
+  { href: '/dashboard/logs',                  label: 'Logs & Auditoria',   icon: I.logs,     permission: 'admin.logs'             },
 ] as const;
 
 type Props = {
@@ -151,7 +152,7 @@ export default function Sidebar({ userEmail, userName, isOpen = false, onClose }
       <button
         className="sidebar-collapse-btn"
         onClick={toggleCollapse}
-        title={collapsed ? 'Expandir menÃº' : 'Contraer menÃº'}
+        title={collapsed ? 'Expandir menu' : 'Contraer menu'}
       >
         <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {collapsed ? I.expand : I.collapse}
