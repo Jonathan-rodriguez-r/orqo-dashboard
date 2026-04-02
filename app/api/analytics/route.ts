@@ -2,6 +2,7 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getWorkspaceClient } from '@/lib/clients';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
 
     const from = new Date();
     from.setDate(from.getDate() - days + 1);
@@ -43,6 +45,7 @@ export async function GET(req: Request) {
       await db.collection('conversations').updateMany(
         {
           workspaceId,
+          clientId: client.clientId,
           channel: 'widget',
           status: 'open',
           updatedAt: { $lt: cutoff },
@@ -60,7 +63,7 @@ export async function GET(req: Request) {
 
     const daily = await db
       .collection('analytics_daily')
-      .find({ workspaceId, date: { $gte: fromStr } })
+      .find({ workspaceId, clientId: client.clientId, date: { $gte: fromStr } })
       .sort({ date: 1 })
       .toArray();
 
@@ -104,7 +107,7 @@ export async function GET(req: Request) {
 
     const prevDaily = await db
       .collection('analytics_daily')
-      .find({ workspaceId, date: { $gte: prevFromStr, $lt: fromStr } })
+      .find({ workspaceId, clientId: client.clientId, date: { $gte: prevFromStr, $lt: fromStr } })
       .toArray();
 
     const prevConv = prevDaily.reduce((s, d) => s + (d.conversations ?? 0), 0);
@@ -116,7 +119,7 @@ export async function GET(req: Request) {
       db
         .collection('conversations')
         .aggregate([
-          { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+          { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
           {
             $group: {
               _id: null,
@@ -132,7 +135,7 @@ export async function GET(req: Request) {
       db
         .collection('conversations')
         .aggregate([
-          { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+          { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
           { $group: { _id: '$channel', count: { $sum: 1 } } },
           { $sort: { count: -1 } },
         ])

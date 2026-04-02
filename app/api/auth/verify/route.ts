@@ -3,6 +3,7 @@ import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/au
 import { getDefaultPermissions } from '@/lib/rbac';
 import { log, actorFromRequest } from '@/lib/logger';
 import { getDefaultWorkspaceId, resolveWorkspaceFromRequest } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -61,9 +62,24 @@ export async function GET(req: Request) {
         if (!user && tokenWorkspaceId === getDefaultWorkspaceId()) {
           const legacyUser = await users.findOne({ email: record.email, workspaceId: { $exists: false } as any });
           if (legacyUser?._id) {
+            const workspaceClient = await getWorkspaceClient(db, tokenWorkspaceId);
+            const scopedClient = resolveClientScopeForRole({
+              role: legacyUser.role,
+              workspaceClientId: workspaceClient.clientId,
+              workspaceClientName: workspaceClient.clientName,
+              promoteToGlobal: tokenWorkspaceId === getDefaultWorkspaceId(),
+            });
             await users.updateOne(
               { _id: legacyUser._id },
-              { $set: { workspaceId: tokenWorkspaceId, lastLogin: new Date() } }
+              {
+                $set: {
+                  workspaceId: tokenWorkspaceId,
+                  lastLogin: new Date(),
+                  clientId: scopedClient.clientId,
+                  clientName: scopedClient.clientName,
+                  isGlobalUser: scopedClient.isGlobalUser,
+                },
+              }
             );
             user = await users.findOne({ _id: legacyUser._id });
           }
@@ -80,9 +96,24 @@ export async function GET(req: Request) {
           });
           redirectTo = '/login?error=unauthorized';
         } else {
+          const workspaceClient = await getWorkspaceClient(db, tokenWorkspaceId);
+          const scopedClient = resolveClientScopeForRole({
+            role: user.role,
+            workspaceClientId: workspaceClient.clientId,
+            workspaceClientName: workspaceClient.clientName,
+            promoteToGlobal: tokenWorkspaceId === getDefaultWorkspaceId(),
+          });
+
           await users.updateOne(
             { _id: user._id },
-            { $set: { lastLogin: new Date() } }
+            {
+              $set: {
+                lastLogin: new Date(),
+                clientId: scopedClient.clientId,
+                clientName: scopedClient.clientName,
+                isGlobalUser: scopedClient.isGlobalUser,
+              },
+            }
           );
 
           const roleDoc = await db.collection('roles').findOne({ slug: user.role, workspaceId: tokenWorkspaceId });
@@ -90,7 +121,16 @@ export async function GET(req: Request) {
             new Set([...(roleDoc?.permissions ?? []), ...getDefaultPermissions(user.role)])
           );
 
-          const sessionPayload = buildSessionPayload(user, permissions, 'magic_link');
+          const sessionPayload = buildSessionPayload(
+            {
+              ...user,
+              clientId: scopedClient.clientId,
+              clientName: scopedClient.clientName,
+              isGlobalUser: scopedClient.isGlobalUser,
+            },
+            permissions,
+            'magic_link'
+          );
           const jwt = await signSession(sessionPayload);
 
           const jar = await cookies();

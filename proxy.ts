@@ -70,6 +70,8 @@ export async function proxy(req: NextRequest) {
   res.headers.set('x-orqo-email', session.email);
   res.headers.set('x-orqo-role', session.role);
   res.headers.set('x-orqo-workspace', session.workspaceId);
+  res.headers.set('x-orqo-client', session.clientId ?? '');
+  res.headers.set('x-orqo-global-user', session.isGlobalUser ? '1' : '0');
   return res;
 }
 

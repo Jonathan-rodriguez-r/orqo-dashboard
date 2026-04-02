@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { actorFromRequest, log } from '@/lib/logger';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getWorkspaceClient } from '@/lib/clients';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -100,9 +101,11 @@ export async function GET(req: Request, ctx: RouteContext) {
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const conversation = await db.collection('conversations').findOne({
       _id: new ObjectId(id),
       workspaceId,
+      clientId: client.clientId,
     });
 
     if (!conversation) {
@@ -161,14 +164,15 @@ export async function DELETE(req: Request, ctx: RouteContext) {
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const _id = new ObjectId(id);
-    const existing = await db.collection('conversations').findOne({ _id, workspaceId });
+    const existing = await db.collection('conversations').findOne({ _id, workspaceId, clientId: client.clientId });
 
     if (!existing) {
       return Response.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const result = await db.collection('conversations').deleteOne({ _id, workspaceId });
+    const result = await db.collection('conversations').deleteOne({ _id, workspaceId, clientId: client.clientId });
     if (!result.deletedCount) {
       return Response.json({ error: 'Conversation not found' }, { status: 404 });
     }

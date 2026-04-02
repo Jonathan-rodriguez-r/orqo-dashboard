@@ -2,6 +2,7 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { ensureDefaultClient, DEFAULT_CLIENT_ID } from '@/lib/clients';
 import { hasPermission } from '@/lib/rbac';
+import { canAccessProtectedRoles } from '@/lib/access-control';
 
 function slugify(input: string) {
   return String(input || '')
@@ -13,7 +14,7 @@ function slugify(input: string) {
 }
 
 function ownerOnly(session: Awaited<ReturnType<typeof getSession>>) {
-  return !!session && hasPermission(session.permissions, 'admin.clients');
+  return !!session && hasPermission(session.permissions, 'admin.clients') && canAccessProtectedRoles(session);
 }
 
 export async function GET() {

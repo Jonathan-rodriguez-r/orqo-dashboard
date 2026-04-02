@@ -5,6 +5,7 @@ import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/au
 import { getDefaultPermissions } from '@/lib/rbac';
 import { log, actorFromRequest } from '@/lib/logger';
 import { getDefaultWorkspaceId, resolveWorkspaceFromRequest } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
@@ -78,6 +79,7 @@ export async function GET(req: Request) {
     }
 
     const workspaceId = tenant.workspaceId;
+    const workspaceClient = await getWorkspaceClient(db, workspaceId);
     const users = db.collection('users');
     const workspaceUsers = await users.countDocuments({ workspaceId });
     const totalUsers = await users.countDocuments();
@@ -87,6 +89,12 @@ export async function GET(req: Request) {
     if (!user && workspaceId === getDefaultWorkspaceId()) {
       const legacyUser = await users.findOne({ email: profile.email, workspaceId: { $exists: false } as any });
       if (legacyUser?._id) {
+        const scopedClient = resolveClientScopeForRole({
+          role: legacyUser.role,
+          workspaceClientId: workspaceClient.clientId,
+          workspaceClientName: workspaceClient.clientName,
+          promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+        });
         await users.updateOne(
           { _id: legacyUser._id },
           {
@@ -96,6 +104,9 @@ export async function GET(req: Request) {
               avatar: profile.picture,
               googleId: profile.sub,
               lastLogin: new Date(),
+              clientId: scopedClient.clientId,
+              clientName: scopedClient.clientName,
+              isGlobalUser: scopedClient.isGlobalUser,
             },
           }
         );
@@ -116,13 +127,23 @@ export async function GET(req: Request) {
     }
 
     if (!user && workspaceUsers === 0 && totalUsers === 0) {
+      const bootstrapRole = workspaceId === getDefaultWorkspaceId() ? 'owner' : 'admin';
+      const scopedClient = resolveClientScopeForRole({
+        role: bootstrapRole,
+        workspaceClientId: workspaceClient.clientId,
+        workspaceClientName: workspaceClient.clientName,
+        promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+      });
       const result = await users.insertOne({
         email: profile.email,
         name: profile.name,
         avatar: profile.picture,
         googleId: profile.sub,
-        role: 'owner',
+        role: bootstrapRole,
         workspaceId,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+        isGlobalUser: scopedClient.isGlobalUser,
         createdAt: new Date(),
         lastLogin: new Date(),
       });
@@ -130,6 +151,12 @@ export async function GET(req: Request) {
     } else if (!user && workspaceUsers === 0) {
       redirect('/login?error=workspace_not_ready');
     } else if (user) {
+      const scopedClient = resolveClientScopeForRole({
+        role: user.role,
+        workspaceClientId: workspaceClient.clientId,
+        workspaceClientName: workspaceClient.clientName,
+        promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+      });
       await users.updateOne(
         { _id: user._id },
         {
@@ -138,6 +165,9 @@ export async function GET(req: Request) {
             avatar: profile.picture,
             googleId: profile.sub,
             lastLogin: new Date(),
+            clientId: scopedClient.clientId,
+            clientName: scopedClient.clientName,
+            isGlobalUser: scopedClient.isGlobalUser,
           },
         }
       );
@@ -151,7 +181,22 @@ export async function GET(req: Request) {
       new Set([...(roleDoc?.permissions ?? []), ...getDefaultPermissions(user.role)])
     );
 
-    const sessionPayload = buildSessionPayload(user, permissions, 'google');
+    const scopedClient = resolveClientScopeForRole({
+      role: user.role,
+      workspaceClientId: workspaceClient.clientId,
+      workspaceClientName: workspaceClient.clientName,
+      promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+    });
+    const sessionPayload = buildSessionPayload(
+      {
+        ...user,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+        isGlobalUser: scopedClient.isGlobalUser,
+      },
+      permissions,
+      'google'
+    );
     const jwt = await signSession(sessionPayload);
 
     jar.set(COOKIE, jwt, {

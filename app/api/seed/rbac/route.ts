@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { SYSTEM_MODULES, DEFAULT_ROLES } from '@/lib/rbac';
 import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 /**
  * POST /api/seed/rbac
@@ -11,6 +12,7 @@ export async function POST() {
   try {
     const db = await getDb();
     const workspaceId = getDefaultWorkspaceId();
+    const workspaceClient = await getWorkspaceClient(db, workspaceId);
 
     // ── system_modules ──────────────────────────────────────────────────────
     const moduleOps = SYSTEM_MODULES.map(m => ({
@@ -32,9 +34,35 @@ export async function POST() {
             label:       r.label,
             description: r.description,
             workspaceId,
+            clientId: resolveClientScopeForRole({
+              role: r.slug,
+              workspaceClientId: workspaceClient.clientId,
+              workspaceClientName: workspaceClient.clientName,
+              promoteToGlobal: true,
+            }).clientId,
+            clientName: resolveClientScopeForRole({
+              role: r.slug,
+              workspaceClientId: workspaceClient.clientId,
+              workspaceClientName: workspaceClient.clientName,
+              promoteToGlobal: true,
+            }).clientName,
             createdAt:   new Date(),
           },
-          $set: { permissions: r.permissions }, // always sync permissions
+          $set: {
+            permissions: r.permissions,
+            clientId: resolveClientScopeForRole({
+              role: r.slug,
+              workspaceClientId: workspaceClient.clientId,
+              workspaceClientName: workspaceClient.clientName,
+              promoteToGlobal: true,
+            }).clientId,
+            clientName: resolveClientScopeForRole({
+              role: r.slug,
+              workspaceClientId: workspaceClient.clientId,
+              workspaceClientName: workspaceClient.clientName,
+              promoteToGlobal: true,
+            }).clientName,
+          }, // always sync permissions
         },
         upsert: true,
       },

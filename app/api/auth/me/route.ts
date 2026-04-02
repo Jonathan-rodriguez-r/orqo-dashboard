@@ -15,8 +15,11 @@ export async function GET() {
     name:        session.name,
     avatar:      session.avatar,
     workspaceId: session.workspaceId,
+    clientId:    session.clientId,
+    clientName:  session.clientName,
     role:        session.role,
     permissions: session.permissions,
+    isGlobalUser: session.isGlobalUser,
     provider:    session.provider,
   });
 }

@@ -2,7 +2,8 @@ import { getDb } from '@/lib/mongodb';
 import { log, actorFromRequest } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
-import { resolveWorkspaceFromRequest } from '@/lib/tenant';
+import { getDefaultWorkspaceId, resolveWorkspaceFromRequest } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     }
 
     const workspaceId = tenant.workspaceId;
+    const workspaceClient = await getWorkspaceClient(db, workspaceId);
     const userCount = await db.collection('users').countDocuments({ workspaceId });
     const totalUsers = await db.collection('users').countDocuments();
     const user = await db.collection('users').findOne({ email: cleanEmail, workspaceId });
@@ -53,11 +55,21 @@ export async function POST(req: Request) {
 
     // First user ever in platform: provision owner in resolved workspace.
     if (userCount === 0 && totalUsers === 0) {
+      const bootstrapRole = workspaceId === getDefaultWorkspaceId() ? 'owner' : 'admin';
+      const scopedClient = resolveClientScopeForRole({
+        role: bootstrapRole,
+        workspaceClientId: workspaceClient.clientId,
+        workspaceClientName: workspaceClient.clientName,
+        promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+      });
       await db.collection('users').insertOne({
         email: cleanEmail,
         name: cleanEmail.split('@')[0],
-        role: 'owner',
+        role: bootstrapRole,
         workspaceId,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+        isGlobalUser: scopedClient.isGlobalUser,
         createdAt: new Date(),
       });
     } else if (userCount === 0 && !user) {

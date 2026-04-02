@@ -1,5 +1,5 @@
 import type { Db } from 'mongodb';
-import { ensureDefaultClient } from '@/lib/clients';
+import { ensureDefaultClient, getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 type HeaderReader = { get(name: string): string | null | undefined };
 
@@ -99,8 +99,16 @@ async function ensureTenantInfrastructure(db: Db) {
         db.collection('workspace_domains').createIndex({ workspaceId: 1 }),
         db.collection('users').createIndex({ workspaceId: 1, email: 1 }, { unique: true }),
         db.collection('users').createIndex({ workspaceId: 1, role: 1 }),
+        db.collection('users').createIndex({ clientId: 1, workspaceId: 1 }),
         db.collection('roles').createIndex({ workspaceId: 1, slug: 1 }, { unique: true }),
         db.collection('roles').createIndex({ workspaceId: 1, createdAt: 1 }),
+        db.collection('roles').createIndex({ clientId: 1, workspaceId: 1 }),
+        db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, updatedAt: -1 }),
+        db.collection('conversations').createIndex({ clientId: 1, updatedAt: -1 }),
+        db.collection('widget_conversations').createIndex(
+          { workspaceId: 1, visitorId: 1, agentId: 1 },
+          { unique: false }
+        ),
       ]);
 
       // Legacy indexes can force global uniqueness and block multi-tenant evolution.
@@ -132,6 +140,249 @@ async function ensureTenantInfrastructure(db: Db) {
       );
 
       await ensureDefaultClient(db);
+
+      const workspaces = await db
+        .collection('workspaces')
+        .find({}, { projection: { _id: 1 } })
+        .toArray();
+
+      for (const workspace of workspaces) {
+        const workspaceId = String(workspace?._id ?? '').trim();
+        if (!workspaceId) continue;
+
+        const workspaceClient = await getWorkspaceClient(db, workspaceId);
+        const promoteToGlobal = workspaceId === DEFAULT_WORKSPACE_ID;
+
+        await db.collection('users').updateMany(
+          {
+            workspaceId,
+            $or: [
+              { clientId: { $exists: false } },
+              { clientName: { $exists: false } },
+              { isGlobalUser: { $exists: false } },
+            ],
+          },
+          [
+            {
+              $set: {
+                clientId: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$role', 'owner'] },
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ['$role', ''] },
+                            regex: '^orqo_',
+                          },
+                        },
+                      ],
+                    },
+                    resolveClientScopeForRole({
+                      role: 'owner',
+                      workspaceClientId: workspaceClient.clientId,
+                      workspaceClientName: workspaceClient.clientName,
+                      promoteToGlobal,
+                    }).clientId,
+                    workspaceClient.clientId,
+                  ],
+                },
+                clientName: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$role', 'owner'] },
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ['$role', ''] },
+                            regex: '^orqo_',
+                          },
+                        },
+                      ],
+                    },
+                    resolveClientScopeForRole({
+                      role: 'owner',
+                      workspaceClientId: workspaceClient.clientId,
+                      workspaceClientName: workspaceClient.clientName,
+                      promoteToGlobal,
+                    }).clientName,
+                    workspaceClient.clientName,
+                  ],
+                },
+                isGlobalUser: {
+                  $cond: [
+                    promoteToGlobal,
+                    {
+                      $or: [
+                        { $eq: ['$role', 'owner'] },
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ['$role', ''] },
+                            regex: '^orqo_',
+                          },
+                        },
+                      ],
+                    },
+                    false,
+                  ],
+                },
+              },
+            },
+          ]
+        );
+
+        await db.collection('roles').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          [
+            {
+              $set: {
+                clientId: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$slug', 'owner'] },
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ['$slug', '' ] },
+                            regex: '^orqo_',
+                          },
+                        },
+                      ],
+                    },
+                    resolveClientScopeForRole({
+                      role: 'owner',
+                      workspaceClientId: workspaceClient.clientId,
+                      workspaceClientName: workspaceClient.clientName,
+                      promoteToGlobal,
+                    }).clientId,
+                    workspaceClient.clientId,
+                  ],
+                },
+                clientName: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$slug', 'owner'] },
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ['$slug', '' ] },
+                            regex: '^orqo_',
+                          },
+                        },
+                      ],
+                    },
+                    resolveClientScopeForRole({
+                      role: 'owner',
+                      workspaceClientId: workspaceClient.clientId,
+                      workspaceClientName: workspaceClient.clientName,
+                      promoteToGlobal,
+                    }).clientName,
+                    workspaceClient.clientName,
+                  ],
+                },
+              },
+            },
+          ]
+        );
+
+        await db.collection('conversations').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+            },
+          }
+        );
+
+        await db.collection('widget_conversations').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+            },
+          }
+        );
+
+        await db.collection('workspace_configs').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        await db.collection('workspace_settings').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        await db.collection('workspace_alert_settings').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        await db.collection('analytics_daily').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+            },
+          }
+        );
+
+        await db.collection('user_preferences').updateMany(
+          {
+            workspaceId,
+            $or: [{ clientId: { $exists: false } }, { clientName: { $exists: false } }],
+          },
+          {
+            $set: {
+              clientId: workspaceClient.clientId,
+              clientName: workspaceClient.clientName,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
 
       const defaultHosts = [
         normalizedBaseDomain(),

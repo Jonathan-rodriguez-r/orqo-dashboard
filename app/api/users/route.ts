@@ -5,6 +5,8 @@ import { log, actorFromRequest, computeDiff } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { canAccessProtectedRoles, isProtectedRoleSlug, resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
@@ -50,7 +52,23 @@ export async function GET(req: Request) {
 
   const users = await db
     .collection('users')
-    .find(filter, { projection: { _id: 1, email: 1, name: 1, avatar: 1, role: 1, lastLogin: 1, createdAt: 1 } })
+    .find(
+      filter,
+      {
+        projection: {
+          _id: 1,
+          email: 1,
+          name: 1,
+          avatar: 1,
+          role: 1,
+          clientId: 1,
+          clientName: 1,
+          isGlobalUser: 1,
+          lastLogin: 1,
+          createdAt: 1,
+        },
+      }
+    )
     .sort({ createdAt: -1 })
     .toArray();
 
@@ -68,13 +86,22 @@ export async function POST(req: Request) {
   if (!email) return Response.json({ error: 'Email requerido' }, { status: 400 });
 
   const cleanEmail = String(email).trim().toLowerCase();
+  const db = await getDb();
+  const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
   const assignedRole = String(role ?? 'viewer').trim();
   if (isProtectedRoleSlug(assignedRole) && !canAccessProtectedRoles(session)) {
     return Response.json({ error: 'No autorizado para asignar roles reservados.' }, { status: 403 });
   }
-
-  const db = await getDb();
-  const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  if (isProtectedRoleSlug(assignedRole) && workspaceId !== getDefaultWorkspaceId()) {
+    return Response.json({ error: 'Los roles globales ORQO solo se gestionan en el workspace principal.' }, { status: 400 });
+  }
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
+  const scopedClient = resolveClientScopeForRole({
+    role: assignedRole,
+    workspaceClientId: workspaceClient.clientId,
+    workspaceClientName: workspaceClient.clientName,
+    promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+  });
 
   const existing = await db.collection('users').findOne({ email: cleanEmail, workspaceId });
   if (existing) return Response.json({ error: 'Este correo ya tiene acceso.' }, { status: 409 });
@@ -98,6 +125,9 @@ export async function POST(req: Request) {
     role: assignedRole,
     permissions,
     workspaceId,
+    clientId: scopedClient.clientId,
+    clientName: scopedClient.clientName,
+    isGlobalUser: scopedClient.isGlobalUser,
     invitedBy: session.email,
     createdAt: new Date(),
     lastLogin: null,
@@ -145,7 +175,15 @@ export async function POST(req: Request) {
     actor: actorFromRequest(req, { email: session.email, role: session.role }),
     target: { type: 'user', email: cleanEmail, label: displayName },
     metadata: {
-      after: { email: cleanEmail, name: displayName, role: assignedRole, workspaceId },
+      after: {
+        email: cleanEmail,
+        name: displayName,
+        role: assignedRole,
+        workspaceId,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+        isGlobalUser: scopedClient.isGlobalUser,
+      },
       extra: { emailSent },
     },
   });
@@ -169,6 +207,7 @@ export async function PATCH(req: Request) {
 
   const db = await getDb();
   const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
   const existing = await db.collection('users').findOne({ email, workspaceId });
   if (!existing) return Response.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
@@ -186,6 +225,9 @@ export async function PATCH(req: Request) {
 
   if (role) {
     const roleSlug = String(role).trim();
+    if (isProtectedRoleSlug(roleSlug) && workspaceId !== getDefaultWorkspaceId()) {
+      return Response.json({ error: 'Los roles globales ORQO solo se gestionan en el workspace principal.' }, { status: 400 });
+    }
     const roleDoc = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
     if (!roleDoc && roleSlug !== 'viewer') {
       return Response.json({ error: 'Rol no encontrado en este workspace.' }, { status: 404 });
@@ -196,8 +238,17 @@ export async function PATCH(req: Request) {
     if (!canAssignRolePermissions(session, roleSlug, permissions)) {
       return Response.json({ error: 'No autorizado para asignar ese rol.' }, { status: 403 });
     }
+    const scopedClient = resolveClientScopeForRole({
+      role: roleSlug,
+      workspaceClientId: workspaceClient.clientId,
+      workspaceClientName: workspaceClient.clientName,
+      promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+    });
     update.role = roleSlug;
     update.permissions = permissions;
+    update.clientId = scopedClient.clientId;
+    update.clientName = scopedClient.clientName;
+    update.isGlobalUser = scopedClient.isGlobalUser;
   }
 
   if (Object.keys(update).length === 0) return Response.json({ ok: true, message: 'Sin cambios' });

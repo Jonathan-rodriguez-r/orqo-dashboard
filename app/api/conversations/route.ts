@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getWorkspaceClient } from '@/lib/clients';
 
 export async function GET(req: Request) {
   try {
@@ -17,8 +18,9 @@ export async function GET(req: Request) {
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
 
-    const filter: Record<string, any> = { workspaceId };
+    const filter: Record<string, any> = { workspaceId, clientId: client.clientId };
     if (q)
       filter.$or = [
         { user_name: { $regex: q, $options: 'i' } },

@@ -4,6 +4,7 @@ import InactivityGuard from '@/components/InactivityGuard';
 import { getSession } from '@/lib/auth';
 import { getDb } from '@/lib/mongodb';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 import { redirect } from 'next/navigation';
 import type { CSSProperties } from 'react';
 
@@ -30,11 +31,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let secondary = '#0B100D';
   try {
     const db = await getDb();
+    const client = await getWorkspaceClient(db, session.workspaceId);
     const account = await getWorkspaceConfig(db, session.workspaceId, 'account', {
       defaults: { brand_primary_color: '#2CB978', brand_secondary_color: '#0B100D' } as any,
     });
-    primary = normalizeHexColor(String(account?.brand_primary_color ?? ''), '#2CB978');
-    secondary = normalizeHexColor(String(account?.brand_secondary_color ?? ''), '#0B100D');
+    const workspacePrimary = normalizeHexColor(String(account?.brand_primary_color ?? ''), '#2CB978');
+    const workspaceSecondary = normalizeHexColor(String(account?.brand_secondary_color ?? ''), '#0B100D');
+
+    const pref = await db.collection('user_preferences').findOne(
+      { userId: session.sub, workspaceId: session.workspaceId, clientId: client.clientId },
+      { projection: { _id: 0, dashboardTheme: 1 } }
+    );
+    const prefEnabled = Boolean(pref?.dashboardTheme?.enabled);
+    const prefPrimary = normalizeHexColor(String(pref?.dashboardTheme?.primaryColor ?? ''), workspacePrimary);
+    const prefSecondary = normalizeHexColor(String(pref?.dashboardTheme?.secondaryColor ?? ''), workspaceSecondary);
+
+    primary = prefEnabled ? prefPrimary : workspacePrimary;
+    secondary = prefEnabled ? prefSecondary : workspaceSecondary;
   } catch {
     // Keep defaults if DB is unavailable during render.
   }

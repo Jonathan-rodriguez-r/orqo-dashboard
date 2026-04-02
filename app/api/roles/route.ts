@@ -3,6 +3,8 @@ import { getSession } from '@/lib/auth';
 import { hasPermission, DEFAULT_ROLES, SYSTEM_MODULES } from '@/lib/rbac';
 import { log, actorFromRequest, computeDiff } from '@/lib/logger';
 import { canAccessProtectedRoles, isProtectedRoleSlug, resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 const DELEGATION_BLOCKLIST = new Set<string>(['admin.clients', 'admin.seed']);
 const VALID_PERMISSION_SET = new Set<string>(SYSTEM_MODULES.map((module) => module.slug));
@@ -53,7 +55,20 @@ function evaluatePermissionDelegation(
 }
 
 async function ensureWorkspaceSystemRoles(db: any, workspaceId: string) {
-  const ops = DEFAULT_ROLES.map((role) => ({
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
+  const rolesToSeed =
+    workspaceId === getDefaultWorkspaceId()
+      ? DEFAULT_ROLES
+      : DEFAULT_ROLES.filter((role) => !isProtectedRoleSlug(role.slug));
+
+  const ops = rolesToSeed.map((role) => {
+    const scopedClient = resolveClientScopeForRole({
+      role: role.slug,
+      workspaceClientId: workspaceClient.clientId,
+      workspaceClientName: workspaceClient.clientName,
+      promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+    });
+    return {
     updateOne: {
       filter: { slug: role.slug, workspaceId },
       update: {
@@ -63,13 +78,21 @@ async function ensureWorkspaceSystemRoles(db: any, workspaceId: string) {
           description: role.description,
           custom: false,
           workspaceId,
+          clientId: scopedClient.clientId,
+          clientName: scopedClient.clientName,
           createdAt: new Date(),
         },
-        $set: { permissions: role.permissions, updatedAt: new Date() },
+        $set: {
+          permissions: role.permissions,
+          clientId: scopedClient.clientId,
+          clientName: scopedClient.clientName,
+          updatedAt: new Date(),
+        },
       },
       upsert: true,
     },
-  }));
+  };
+  });
   await db.collection('roles').bulkWrite(ops, { ordered: false });
 }
 
@@ -113,6 +136,7 @@ export async function POST(req: Request) {
 
   const db = await getDb();
   const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
   const existing = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
   if (existing) return Response.json({ error: 'Ya existe un rol con ese ID.' }, { status: 409 });
 
@@ -130,6 +154,13 @@ export async function POST(req: Request) {
     );
   }
 
+  const scopedClient = resolveClientScopeForRole({
+    role: roleSlug,
+    workspaceClientId: workspaceClient.clientId,
+    workspaceClientName: workspaceClient.clientName,
+    promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+  });
+
   await db.collection('roles').insertOne({
     slug: roleSlug,
     label,
@@ -137,6 +168,8 @@ export async function POST(req: Request) {
     permissions: delegation.accepted,
     custom: true,
     workspaceId,
+    clientId: scopedClient.clientId,
+    clientName: scopedClient.clientName,
     createdAt: new Date(),
   });
 
@@ -148,7 +181,17 @@ export async function POST(req: Request) {
     message: `${session.email} creo el rol "${label}" (${roleSlug})`,
     actor: actorFromRequest(req, { email: session.email, role: session.role }),
     target: { type: 'role', id: roleSlug, label },
-    metadata: { after: { slug: roleSlug, label, description: description ?? '', permissions: delegation.accepted, workspaceId } },
+    metadata: {
+      after: {
+        slug: roleSlug,
+        label,
+        description: description ?? '',
+        permissions: delegation.accepted,
+        workspaceId,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+      },
+    },
   });
 
   return Response.json({ ok: true });
@@ -169,6 +212,7 @@ export async function PATCH(req: Request) {
 
   const db = await getDb();
   const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
   const existing = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
   if (!existing) return Response.json({ error: 'Rol no encontrado' }, { status: 404 });
 
@@ -187,7 +231,23 @@ export async function PATCH(req: Request) {
   }
 
   const oldPermissions: string[] = existing?.permissions ?? [];
-  await db.collection('roles').updateOne({ slug: roleSlug, workspaceId }, { $set: { permissions: delegation.accepted } });
+  const scopedClient = resolveClientScopeForRole({
+    role: roleSlug,
+    workspaceClientId: workspaceClient.clientId,
+    workspaceClientName: workspaceClient.clientName,
+    promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+  });
+
+  await db.collection('roles').updateOne(
+    { slug: roleSlug, workspaceId },
+    {
+      $set: {
+        permissions: delegation.accepted,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+      },
+    }
+  );
   await db.collection('users').updateMany({ role: roleSlug, workspaceId }, { $set: { permissions: delegation.accepted } });
 
   const added = delegation.accepted.filter((p: string) => !oldPermissions.includes(p));

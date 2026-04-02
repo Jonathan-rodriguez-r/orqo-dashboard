@@ -1,6 +1,7 @@
-﻿import { getDb } from '@/lib/mongodb';
+import { getDb } from '@/lib/mongodb';
 import { resolveWidgetWorkspace } from '@/lib/widget-auth';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -38,8 +39,13 @@ export async function GET(req: Request) {
     const db = await getDb();
     const workspaceId = await validateWorkspaceKey({ db, req, key, agentId });
     if (!workspaceId) return Response.json({ error: 'Unauthorized key', messages: [] }, { status: 401, headers: CORS });
+    const client = await getWorkspaceClient(db, workspaceId);
 
-    const filter: Record<string, string> = { visitorId, workspaceId };
+    const filter: Record<string, any> = {
+      visitorId,
+      workspaceId,
+      $or: [{ clientId: client.clientId }, { clientId: { $exists: false } }],
+    };
     if (agentId) filter.agentId = agentId;
 
     const conv = await db
@@ -73,16 +79,34 @@ export async function POST(req: Request) {
     const db = await getDb();
     const workspaceId = await validateWorkspaceKey({ db, req, key, agentId });
     if (!workspaceId) return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
+    const client = await getWorkspaceClient(db, workspaceId);
 
     const now = new Date();
     const msg = { role, content, ts: now };
 
     const result = await db.collection('widget_conversations').findOneAndUpdate(
-      { workspaceId, visitorId, agentId: agentId ?? 'default' },
+      {
+        workspaceId,
+        visitorId,
+        agentId: agentId ?? 'default',
+        $or: [{ clientId: client.clientId }, { clientId: { $exists: false } }],
+      },
       {
         $push: { messages: msg } as any,
-        $set: { updatedAt: now, ...(metadata ? { metadata } : {}) },
-        $setOnInsert: { workspaceId, visitorId, agentId: agentId ?? 'default', createdAt: now },
+        $set: {
+          updatedAt: now,
+          clientId: client.clientId,
+          clientName: client.clientName,
+          ...(metadata ? { metadata } : {}),
+        },
+        $setOnInsert: {
+          workspaceId,
+          clientId: client.clientId,
+          clientName: client.clientName,
+          visitorId,
+          agentId: agentId ?? 'default',
+          createdAt: now,
+        },
       },
       { upsert: true, returnDocument: 'after' }
     );
@@ -108,8 +132,13 @@ export async function DELETE(req: Request) {
     const db = await getDb();
     const workspaceId = await validateWorkspaceKey({ db, req, key, agentId });
     if (!workspaceId) return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
+    const client = await getWorkspaceClient(db, workspaceId);
 
-    const widgetFilter: Record<string, string> = { workspaceId, visitorId };
+    const widgetFilter: Record<string, any> = {
+      workspaceId,
+      visitorId,
+      $or: [{ clientId: client.clientId }, { clientId: { $exists: false } }],
+    };
     if (agentId) widgetFilter.agentId = agentId;
 
     const widgetDelete = await db.collection('widget_conversations').deleteMany(widgetFilter);

@@ -16,7 +16,7 @@ export function isProtectedRoleSlug(slug: string | undefined | null) {
 
 export function canAccessProtectedRoles(session: SessionPayload | null) {
   if (!session) return false;
-  return isGlobalOperatorRole(session.role);
+  return Boolean(session.isGlobalUser && isGlobalOperatorRole(session.role));
 }
 
 export function resolveScopedWorkspaceId(
@@ -24,6 +24,6 @@ export function resolveScopedWorkspaceId(
   requestedWorkspaceId?: string | null
 ) {
   const requested = String(requestedWorkspaceId ?? '').trim();
-  if (requested && isGlobalOperatorRole(session.role)) return requested;
+  if (requested && canAccessProtectedRoles(session)) return requested;
   return session.workspaceId;
 }

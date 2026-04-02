@@ -1,9 +1,10 @@
-﻿import { getDb } from '@/lib/mongodb';
+import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { generateAgentReply, type AgentRuntime } from '@/lib/ai-orchestrator';
 import { writeLog } from '@/app/api/admin/logs/route';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getWorkspaceClient } from '@/lib/clients';
 import * as XLSX from 'xlsx';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
@@ -137,25 +138,26 @@ export async function POST(req: Request) {
     const toStr = toDayKey(toMs);
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const [account, dailyRows, byChannelRows, byModelRows, byStatusRows, feedbackRows] = await Promise.all([
       getWorkspaceConfig(db, workspaceId, 'account', { defaults: {} as any }),
-      db.collection('analytics_daily').find({ workspaceId, date: { $gte: fromStr, $lte: toStr } }).sort({ date: 1 }).toArray(),
+      db.collection('analytics_daily').find({ workspaceId, clientId: client.clientId, date: { $gte: fromStr, $lte: toStr } }).sort({ date: 1 }).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: '$channel', count: { $sum: 1 }, tokens: { $sum: '$tokens.total' } } },
         { $sort: { count: -1 } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: { provider: '$model_provider', model: '$model' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]).toArray(),
       db.collection('conversations').aggregate([
-        { $match: { workspaceId, updatedAt: { $gte: fromMs, $lte: toMs } } },
+        { $match: { workspaceId, clientId: client.clientId, updatedAt: { $gte: fromMs, $lte: toMs } } },
         {
           $group: {
             _id: null,
@@ -462,4 +464,6 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: e?.message ?? 'Internal error' }, { status: 500 });
   }
 }
+
+
 

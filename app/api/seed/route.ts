@@ -1,7 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { randomUUID } from 'crypto';
 import { getDefaultWorkspaceId } from '@/lib/tenant';
-import { DEFAULT_CLIENT_ID, DEFAULT_CLIENT_NAME } from '@/lib/clients';
+import { getWorkspaceClient } from '@/lib/clients';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +63,7 @@ export async function POST() {
   try {
     const db = await getDb();
     const workspaceId = getDefaultWorkspaceId();
+    const client = await getWorkspaceClient(db, workspaceId);
 
     // Idempotency check — only skip if BOTH analytics AND conversations are populated
     const [analyticsCount, convCount, logsCount] = await Promise.all([
@@ -101,6 +102,8 @@ export async function POST() {
 
       analyticsToInsert.push({
         workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         date: dateStr,
         conversations,
         resolved,
@@ -130,6 +133,8 @@ export async function POST() {
 
       conversationsToInsert.push({
         workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         conv_id:        genConvId(),
         user_name:      name,
         user_email:     email,
@@ -223,6 +228,9 @@ export async function POST() {
       d.setHours(rand(7, 22), rand(0, 59), rand(0, 59));
       return {
         correlationId: randomUUID(),
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         ...entry,
         http: entry.http ?? undefined,
         createdAt: d,
@@ -232,19 +240,19 @@ export async function POST() {
 
     // ── MongoDB indexes (DBA best practices) ──────────────────────────────
     await db.collection('analytics_daily').createIndex(
-      { date: 1 }, { unique: true, background: true }
+      { workspaceId: 1, date: 1 }, { unique: true, background: true }
     );
     await db.collection('analytics_daily').createIndex(
-      { workspaceId: 1, date: -1 }, { background: true }
+      { workspaceId: 1, clientId: 1, date: -1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, updatedAt: -1 }, { background: true }
+      { workspaceId: 1, clientId: 1, updatedAt: -1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, channel: 1 }, { background: true }
+      { workspaceId: 1, clientId: 1, channel: 1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, status: 1 }, { background: true }
+      { workspaceId: 1, clientId: 1, status: 1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
       { user_name: 'text', last_message: 'text', user_email: 'text' },
@@ -274,8 +282,8 @@ export async function POST() {
           plan: 'Starter',
           interactions_limit: 1000,
           business_name: 'Mi Negocio',
-          clientId: DEFAULT_CLIENT_ID,
-          clientName: DEFAULT_CLIENT_NAME,
+          clientId: client.clientId,
+          clientName: client.clientName,
           createdAt: new Date(),
         },
         $set: { updatedAt: new Date() },

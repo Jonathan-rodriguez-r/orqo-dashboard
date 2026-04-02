@@ -6,6 +6,7 @@ import { bumpInteractionUsage } from '@/lib/usage-meter';
 import { trackWidgetInstallSource } from '@/lib/widget-install-tracker';
 import { resolveWidgetWorkspace } from '@/lib/widget-auth';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -230,6 +231,7 @@ export async function POST(req: Request) {
     }
 
     const workspaceId = String(agentDoc?.workspaceId ?? resolvedWorkspace);
+    const workspaceClient = await getWorkspaceClient(db, workspaceId);
     const agent: AgentRuntime = agentDoc
       ? {
           name: agentDoc.name,
@@ -295,7 +297,14 @@ export async function POST(req: Request) {
       const inactivityCutoffMs = nowMs - inactivityMinutes * 60 * 1000;
 
       const latestOpen = await db.collection('conversations').findOne(
-        { workspaceId, channel: 'widget', visitor_id: visitorId, agent_id: safeAgentId, status: 'open' },
+        {
+          workspaceId,
+          $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+          channel: 'widget',
+          visitor_id: visitorId,
+          agent_id: safeAgentId,
+          status: 'open',
+        },
         { sort: { updatedAt: -1 }, projection: { _id: 1, conv_id: 1, updatedAt: 1 } }
       );
 
@@ -308,7 +317,11 @@ export async function POST(req: Request) {
         Number(latestOpen.updatedAt) < inactivityCutoffMs
       ) {
         await db.collection('conversations').updateOne(
-          { _id: latestOpen._id, workspaceId },
+          {
+            _id: latestOpen._id,
+            workspaceId,
+            $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+          },
           {
             $set: {
               status: 'closed',
@@ -338,10 +351,17 @@ export async function POST(req: Request) {
       ];
 
       await db.collection('conversations').updateOne(
-        { workspaceId, conv_id: persistedConvRef, channel: 'widget' },
+        {
+          workspaceId,
+          conv_id: persistedConvRef,
+          channel: 'widget',
+          $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+        },
         {
           $set: {
             workspaceId,
+            clientId: workspaceClient.clientId,
+            clientName: workspaceClient.clientName,
             user_name: who,
             user_email: '',
             last_message: previewMessage,
