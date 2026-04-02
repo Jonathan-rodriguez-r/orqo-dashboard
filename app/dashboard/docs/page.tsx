@@ -176,9 +176,22 @@ const FAQ_GROUPS = [
 // Ã¢â€â‚¬Ã¢â€â‚¬ Changelog data Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const CHANGELOG = [
   {
+    version: 'v1.8',
+    date: 'Abr 2026',
+    label: 'Actual',
+    items: [
+      'Dashboard conectado al motor de agentes — nuevo cliente HTTP tipado hacia orqo-core Management API (10s timeout, autenticacion interna)',
+      'Provisioning de workspace en un clic — sección "Motor de Agentes" en Configuracion: provisiona, muestra API key una sola vez y confirma estado del motor',
+      'Gestión de servidores MCP — UI completa para agregar, activar/desactivar y eliminar integraciones por workspace (WooCommerce, Shopify, Odoo, REST, custom)',
+      'Catálogo visual de conectores — grid con templates disponibles, descripcion, tools incluidas y modal de credenciales por tipo',
+      'Navegación directa — entrada "MCP / Integraciones" en sidebar (permiso settings.integrations)',
+      'Fallback seguro — catalogo se sirve desde copia estatica embebida si el core no esta disponible',
+    ],
+  },
+  {
     version: 'v1.7',
     date: 'Mar 2026',
-    label: 'Actual',
+    label: null,
     items: [
       'Centro de ayuda redisenado con manual guiado y experiencia de lectura ampliada',
       'FAQ por rol ahora incluye buscador y filtros para resolver incidencias mas rapido',
