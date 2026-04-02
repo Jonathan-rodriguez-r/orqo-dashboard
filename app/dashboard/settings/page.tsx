@@ -18,6 +18,7 @@ type User = {
   role?: string; createdAt?: string | number; lastLogin?: string | number;
 };
 type Role = { _id: string; slug: string; label: string; description?: string; permissions: string[]; custom?: boolean };
+type SessionIdentity = { role: string; permissions: string[] };
 
 // â”€â”€ Integration catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type IntegrationDef = { id: string; name: string; desc: string; icon: string; color: string; status: 'connected' | 'available' | 'coming_soon' };
@@ -97,9 +98,6 @@ const DEFAULTS: WidgetCfg = {
 const POSITIONS = ['bottom-right','bottom-left','bottom-center','top-right','top-left','top-center'];
 const SWATCHES  = ['#2CB978','#6C63FF','#E63946','#F4A261','#2196F3','#FF6B6B','#00BCD4','#FF9800'];
 
-// â”€â”€ Module groups (for permissions editor) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const MODULE_GROUPS = Array.from(new Set(SYSTEM_MODULES.map(m => m.group)));
-
 // â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -139,6 +137,19 @@ export default function SettingsPage() {
   const [newDesc, setNewDesc]     = useState('');
   const [creatingRole, setCreating] = useState(false);
   const [createErr, setCreateErr]   = useState('');
+  const [sessionIdentity, setSessionIdentity] = useState<SessionIdentity | null>(null);
+
+  const isGlobalOperator =
+    sessionIdentity?.role === 'owner' || String(sessionIdentity?.role ?? '').startsWith('orqo_');
+
+  const delegableModules = SYSTEM_MODULES.filter((module) => {
+    if (!sessionIdentity) return !module.slug.startsWith('admin.');
+    if (isGlobalOperator) return true;
+    if (module.slug.startsWith('admin.')) return false;
+    return sessionIdentity.permissions.includes(module.slug);
+  });
+
+  const moduleGroups = Array.from(new Set(delegableModules.map((module) => module.group)));
 
   // â”€â”€ Loaders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function loadUsers() {
@@ -156,6 +167,19 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetch('/api/config/widget').then(r => r.json()).then(d => { if (!d.error) setCfg({ ...DEFAULTS, ...d }); });
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setSessionIdentity({
+          role: String(d.role ?? ''),
+          permissions: Array.isArray(d.permissions) ? d.permissions.map((p: unknown) => String(p)) : [],
+        });
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -252,7 +276,8 @@ export default function SettingsPage() {
   function startEditRole(r: Role) {
     if (expandedRole === r.slug) { setExpandedRole(null); return; }
     setExpandedRole(r.slug);
-    setEditPerms([...r.permissions]);
+    const allowedPermissionSet = new Set<string>(delegableModules.map((module) => String(module.slug)));
+    setEditPerms(r.permissions.filter((perm) => allowedPermissionSet.has(perm)));
   }
 
   function togglePerm(slug: string) {
@@ -462,7 +487,7 @@ export default function SettingsPage() {
                       <label className="label">Rol</label>
                       <select className="input" value={invRole} onChange={e => setInvRole(e.target.value)}>
                         {roles.map(r => <option key={r.slug} value={r.slug}>{r.label}</option>)}
-                        {roles.length === 0 && ['owner','admin','analyst','agent_manager','viewer'].map(s => (
+                        {roles.length === 0 && ['admin','analyst','agent_manager','viewer','operations'].map(s => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
@@ -655,12 +680,12 @@ export default function SettingsPage() {
                   {expandedRole === r.slug && (
                     <div style={{ borderTop: '1px solid var(--g03)', padding: '18px 18px 14px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20, marginBottom: 16 }}>
-                        {MODULE_GROUPS.map(group => (
+                        {moduleGroups.map(group => (
                           <div key={group}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--g05)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
                               {group}
                             </div>
-                            {SYSTEM_MODULES.filter(m => m.group === group).map(m => (
+                            {delegableModules.filter(m => m.group === group).map(m => (
                               <label key={m.slug} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
                                 <input
                                   type="checkbox"
@@ -683,7 +708,7 @@ export default function SettingsPage() {
                         </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setExpandedRole(null)}>Cancelar</button>
                         <span style={{ fontSize: 11, color: 'var(--g05)' }}>
-                          {editPerms.length}/{SYSTEM_MODULES.length} permisos
+                          {editPerms.length}/{delegableModules.length} permisos
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--yellow)', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', padding: '2px 8px', borderRadius: 6 }}>
                           ⚠ Los cambios aplican en el próximo inicio de sesión

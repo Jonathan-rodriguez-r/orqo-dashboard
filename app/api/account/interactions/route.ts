@@ -1,5 +1,8 @@
 import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
 import { getCurrentPeriodUsage, interactionPeriodKey } from '@/lib/usage-meter';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 function validPeriodKey(raw: string) {
   const value = String(raw || '').trim();
@@ -8,13 +11,20 @@ function validPeriodKey(raw: string) {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const db = await getDb();
     const { searchParams } = new URL(req.url);
-    const account = await db.collection('config').findOne({ _id: 'account' as any });
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
+    const account = await getWorkspaceConfig(db, workspaceId, 'account', {
+      defaults: { timezone: 'America/Bogota' } as any,
+    });
+
     const usageMonthly = db.collection<any>('usage_monthly');
     const usageEvents = db.collection<any>('usage_events');
 
-    const workspaceId = 'default';
+    const workspace = workspaceId;
     const timezone = String(account?.timezone ?? 'America/Bogota');
     const now = new Date();
     const currentPeriod = interactionPeriodKey(now, timezone);
@@ -22,20 +32,20 @@ export async function GET(req: Request) {
     const periodKey = requestedPeriod || currentPeriod;
 
     const monthlyDoc = await usageMonthly.findOne({
-      _id: `${workspaceId}:${periodKey}`,
+      _id: `${workspace}:${periodKey}`,
     });
 
     const [dailyRaw, topConvRaw, recentRaw] = await Promise.all([
       usageEvents
         .aggregate([
-          { $match: { workspaceId, periodKey } },
+          { $match: { workspaceId: workspace, periodKey } },
           { $group: { _id: '$dayKey', interactions: { $sum: '$count' } } },
           { $sort: { _id: 1 } },
         ])
         .toArray(),
       usageEvents
         .aggregate([
-          { $match: { workspaceId, periodKey, conversationRef: { $nin: [null, ''] } } },
+          { $match: { workspaceId: workspace, periodKey, conversationRef: { $nin: [null, ''] } } },
           {
             $group: {
               _id: '$conversationRef',
@@ -51,7 +61,7 @@ export async function GET(req: Request) {
         ])
         .toArray(),
       usageEvents
-        .find({ workspaceId, periodKey })
+        .find({ workspaceId: workspace, periodKey })
         .sort({ ts: -1 })
         .limit(30)
         .project({
@@ -69,7 +79,7 @@ export async function GET(req: Request) {
 
     const usageSnapshot = await getCurrentPeriodUsage({
       db,
-      workspaceId,
+      workspaceId: workspace,
       timeZone: timezone,
       now,
     });

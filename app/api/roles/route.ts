@@ -1,60 +1,197 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
-import { hasPermission } from '@/lib/rbac';
+import { hasPermission, DEFAULT_ROLES, SYSTEM_MODULES } from '@/lib/rbac';
 import { log, actorFromRequest, computeDiff } from '@/lib/logger';
+import { canAccessProtectedRoles, isProtectedRoleSlug, resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
-/**
- * GET    /api/roles — list roles (requires settings.roles)
- * POST   /api/roles — create role (requires settings.roles)
- * PATCH  /api/roles — update role permissions (requires settings.roles)
- * DELETE /api/roles — delete custom role (requires settings.roles)
- */
+const DELEGATION_BLOCKLIST = new Set<string>(['admin.clients', 'admin.seed']);
+const VALID_PERMISSION_SET = new Set<string>(SYSTEM_MODULES.map((module) => module.slug));
 
-export async function GET() {
+function evaluatePermissionDelegation(
+  session: NonNullable<Awaited<ReturnType<typeof getSession>>>,
+  requested: unknown
+) {
+  const list = Array.isArray(requested)
+    ? requested.map((item) => String(item ?? '').trim()).filter(Boolean)
+    : [];
+  const unique = Array.from(new Set(list));
+  const invalid = unique.filter((perm) => !VALID_PERMISSION_SET.has(perm));
+
+  if (invalid.length > 0) {
+    return {
+      accepted: [] as string[],
+      invalid,
+      rejected: [] as string[],
+    };
+  }
+
+  if (canAccessProtectedRoles(session)) {
+    return {
+      accepted: unique,
+      invalid: [] as string[],
+      rejected: [] as string[],
+    };
+  }
+
+  const ownPermissions = new Set(session.permissions ?? []);
+  const accepted: string[] = [];
+  const rejected: string[] = [];
+
+  for (const perm of unique) {
+    if (!ownPermissions.has(perm) || DELEGATION_BLOCKLIST.has(perm)) {
+      rejected.push(perm);
+      continue;
+    }
+    accepted.push(perm);
+  }
+
+  return {
+    accepted,
+    invalid: [] as string[],
+    rejected,
+  };
+}
+
+async function ensureWorkspaceSystemRoles(db: any, workspaceId: string) {
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
+  const rolesToSeed =
+    workspaceId === getDefaultWorkspaceId()
+      ? DEFAULT_ROLES
+      : DEFAULT_ROLES.filter((role) => !isProtectedRoleSlug(role.slug));
+
+  const ops = rolesToSeed.map((role) => {
+    const scopedClient = resolveClientScopeForRole({
+      role: role.slug,
+      workspaceClientId: workspaceClient.clientId,
+      workspaceClientName: workspaceClient.clientName,
+      promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+    });
+    return {
+    updateOne: {
+      filter: { slug: role.slug, workspaceId },
+      update: {
+        $setOnInsert: {
+          slug: role.slug,
+          label: role.label,
+          description: role.description,
+          custom: false,
+          workspaceId,
+          clientId: scopedClient.clientId,
+          clientName: scopedClient.clientName,
+          createdAt: new Date(),
+        },
+        $set: {
+          permissions: role.permissions,
+          clientId: scopedClient.clientId,
+          clientName: scopedClient.clientName,
+          updatedAt: new Date(),
+        },
+      },
+      upsert: true,
+    },
+  };
+  });
+  await db.collection('roles').bulkWrite(ops, { ordered: false });
+}
+
+export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  // Viewing roles is allowed to anyone who can manage users (for invite form dropdown)
-  // or who has settings.roles permission
-  if (
-    !hasPermission(session.permissions, 'settings.roles') &&
-    !hasPermission(session.permissions, 'settings.users')
-  ) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (!hasPermission(session.permissions, 'settings.roles') && !hasPermission(session.permissions, 'settings.users')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
   const db = await getDb();
-  const roles = await db.collection('roles').find({}).sort({ createdAt: 1 }).toArray();
-  return Response.json({ ok: true, roles: roles.map(r => ({ ...r, _id: String(r._id) })) });
+  await ensureWorkspaceSystemRoles(db, workspaceId);
+  const roles = await db
+    .collection('roles')
+    .find({ workspaceId })
+    .sort({ createdAt: 1 })
+    .toArray();
+
+  const visibleRoles = canAccessProtectedRoles(session)
+    ? roles
+    : roles.filter((role) => !isProtectedRoleSlug(String(role.slug ?? '')));
+
+  return Response.json({ ok: true, roles: visibleRoles.map((r) => ({ ...r, _id: String(r._id) })) });
 }
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasPermission(session.permissions, 'settings.roles'))
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (!hasPermission(session.permissions, 'settings.roles')) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { slug, label, description, permissions } = await req.json();
-  if (!slug || !label)
-    return Response.json({ error: 'slug y label son requeridos' }, { status: 400 });
+  const { slug, label, description, permissions, workspaceId: requestedWorkspaceId } = await req.json();
+  if (!slug || !label) return Response.json({ error: 'slug y label son requeridos' }, { status: 400 });
+
+  const roleSlug = String(slug).trim();
+  if (isProtectedRoleSlug(roleSlug)) {
+    return Response.json({ error: 'No se puede crear un rol reservado.' }, { status: 400 });
+  }
 
   const db = await getDb();
-  const existing = await db.collection('roles').findOne({ slug });
+  const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
+  const existing = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
   if (existing) return Response.json({ error: 'Ya existe un rol con ese ID.' }, { status: 409 });
 
+  const delegation = evaluatePermissionDelegation(session, permissions ?? []);
+  if (delegation.invalid.length > 0) {
+    return Response.json(
+      { error: `Permisos invalidos: ${delegation.invalid.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  if (delegation.rejected.length > 0) {
+    return Response.json(
+      { error: `No puedes delegar estos permisos: ${delegation.rejected.join(', ')}` },
+      { status: 403 }
+    );
+  }
+
+  const scopedClient = resolveClientScopeForRole({
+    role: roleSlug,
+    workspaceClientId: workspaceClient.clientId,
+    workspaceClientName: workspaceClient.clientName,
+    promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+  });
+
   await db.collection('roles').insertOne({
-    slug,
+    slug: roleSlug,
     label,
     description: description ?? '',
-    permissions: permissions ?? [],
+    permissions: delegation.accepted,
     custom: true,
+    workspaceId,
+    clientId: scopedClient.clientId,
+    clientName: scopedClient.clientName,
     createdAt: new Date(),
   });
 
   await log(db, {
-    level: 'INFO', severity: 'LOW',
-    category: 'roles', action: 'ROLE_CREATED',
-    message: `${session.email} creó el rol "${label}" (${slug})`,
-    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
-    target: { type: 'role', id: slug, label },
-    metadata: { after: { slug, label, description: description ?? '', permissions: permissions ?? [] } },
+    level: 'INFO',
+    severity: 'LOW',
+    category: 'roles',
+    action: 'ROLE_CREATED',
+    message: `${session.email} creo el rol "${label}" (${roleSlug})`,
+    actor: actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'role', id: roleSlug, label },
+    metadata: {
+      after: {
+        slug: roleSlug,
+        label,
+        description: description ?? '',
+        permissions: delegation.accepted,
+        workspaceId,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+      },
+    },
   });
 
   return Response.json({ ok: true });
@@ -63,37 +200,72 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasPermission(session.permissions, 'settings.roles'))
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (!hasPermission(session.permissions, 'settings.roles')) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { slug, permissions } = await req.json();
-  if (!slug || !Array.isArray(permissions))
-    return Response.json({ error: 'slug y permissions son requeridos' }, { status: 400 });
+  const { slug, permissions, workspaceId: requestedWorkspaceId } = await req.json();
+  if (!slug || !Array.isArray(permissions)) return Response.json({ error: 'slug y permissions son requeridos' }, { status: 400 });
 
-  if (slug === 'owner' && session.role !== 'owner')
-    return Response.json({ error: 'Solo el propietario puede modificar el rol Owner.' }, { status: 403 });
+  const roleSlug = String(slug).trim();
+  if (isProtectedRoleSlug(roleSlug) && !canAccessProtectedRoles(session)) {
+    return Response.json({ error: 'No autorizado para modificar roles reservados.' }, { status: 403 });
+  }
 
   const db = await getDb();
-  const existing = await db.collection('roles').findOne({ slug });
+  const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const workspaceClient = await getWorkspaceClient(db, workspaceId);
+  const existing = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
+  if (!existing) return Response.json({ error: 'Rol no encontrado' }, { status: 404 });
+
+  const delegation = evaluatePermissionDelegation(session, permissions);
+  if (delegation.invalid.length > 0) {
+    return Response.json(
+      { error: `Permisos invalidos: ${delegation.invalid.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  if (delegation.rejected.length > 0) {
+    return Response.json(
+      { error: `No puedes delegar estos permisos: ${delegation.rejected.join(', ')}` },
+      { status: 403 }
+    );
+  }
+
   const oldPermissions: string[] = existing?.permissions ?? [];
+  const scopedClient = resolveClientScopeForRole({
+    role: roleSlug,
+    workspaceClientId: workspaceClient.clientId,
+    workspaceClientName: workspaceClient.clientName,
+    promoteToGlobal: workspaceId === getDefaultWorkspaceId(),
+  });
 
-  await db.collection('roles').updateOne({ slug }, { $set: { permissions } });
-  await db.collection('users').updateMany({ role: slug }, { $set: { permissions } });
+  await db.collection('roles').updateOne(
+    { slug: roleSlug, workspaceId },
+    {
+      $set: {
+        permissions: delegation.accepted,
+        clientId: scopedClient.clientId,
+        clientName: scopedClient.clientName,
+      },
+    }
+  );
+  await db.collection('users').updateMany({ role: roleSlug, workspaceId }, { $set: { permissions: delegation.accepted } });
 
-  const added   = permissions.filter((p: string) => !oldPermissions.includes(p));
-  const removed = oldPermissions.filter((p: string) => !permissions.includes(p));
+  const added = delegation.accepted.filter((p: string) => !oldPermissions.includes(p));
+  const removed = oldPermissions.filter((p: string) => !delegation.accepted.includes(p));
 
   await log(db, {
-    level: 'WARN', severity: 'MEDIUM',
-    category: 'roles', action: 'ROLE_PERMISSIONS_UPDATED',
-    message: `${session.email} actualizó permisos del rol "${slug}"`,
-    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
-    target: { type: 'role', id: slug, label: existing?.label ?? slug },
+    level: 'WARN',
+    severity: 'MEDIUM',
+    category: 'roles',
+    action: 'ROLE_PERMISSIONS_UPDATED',
+    message: `${session.email} actualizo permisos del rol "${roleSlug}"`,
+    actor: actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'role', id: roleSlug, label: existing?.label ?? roleSlug },
     metadata: {
       before: { permissions: oldPermissions },
-      after:  { permissions },
-      diff:   computeDiff({ permissions: oldPermissions }, { permissions }),
-      extra:  { added, removed },
+      after: { permissions: delegation.accepted },
+      diff: computeDiff({ permissions: oldPermissions }, { permissions: delegation.accepted }),
+      extra: { added, removed, workspaceId },
     },
   });
 
@@ -103,27 +275,43 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasPermission(session.permissions, 'settings.roles'))
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (!hasPermission(session.permissions, 'settings.roles')) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { slug } = await req.json();
+  const { slug, workspaceId: requestedWorkspaceId } = await req.json();
   if (!slug) return Response.json({ error: 'slug requerido' }, { status: 400 });
 
-  const systemRoles = ['owner', 'admin', 'analyst', 'agent_manager', 'viewer', 'operations'];
-  if (systemRoles.includes(slug))
-    return Response.json({ error: 'No se pueden eliminar los roles del sistema.' }, { status: 400 });
+  const roleSlug = String(slug).trim();
+  const systemRoles = [
+    'owner',
+    'admin',
+    'analyst',
+    'agent_manager',
+    'viewer',
+    'operations',
+    'orqo_operator',
+    'orqo_success',
+    'orqo_support',
+  ];
+  if (systemRoles.includes(roleSlug)) {
+    return Response.json({ error: 'No se pueden eliminar roles del sistema.' }, { status: 400 });
+  }
 
   const db = await getDb();
-  const existing = await db.collection('roles').findOne({ slug });
-  await db.collection('roles').deleteOne({ slug });
+  const workspaceId = resolveScopedWorkspaceId(session, requestedWorkspaceId);
+  const existing = await db.collection('roles').findOne({ slug: roleSlug, workspaceId });
+  if (!existing) return Response.json({ error: 'Rol no encontrado' }, { status: 404 });
+
+  await db.collection('roles').deleteOne({ slug: roleSlug, workspaceId });
 
   await log(db, {
-    level: 'WARN', severity: 'MEDIUM',
-    category: 'roles', action: 'ROLE_DELETED',
-    message: `${session.email} eliminó el rol "${existing?.label ?? slug}" (${slug})`,
-    actor:  actorFromRequest(req, { email: session.email, role: session.role }),
-    target: { type: 'role', id: slug, label: existing?.label ?? slug },
-    metadata: { before: { slug, label: existing?.label, permissions: existing?.permissions } },
+    level: 'WARN',
+    severity: 'MEDIUM',
+    category: 'roles',
+    action: 'ROLE_DELETED',
+    message: `${session.email} elimino el rol "${existing?.label ?? roleSlug}" (${roleSlug})`,
+    actor: actorFromRequest(req, { email: session.email, role: session.role }),
+    target: { type: 'role', id: roleSlug, label: existing?.label ?? roleSlug },
+    metadata: { before: { slug: roleSlug, label: existing?.label, permissions: existing?.permissions, workspaceId } },
   });
 
   return Response.json({ ok: true });

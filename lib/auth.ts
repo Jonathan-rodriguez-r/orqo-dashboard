@@ -1,6 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { randomUUID } from 'crypto';
+import { getDb } from '@/lib/mongodb';
+import { readHostFromHeaders, resolveWorkspaceFromHost } from '@/lib/tenant';
+import { DEFAULT_CLIENT_ID, DEFAULT_CLIENT_NAME } from '@/lib/clients';
 
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'orqo-dev-secret-change-in-production'
@@ -17,8 +20,11 @@ export type SessionPayload = {
   name: string;
   avatar?: string;
   workspaceId: string;
+  clientId: string;
+  clientName: string;
   role: string;         // role slug e.g. 'owner', 'admin', 'analyst'
   permissions: string[]; // embedded snapshot — no DB lookup in middleware
+  isGlobalUser: boolean;
   jti: string;          // JWT ID for session tracking / future revocation
   provider: AuthProvider;
 };
@@ -45,7 +51,35 @@ export async function getSession(): Promise<SessionPayload | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
-  return verifySession(token);
+
+  const session = await verifySession(token);
+  if (!session) return null;
+
+  if (typeof session.isGlobalUser !== 'boolean') {
+    session.isGlobalUser = false;
+  }
+  if (!session.clientId) {
+    session.clientId = DEFAULT_CLIENT_ID;
+  }
+  if (!session.clientName) {
+    session.clientName = DEFAULT_CLIENT_NAME;
+  }
+
+  try {
+    const reqHeaders = await headers();
+    const host = readHostFromHeaders(reqHeaders);
+    const db = await getDb();
+    const tenant = await resolveWorkspaceFromHost(db, host);
+
+    if (!tenant) return null;
+    if (tenant.workspaceId !== session.workspaceId && !session.isGlobalUser) {
+      return null;
+    }
+  } catch {
+    // If request headers are unavailable (non-request execution), keep JWT session fallback.
+  }
+
+  return session;
 }
 
 /** Build a fresh SessionPayload from a DB user document + role permissions */
@@ -60,8 +94,11 @@ export function buildSessionPayload(
     name: user.name ?? user.email.split('@')[0],
     avatar: user.avatar,
     workspaceId: user.workspaceId ?? 'default',
+    clientId: user.clientId ?? DEFAULT_CLIENT_ID,
+    clientName: user.clientName ?? DEFAULT_CLIENT_NAME,
     role: user.role ?? 'viewer',
     permissions,
+    isGlobalUser: Boolean(user.isGlobalUser),
     jti: randomUUID(),
     provider,
   };

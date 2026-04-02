@@ -1,5 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { randomUUID } from 'crypto';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
+import { getWorkspaceClient } from '@/lib/clients';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +62,8 @@ function makeHourDist(total: number): Record<number, number> {
 export async function POST() {
   try {
     const db = await getDb();
+    const workspaceId = getDefaultWorkspaceId();
+    const client = await getWorkspaceClient(db, workspaceId);
 
     // Idempotency check — only skip if BOTH analytics AND conversations are populated
     const [analyticsCount, convCount, logsCount] = await Promise.all([
@@ -97,7 +101,9 @@ export async function POST() {
       };
 
       analyticsToInsert.push({
-        workspaceId: 'default',
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         date: dateStr,
         conversations,
         resolved,
@@ -126,7 +132,9 @@ export async function POST() {
       const tokOutput = msgCount * rand(120, 280) + rand(100, 500);
 
       conversationsToInsert.push({
-        workspaceId:    'default',
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         conv_id:        genConvId(),
         user_name:      name,
         user_email:     email,
@@ -220,6 +228,9 @@ export async function POST() {
       d.setHours(rand(7, 22), rand(0, 59), rand(0, 59));
       return {
         correlationId: randomUUID(),
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         ...entry,
         http: entry.http ?? undefined,
         createdAt: d,
@@ -229,19 +240,19 @@ export async function POST() {
 
     // ── MongoDB indexes (DBA best practices) ──────────────────────────────
     await db.collection('analytics_daily').createIndex(
-      { date: 1 }, { unique: true, background: true }
+      { workspaceId: 1, date: 1 }, { unique: true, background: true }
     );
     await db.collection('analytics_daily').createIndex(
-      { workspaceId: 1, date: -1 }, { background: true }
+      { workspaceId: 1, clientId: 1, date: -1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, updatedAt: -1 }, { background: true }
+      { workspaceId: 1, clientId: 1, updatedAt: -1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, channel: 1 }, { background: true }
+      { workspaceId: 1, clientId: 1, channel: 1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
-      { workspaceId: 1, status: 1 }, { background: true }
+      { workspaceId: 1, clientId: 1, status: 1 }, { background: true }
     );
     await db.collection('conversations').createIndex(
       { user_name: 'text', last_message: 'text', user_email: 'text' },
@@ -262,9 +273,21 @@ export async function POST() {
     );
 
     // ── Config doc ────────────────────────────────────────────────────────
-    await db.collection('config').updateOne(
-      { _id: 'account' as any },
-      { $setOnInsert: { plan: 'Starter', interactions_limit: 1000, business_name: 'Mi Negocio' } },
+    await db.collection('workspace_configs').updateOne(
+      { workspaceId, key: 'account' },
+      {
+        $setOnInsert: {
+          workspaceId,
+          key: 'account',
+          plan: 'Starter',
+          interactions_limit: 1000,
+          business_name: 'Mi Negocio',
+          clientId: client.clientId,
+          clientName: client.clientName,
+          createdAt: new Date(),
+        },
+        $set: { updatedAt: new Date() },
+      },
       { upsert: true }
     );
 

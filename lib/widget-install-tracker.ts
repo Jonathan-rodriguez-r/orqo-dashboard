@@ -45,6 +45,7 @@ function pickSource(origin: string, referer: string) {
 
 export async function trackWidgetInstallSource(args: {
   db: Db;
+  workspaceId: string;
   origin?: string | null;
   referer?: string | null;
 }) {
@@ -52,15 +53,21 @@ export async function trackWidgetInstallSource(args: {
   if (!source) return null;
 
   const now = Date.now();
-  await args.db.collection('config').updateOne(
-    { _id: 'account' as any },
+  await args.db.collection('workspace_configs').updateOne(
+    { workspaceId: args.workspaceId, key: 'account' },
     {
       $set: {
+        workspaceId: args.workspaceId,
+        key: 'account',
         active_domain: source.host,
         widget_page_url: source.pageUrl,
         widget_last_seen_at: now,
+        updatedAt: new Date(),
       },
       $addToSet: { widget_seen_domains: source.host },
+      $setOnInsert: {
+        createdAt: new Date(),
+      },
     },
     { upsert: true },
   );

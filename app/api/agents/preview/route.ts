@@ -2,6 +2,7 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { generateAgentReply, type ChatTurn } from '@/lib/ai-orchestrator';
 import { writeLog } from '@/app/api/admin/logs/route';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 export async function POST(req: Request) {
   try {
@@ -9,6 +10,7 @@ export async function POST(req: Request) {
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
+    const workspaceId = resolveScopedWorkspaceId(session, body?.workspaceId ?? body?.workspace_id ?? null);
     const message = String(body?.message ?? '').trim();
     const agent = body?.agent ?? {};
     const historyRaw = Array.isArray(body?.history) ? body.history : [];
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
     const db = await getDb();
     const result = await generateAgentReply({
       db,
-      workspaceId: session.workspaceId,
+      workspaceId,
       agent,
       message,
       history,
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
         await writeLog({
           level: at.isQuotaOrTokens ? 'error' : 'warn',
           source: 'agent-preview',
+          workspaceId,
           msg: `Intento fallido ${at.provider}/${at.model} [${at.errorType ?? 'unknown'}]`,
           detail: at.reason ?? 'error',
         });
@@ -46,6 +49,7 @@ export async function POST(req: Request) {
       await writeLog({
         level: 'warn',
         source: 'agent-preview',
+        workspaceId,
         msg: `Preview con degradacion (${result.fallbackType ?? 'none'})`,
         detail: (result.errors ?? []).slice(-4).join(' | '),
       });
@@ -54,6 +58,7 @@ export async function POST(req: Request) {
     await writeLog({
       level: 'info',
       source: 'agent-preview',
+      workspaceId,
       msg: 'Preview IA generado',
       detail: `${result.provider}/${result.model}`,
     });

@@ -1,5 +1,8 @@
-import { getDb } from '@/lib/mongodb';
+﻿import { getDb } from '@/lib/mongodb';
 import { writeLog } from '@/app/api/admin/logs/route';
+import { resolveWidgetWorkspace } from '@/lib/widget-auth';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +37,13 @@ export async function POST(req: Request) {
     }
 
     const db = await getDb();
-    const account = await db.collection('config').findOne({ _id: 'account' as any });
+    const workspaceId = await resolveWidgetWorkspace({ db, req, key, agentId });
+    if (!workspaceId) {
+      return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
+    }
+    const client = await getWorkspaceClient(db, workspaceId);
+
+    const account = await getWorkspaceConfig(db, workspaceId, 'account', { defaults: { api_key: '' } as any });
     if (!account || !key || key !== account.api_key) {
       return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
     }
@@ -43,6 +52,8 @@ export async function POST(req: Request) {
       const baseRef = baseWidgetConversationRef(visitorId, agentId);
       const latest = await db.collection('conversations').findOne(
         {
+          workspaceId,
+          $or: [{ clientId: client.clientId }, { clientId: { $exists: false } }],
           channel: 'widget',
           visitor_id: visitorId,
           agent_id: agentId,
@@ -55,9 +66,16 @@ export async function POST(req: Request) {
 
     const now = Date.now();
     const result = await db.collection('conversations').updateOne(
-      { conv_id: conversationRef, channel: 'widget' },
+      {
+        workspaceId,
+        conv_id: conversationRef,
+        channel: 'widget',
+        $or: [{ clientId: client.clientId }, { clientId: { $exists: false } }],
+      },
       {
         $set: {
+          clientId: client.clientId,
+          clientName: client.clientName,
           status: 'closed',
           closedAt: now,
           closureReason: reason,
@@ -75,7 +93,8 @@ export async function POST(req: Request) {
       level: 'info',
       source: 'widget-conversation',
       msg: `Conversacion cerrada (${reason})`,
-      detail: conversationRef,
+      workspaceId,
+      detail: `${workspaceId}:${conversationRef}`,
     }).catch(() => {});
 
     return Response.json({ ok: true, conversationRef, reason }, { headers: CORS });

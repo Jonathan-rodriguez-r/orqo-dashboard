@@ -7,8 +7,12 @@ type SessionInfo = {
   email: string;
   name: string;
   avatar?: string;
+  workspaceId: string;
+  clientId: string;
+  clientName: string;
   role: string;
   permissions: string[];
+  isGlobalUser: boolean;
   provider: string;
 };
 

@@ -4,6 +4,9 @@ import { generateAgentReply, type ChatTurn, type AgentRuntime } from '@/lib/ai-o
 import { writeLog } from '@/app/api/admin/logs/route';
 import { bumpInteractionUsage } from '@/lib/usage-meter';
 import { trackWidgetInstallSource } from '@/lib/widget-install-tracker';
+import { resolveWidgetWorkspace } from '@/lib/widget-auth';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -171,8 +174,16 @@ export async function POST(req: Request) {
     if (!messageForModel) return Response.json({ error: 'message is required' }, { status: 400, headers: CORS });
 
     const db = await getDb();
-    const account = await db.collection('config').findOne({ _id: 'account' as any });
-    const widgetCfg = await db.collection('widget_config').findOne({ widgetId: 'default' });
+    const resolvedWorkspace = await resolveWidgetWorkspace({ db, req, key, agentId });
+    if (!resolvedWorkspace) {
+      return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
+    }
+    const account = await getWorkspaceConfig(db, resolvedWorkspace, 'account', {
+      defaults: { timezone: 'America/Bogota', api_key: '' } as any,
+    });
+    const widgetCfg = await getWorkspaceConfig(db, resolvedWorkspace, 'widget', {
+      defaults: { closeOnInactivity: true, inactivityCloseMinutes: 15 } as any,
+    });
 
     const trustedOrigins = new Set(['https://orqo.io', 'https://www.orqo.io', 'http://localhost:3000']);
     const trustedByOrigin = trustedOrigins.has(origin);
@@ -192,11 +203,12 @@ export async function POST(req: Request) {
         level: 'warn',
         source: 'widget-reply',
         msg: 'API key invalida en reply',
+        workspaceId: resolvedWorkspace,
         detail: `origin=${origin || 'n/a'} referer=${referer || 'n/a'}`,
       });
       return Response.json({ error: 'Unauthorized key' }, { status: 401, headers: CORS });
     }
-    await trackWidgetInstallSource({ db, origin, referer }).catch(() => {});
+    await trackWidgetInstallSource({ db, workspaceId: resolvedWorkspace, origin, referer }).catch(() => {});
 
     const history = sanitizeHistory(historyRaw);
     const modelHistory = historyForInference(history, messageForModel);
@@ -205,11 +217,11 @@ export async function POST(req: Request) {
 
     let agentDoc: any = null;
     if (agentId && agentId !== 'default' && ObjectId.isValid(agentId)) {
-      agentDoc = await db.collection('agents_v2').findOne({ _id: new ObjectId(agentId) });
+      agentDoc = await db.collection('agents_v2').findOne({ _id: new ObjectId(agentId), workspaceId: resolvedWorkspace });
     }
     if (!agentDoc) {
       agentDoc = await db.collection('agents_v2').findOne(
-        { status: 'active', 'channels.web': true },
+        { workspaceId: resolvedWorkspace, status: 'active', 'channels.web': true },
         { sort: { updatedAt: -1 } }
       );
     }
@@ -218,7 +230,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Invalid agent token' }, { status: 401, headers: CORS });
     }
 
-    const workspaceId = String(agentDoc?.workspaceId ?? 'default');
+    const workspaceId = String(agentDoc?.workspaceId ?? resolvedWorkspace);
+    const workspaceClient = await getWorkspaceClient(db, workspaceId);
     const agent: AgentRuntime = agentDoc
       ? {
           name: agentDoc.name,
@@ -250,6 +263,7 @@ export async function POST(req: Request) {
         await writeLog({
           level: at.isQuotaOrTokens ? 'error' : 'warn',
           source: 'widget-reply',
+          workspaceId,
           msg: `Intento fallido ${at.provider}/${at.model} [${at.errorType ?? 'unknown'}]`,
           detail: at.reason ?? 'error',
         }).catch(() => {});
@@ -260,6 +274,7 @@ export async function POST(req: Request) {
       await writeLog({
         level: 'warn',
         source: 'widget-reply',
+        workspaceId,
         msg: `Reply con degradacion (${result.fallbackType ?? 'none'})`,
         detail: (result.errors ?? []).slice(-4).join(' | '),
       }).catch(() => {});
@@ -282,7 +297,14 @@ export async function POST(req: Request) {
       const inactivityCutoffMs = nowMs - inactivityMinutes * 60 * 1000;
 
       const latestOpen = await db.collection('conversations').findOne(
-        { channel: 'widget', visitor_id: visitorId, agent_id: safeAgentId, status: 'open' },
+        {
+          workspaceId,
+          $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+          channel: 'widget',
+          visitor_id: visitorId,
+          agent_id: safeAgentId,
+          status: 'open',
+        },
         { sort: { updatedAt: -1 }, projection: { _id: 1, conv_id: 1, updatedAt: 1 } }
       );
 
@@ -295,7 +317,11 @@ export async function POST(req: Request) {
         Number(latestOpen.updatedAt) < inactivityCutoffMs
       ) {
         await db.collection('conversations').updateOne(
-          { _id: latestOpen._id },
+          {
+            _id: latestOpen._id,
+            workspaceId,
+            $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+          },
           {
             $set: {
               status: 'closed',
@@ -311,6 +337,7 @@ export async function POST(req: Request) {
         await writeLog({
           level: 'info',
           source: 'widget-conversation',
+          workspaceId,
           msg: 'Conversacion cerrada por inactividad',
           detail: `${latestOpen.conv_id} (${inactivityMinutes}m)`,
         }).catch(() => {});
@@ -324,10 +351,17 @@ export async function POST(req: Request) {
       ];
 
       await db.collection('conversations').updateOne(
-        { conv_id: persistedConvRef, channel: 'widget' },
+        {
+          workspaceId,
+          conv_id: persistedConvRef,
+          channel: 'widget',
+          $or: [{ clientId: workspaceClient.clientId }, { clientId: { $exists: false } }],
+        },
         {
           $set: {
             workspaceId,
+            clientId: workspaceClient.clientId,
+            clientName: workspaceClient.clientName,
             user_name: who,
             user_email: '',
             last_message: previewMessage,
@@ -382,6 +416,7 @@ export async function POST(req: Request) {
       await writeLog({
         level: 'warn',
         source: 'widget-reply',
+        workspaceId,
         msg: 'No se pudo registrar uso de interacciones',
         detail: usageErr?.message ?? 'unknown',
       }).catch(() => {});
@@ -390,6 +425,7 @@ export async function POST(req: Request) {
     await writeLog({
       level: 'info',
       source: 'widget-reply',
+      workspaceId,
       msg: 'Reply IA generado',
       detail: `${result.provider}/${result.model}`,
     }).catch(() => {});
