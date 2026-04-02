@@ -7,9 +7,10 @@ import OrchestrationPage from './orchestration/page';
 import AlertsSettingsPage from './alerts/page';
 import WidgetPage from '../widget/page';
 import AccountPage from '../account/page';
+import IntegrationsPage from './integrations/page';
 
 // â”€â”€ Tab types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-type Tab = 'orchestration' | 'widget' | 'access' | 'account';
+type Tab = 'orchestration' | 'widget' | 'access' | 'account' | 'core';
 type AccessSubTab = 'users' | 'roles' | 'alerts';
 
 // â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -193,7 +194,7 @@ export default function SettingsPage() {
     const tabParam = (searchParams.get('tab') ?? '').toLowerCase();
     const subParam = (searchParams.get('sub') ?? '').toLowerCase();
 
-    if (tabParam && ['orchestration', 'widget', 'access', 'account'].includes(tabParam)) {
+    if (tabParam && ['orchestration', 'widget', 'access', 'account', 'core'].includes(tabParam)) {
       setTab(tabParam as Tab);
     }
 
@@ -328,6 +329,7 @@ export default function SettingsPage() {
     { id: 'widget',        label: 'Widget' },
     { id: 'access',        label: 'Accesos' },
     { id: 'account',       label: 'Cuenta' },
+    { id: 'core',          label: 'Motor de Agentes' },
   ];
 
   const tabBtnStyle = (active: boolean) => ({
@@ -738,6 +740,9 @@ export default function SettingsPage() {
 
       {/* Account tab */}
       {tab === 'account' && <AccountPage embedded />}
+
+      {/* Motor de Agentes tab */}
+      {tab === 'core' && <IntegrationsPage />}
     </div>
   );
 }
