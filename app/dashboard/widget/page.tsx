@@ -132,6 +132,27 @@ const CATEGORIES = ['Ayuda', 'FAQ', 'Integraciones', 'Planes'];
 
 function newArtId() { return 'art-' + Math.random().toString(36).slice(2, 9); }
 
+function normalizeThemeMode(value: unknown): WidgetCfg['themeMode'] {
+  const mode = String(value ?? '').trim().toLowerCase();
+  if (mode === 'dark' || mode === 'night' || mode === 'oscuro') return 'dark';
+  if (mode === 'light' || mode === 'day' || mode === 'claro') return 'light';
+  return 'auto';
+}
+
+function resolveDashboardTheme(): 'dark' | 'light' {
+  const attrTheme = String(document.documentElement.getAttribute('data-theme') || '').toLowerCase();
+  if (attrTheme === 'dark' || attrTheme === 'light') return attrTheme;
+
+  try {
+    const storedTheme = String(window.localStorage.getItem('orqo_theme') || '').toLowerCase();
+    if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
+  } catch {
+    // ignore storage errors
+  }
+
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 // â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ToggleRow({ title, desc, checked, onChange }: {
   title: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
@@ -193,7 +214,12 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
 
   useEffect(() => {
     fetch('/api/config/widget').then(r => r.json()).then(d => {
-      if (d && !d.error) setCfg({ ...DEFAULTS, ...d });
+      if (!d || d.error) return;
+      setCfg({
+        ...DEFAULTS,
+        ...d,
+        themeMode: normalizeThemeMode(d.themeMode),
+      });
     });
   }, []);
 
@@ -220,9 +246,39 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
   }, []);
 
   useEffect(() => {
-    if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') {
-      setPreviewTheme(cfg.themeMode);
+    const normalizedMode = normalizeThemeMode(cfg.themeMode);
+    if (normalizedMode === 'dark' || normalizedMode === 'light') {
+      setPreviewTheme(normalizedMode);
+      return;
     }
+
+    const syncAutoTheme = () => setPreviewTheme(resolveDashboardTheme());
+    syncAutoTheme();
+
+    const root = document.documentElement;
+    const observer = new MutationObserver(syncAutoTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+
+    const media = window.matchMedia?.('(prefers-color-scheme: light)');
+    const handleMediaChange = () => syncAutoTheme();
+    if (media) {
+      if (typeof media.addEventListener === 'function') media.addEventListener('change', handleMediaChange);
+      else media.addListener(handleMediaChange);
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'orqo_theme') syncAutoTheme();
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('storage', onStorage);
+      if (media) {
+        if (typeof media.removeEventListener === 'function') media.removeEventListener('change', handleMediaChange);
+        else media.removeListener(handleMediaChange);
+      }
+    };
   }, [cfg.themeMode]);
 
   function set<K extends keyof WidgetCfg>(key: K, value: WidgetCfg[K]) {
@@ -298,9 +354,9 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
     : '';
 
   const previewBg      = previewTheme === 'dark'
-    ? cfg.darkBg
-    : `linear-gradient(180deg, #0D1A12 0%, #152018 58%, ${cfg.lightSurface || '#FFFFFF'} 78%, ${cfg.lightSurface || '#FFFFFF'} 100%)`;
-  const previewSurface = previewTheme === 'dark' ? cfg.darkSurface  : cfg.lightSurface;
+    ? (cfg.darkBg || '#0B100D')
+    : `linear-gradient(180deg, ${cfg.lightBg || '#F4F7F4'} 0%, ${cfg.lightBg || '#F4F7F4'} 62%, ${cfg.lightSurface || '#FFFFFF'} 84%, ${cfg.lightSurface || '#FFFFFF'} 100%)`;
+  const previewSurface = previewTheme === 'dark' ? (cfg.darkSurface || '#111812')  : (cfg.lightSurface || '#FFFFFF');
   const previewText    = previewTheme === 'dark' ? '#F5F5F2'        : '#090F0A';
   const previewSub     = previewTheme === 'dark' ? 'rgba(233,237,233,0.5)' : 'rgba(9,15,10,0.45)';
   const lastSeenLabel = installInfo.widget_last_seen_at

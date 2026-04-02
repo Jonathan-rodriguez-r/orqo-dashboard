@@ -35,6 +35,12 @@ type WidgetAttachment = {
   size: number;
 };
 
+type WidgetLead = {
+  name: string;
+  email: string;
+  phone: string;
+};
+
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS });
 }
@@ -69,6 +75,16 @@ function sanitizeAttachments(raw: any[]): WidgetAttachment[] {
       };
     })
     .slice(0, 8);
+}
+
+function sanitizeLead(raw: any): WidgetLead {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const clean = (value: any, maxLen: number) => String(value ?? '').trim().slice(0, maxLen);
+  return {
+    name: clean(source.name, 120),
+    email: clean(source.email, 160),
+    phone: clean(source.phone, 50),
+  };
 }
 
 function attachmentSummary(attachments: WidgetAttachment[]) {
@@ -168,6 +184,7 @@ export async function POST(req: Request) {
     const message = String(body?.message ?? '').trim();
     const historyRaw = Array.isArray(body?.history) ? body.history : [];
     const attachmentsRaw = Array.isArray(body?.attachments) ? body.attachments : [];
+    const lead = sanitizeLead(body?.lead);
     const attachments = sanitizeAttachments(attachmentsRaw);
     const messageForModel = buildMessageForInference(message, attachments);
 
@@ -344,7 +361,7 @@ export async function POST(req: Request) {
       }
 
       const previewMessage = result.reply.slice(0, 280);
-      const who = visitorId.startsWith('v_') ? 'Visitante web' : visitorId;
+      const who = lead.name || (visitorId.startsWith('v_') ? 'Visitante web' : visitorId);
       const newTurns: PersistedWidgetMessage[] = [
         { role: 'user', content: messageForModel, ts: nowMs, ...(attachments.length ? { attachments } : {}) },
         { role: 'assistant', content: result.reply, ts: nowMs + 1 },
@@ -363,7 +380,8 @@ export async function POST(req: Request) {
             clientId: workspaceClient.clientId,
             clientName: workspaceClient.clientName,
             user_name: who,
-            user_email: '',
+            user_email: lead.email || '',
+            user_phone: lead.phone || '',
             last_message: previewMessage,
             status: 'open',
             channel: 'widget',
