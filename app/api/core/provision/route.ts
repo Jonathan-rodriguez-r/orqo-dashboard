@@ -27,7 +27,8 @@ export async function POST(req: Request) {
 
   // Leer nombre del workspace desde account config
   const accountConfig = await db.collection('workspace_configs').findOne({ workspaceId, key: 'account' });
-  const workspaceName = (accountConfig as any)?.business_name ?? 'Mi Workspace ORQO';
+  const rawName = (accountConfig as any)?.business_name;
+  const workspaceName = (rawName && String(rawName).trim()) ? String(rawName).trim() : 'Mi Workspace ORQO';
 
   const body = await req.json().catch(() => ({})) as Record<string, string>;
   const agentName = body.agentName ?? workspaceName;
