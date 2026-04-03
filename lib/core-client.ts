@@ -61,6 +61,13 @@ export interface CoreMcpServer {
   createdAt: string;
 }
 
+export interface CoreChannelPublic {
+  workspaceId: string;
+  whatsapp?:   { phoneNumberId: string; tokenPrefix: string } | null;
+  instagram?:  { igAccountId: string;   tokenPrefix: string } | null;
+  facebook?:   { pageId: string;        tokenPrefix: string } | null;
+}
+
 export interface CoreMcpTemplate {
   type: string;
   name: string;
@@ -122,5 +129,17 @@ export const CoreClient = {
 
   async disableMcpServer(coreWorkspaceId: string, mcpId: string) {
     return coreRequest<CoreMcpServer>('POST', `/workspaces/${coreWorkspaceId}/mcp-servers/${mcpId}/disable`);
+  },
+
+  async getChannels(coreWorkspaceId: string) {
+    return coreRequest<CoreChannelPublic>('GET', `/workspaces/${coreWorkspaceId}/channels`);
+  },
+
+  async setChannel(coreWorkspaceId: string, channel: 'whatsapp' | 'instagram' | 'facebook', credentials: Record<string, string>) {
+    return coreRequest<CoreChannelPublic>('PUT', `/workspaces/${coreWorkspaceId}/channels/${channel}`, credentials);
+  },
+
+  async deleteChannel(coreWorkspaceId: string, channel: 'whatsapp' | 'instagram' | 'facebook') {
+    return coreRequest<{ deleted: boolean; channel: string }>('DELETE', `/workspaces/${coreWorkspaceId}/channels/${channel}`);
   },
 };

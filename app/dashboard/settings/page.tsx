@@ -329,7 +329,7 @@ export default function SettingsPage() {
     { id: 'widget',        label: 'Widget' },
     { id: 'access',        label: 'Accesos' },
     { id: 'account',       label: 'Cuenta' },
-    { id: 'core',          label: 'Motor de Agentes' },
+    { id: 'core',          label: 'Integraciones' },
   ];
 
   const tabBtnStyle = (active: boolean) => ({

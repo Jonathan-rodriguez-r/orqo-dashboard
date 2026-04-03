@@ -27,10 +27,9 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings',              label: 'Configuracion',  icon: I.settings, permission: 'settings.widget'        },
-  { href: '/dashboard/settings/integrations', label: 'Integraciones',  icon: I.plug,     permission: 'settings.integrations'  },
-  { href: '/dashboard/clients',               label: 'Clientes',       icon: I.clients,  permission: 'admin.clients'          },
-  { href: '/dashboard/logs',                  label: 'Logs & Auditoria', icon: I.logs,   permission: 'admin.logs'             },
+  { href: '/dashboard/settings', label: 'Configuracion',   icon: I.settings, permission: 'settings.widget' },
+  { href: '/dashboard/clients',  label: 'Clientes',        icon: I.clients,  permission: 'admin.clients'   },
+  { href: '/dashboard/logs',     label: 'Logs & Auditoria', icon: I.logs,    permission: 'admin.logs'      },
 ] as const;
 
 type Props = {
