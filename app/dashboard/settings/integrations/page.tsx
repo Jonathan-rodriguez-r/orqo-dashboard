@@ -25,15 +25,40 @@ interface CoreStatus {
   provisionedAt?: string;
 }
 
+// ── Icons ──────────────────────────────────────────────────────────────────────
+const IconCopy = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="5.5" y="5.5" width="9" height="9" rx="1"/>
+    <path d="M10.5 5.5V3A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h2.5" strokeLinecap="round"/>
+  </svg>
+);
+const IconPlug = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M6 1.5v4M10 1.5v4M4 5.5h8v1.5a3.5 3.5 0 0 1-3.5 3.5H8V14.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IconTrash = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M2 4h12M5.5 4V2.5h5V4M6.5 7v5M9.5 7v5M3.5 4l.75 9.5h7.5L12.5 4" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IconCheck = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M2.5 8.5 6 12l7.5-8" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 export default function IntegrationsPage() {
-  const [coreStatus, setCoreStatus] = useState<CoreStatus | null>(null);
-  const [catalog, setCatalog] = useState<Template[]>([]);
-  const [servers, setServers] = useState<McpServer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [coreStatus, setCoreStatus]     = useState<CoreStatus | null>(null);
+  const [catalog, setCatalog]           = useState<Template[]>([]);
+  const [servers, setServers]           = useState<McpServer[]>([]);
+  const [loading, setLoading]           = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [connectingType, setConnectingType] = useState<string | null>(null);
-  const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [credentials, setCredentials]   = useState<Record<string, string>>({});
   const [apiKeyResult, setApiKeyResult] = useState<string | null>(null);
+  const [copied, setCopied]             = useState(false);
+  const [copiedKey, setCopiedKey]       = useState(false);
 
   async function load() {
     setLoading(true);
@@ -63,18 +88,14 @@ export default function IntegrationsPage() {
   }
 
   async function connect(type: string) {
-    const template = catalog.find(t => t.type === type);
-    if (!template) return;
-    const res = await fetch('/api/core/mcp', {
+    await fetch('/api/core/mcp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, credentials }),
     }).then(r => r.json());
-    if ((res as any).id) {
-      setConnectingType(null);
-      setCredentials({});
-      await load();
-    }
+    setConnectingType(null);
+    setCredentials({});
+    await load();
   }
 
   async function toggle(server: McpServer) {
@@ -89,163 +110,181 @@ export default function IntegrationsPage() {
     await load();
   }
 
+  function copyToClipboard(text: string, setCopiedFn: (v: boolean) => void) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedFn(true);
+      setTimeout(() => setCopiedFn(false), 1800);
+    });
+  }
+
   const connectingTemplate = catalog.find(t => t.type === connectingType);
 
   if (loading) return (
-    <div className="p-8 text-center text-neutral-500">Cargando integraciones...</div>
+    <div style={{ textAlign: 'center', color: 'var(--g05)', padding: '48px 0', fontSize: 13 }}>
+      Cargando integraciones…
+    </div>
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Integraciones</h1>
-        <p className="text-neutral-400 mt-1">
-          Conecta tu workspace a sistemas externos. Los agentes accederán a ellos automáticamente.
-        </p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Estado del Core */}
-      <section className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5 space-y-3">
-        <div className="flex items-center justify-between">
+      {/* ── Motor de agentes ──────────────────────────────────────────────────── */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: coreStatus?.provisioned ? 20 : 12 }}>
           <div>
-            <h2 className="font-semibold text-white">Motor de agentes (orqo-core)</h2>
-            <p className="text-sm text-neutral-400">Procesa mensajes de WhatsApp y ejecuta integraciones</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--g08)' }}>Motor de agentes (orqo-core)</span>
+              {coreStatus?.provisioned
+                ? <span className="badge badge-green"><span className="dot dot-green" style={{ width: 6, height: 6 }}/>Activo</span>
+                : <span className="badge badge-yellow">No provisionado</span>
+              }
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--g05)', margin: 0 }}>
+              Procesa mensajes de WhatsApp y ejecuta integraciones MCP
+            </p>
           </div>
-          {coreStatus?.provisioned ? (
-            <span className="text-xs bg-emerald-900/40 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full">
-              Activo
-            </span>
-          ) : (
-            <span className="text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-800 px-3 py-1 rounded-full">
-              No provisionado
-            </span>
-          )}
         </div>
 
         {coreStatus?.provisioned ? (
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-500 w-32">Webhook URL</span>
-              <code className="text-emerald-400 bg-neutral-800 px-2 py-0.5 rounded text-xs flex-1 truncate">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Webhook URL */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--g05)', width: 110, flexShrink: 0 }}>Webhook URL</span>
+              <code className="input input-mono" style={{ flex: 1, fontSize: 11.5, padding: '5px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {coreStatus.webhookUrl}
               </code>
               <button
-                onClick={() => navigator.clipboard.writeText(coreStatus.webhookUrl ?? '')}
-                className="text-xs text-neutral-400 hover:text-white border border-neutral-700 px-2 py-0.5 rounded"
+                className={`btn btn-ghost btn-sm${copied ? ' btn-primary' : ''}`}
+                style={{ flexShrink: 0, gap: 5 }}
+                onClick={() => copyToClipboard(coreStatus.webhookUrl ?? '', setCopied)}
               >
-                Copiar
+                {copied ? <><IconCheck />Copiado</> : <><IconCopy />Copiar</>}
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-500 w-32">Workspace ID</span>
-              <code className="text-neutral-300 bg-neutral-800 px-2 py-0.5 rounded text-xs">
+            {/* Workspace ID */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--g05)', width: 110, flexShrink: 0 }}>Workspace ID</span>
+              <code className="input input-mono" style={{ flex: 1, fontSize: 11.5, padding: '5px 10px' }}>
                 {coreStatus.coreWorkspaceId}
               </code>
             </div>
+            {/* Provisionado */}
             {coreStatus.provisionedAt && (
-              <div className="flex items-center gap-2">
-                <span className="text-neutral-500 w-32">Provisionado</span>
-                <span className="text-neutral-400 text-xs">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--g05)', width: 110, flexShrink: 0 }}>Provisionado</span>
+                <span style={{ fontSize: 12.5, color: 'var(--g06)' }}>
                   {new Date(coreStatus.provisionedAt).toLocaleDateString('es-CO', { dateStyle: 'long' })}
                 </span>
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-neutral-400">
-              El workspace aún no está conectado al motor de procesamiento de WhatsApp.
-              Provisiona para habilitar integraciones y el webhook.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--g05)', margin: 0 }}>
+              El workspace aún no está conectado al motor de procesamiento.
+              Provisiona para habilitar integraciones y el webhook de WhatsApp.
             </p>
-            <button
-              onClick={provision}
-              disabled={provisioning}
-              className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium"
-            >
-              {provisioning ? 'Provisionando...' : 'Conectar al motor de agentes'}
-            </button>
+            <div>
+              <button className="btn btn-primary" onClick={provision} disabled={provisioning}>
+                <IconPlug />
+                {provisioning ? 'Provisionando…' : 'Conectar al motor de agentes'}
+              </button>
+            </div>
           </div>
         )}
 
-        {/* API Key result — solo aparece tras provisionar */}
+        {/* API Key alert — solo tras provisionar */}
         {apiKeyResult && (
-          <div className="mt-3 p-3 rounded-lg bg-yellow-950/50 border border-yellow-800/60 space-y-1">
-            <p className="text-xs font-medium text-yellow-300">Guarda esta API Key — no se mostrará de nuevo</p>
-            <code className="text-xs text-yellow-200 break-all">{apiKeyResult}</code>
-            <button
-              onClick={() => { navigator.clipboard.writeText(apiKeyResult); }}
-              className="text-xs text-yellow-400 underline"
-            >
-              Copiar
-            </button>
+          <div style={{
+            marginTop: 16, padding: '12px 14px', borderRadius: 'var(--radius)',
+            background: 'rgba(245,180,60,0.08)', border: '1px solid rgba(245,180,60,0.25)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)', marginBottom: 6 }}>
+              Guarda esta API Key — no se mostrará de nuevo
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code style={{ flex: 1, fontSize: 11.5, color: 'var(--g07)', fontFamily: 'var(--f-mono)', wordBreak: 'break-all' }}>
+                {apiKeyResult}
+              </code>
+              <button
+                className={`btn btn-ghost btn-sm${copiedKey ? ' btn-primary' : ''}`}
+                style={{ flexShrink: 0 }}
+                onClick={() => copyToClipboard(apiKeyResult, setCopiedKey)}
+              >
+                {copiedKey ? <><IconCheck />Copiado</> : <><IconCopy />Copiar</>}
+              </button>
+            </div>
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Integraciones activas */}
+      {/* ── Integraciones activas ─────────────────────────────────────────────── */}
       {coreStatus?.provisioned && servers.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="font-semibold text-white">Integraciones activas</h2>
-          <div className="space-y-2">
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--g07)', marginBottom: 10 }}>
+            Integraciones activas
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {servers.map(server => (
-              <div
-                key={server.id}
-                className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/60 px-4 py-3"
-              >
-                <div>
-                  <span className="text-white font-medium text-sm">{server.name}</span>
-                  <span className="ml-2 text-xs text-neutral-500">{server.tools.length} tools</span>
+              <div key={server.id} className="card-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)' }}>{server.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--g04)' }}>{server.tools.length} tools</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button
                     onClick={() => toggle(server)}
-                    className={`text-xs px-3 py-1 rounded-full border font-medium ${
-                      server.active
-                        ? 'text-emerald-400 border-emerald-800 bg-emerald-900/30'
-                        : 'text-neutral-400 border-neutral-700 bg-neutral-800/30'
-                    }`}
+                    className={`btn btn-sm ${server.active ? 'btn-ghost' : 'btn-ghost'}`}
+                    style={{
+                      color: server.active ? 'var(--acc)' : 'var(--g05)',
+                      borderColor: server.active ? 'rgba(44,185,120,0.3)' : 'var(--g03)',
+                    }}
                   >
-                    {server.active ? 'Activa' : 'Inactiva'}
+                    {server.active ? <><span className="dot dot-green" style={{ width: 6, height: 6 }}/>Activa</> : 'Inactiva'}
                   </button>
-                  <button
-                    onClick={() => remove(server.id)}
-                    className="text-xs text-red-400 hover:text-red-300 border border-red-900/50 px-2 py-1 rounded"
-                  >
-                    Eliminar
+                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => remove(server.id)} title="Eliminar">
+                    <IconTrash />
                   </button>
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Catálogo */}
+      {/* ── Catálogo ──────────────────────────────────────────────────────────── */}
       {coreStatus?.provisioned && (
-        <section className="space-y-3">
-          <h2 className="font-semibold text-white">Catálogo de integraciones</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--g07)', marginBottom: 10 }}>
+            Catálogo de integraciones
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
             {catalog.map(template => {
               const alreadyAdded = servers.some(s => s.type === template.type);
               return (
-                <div
-                  key={template.type}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 space-y-2"
-                >
-                  <div className="flex items-start justify-between">
+                <div key={template.type} className="card-sm" style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
                     <div>
-                      <h3 className="font-medium text-white text-sm">{template.name}</h3>
-                      <p className="text-xs text-neutral-400 mt-0.5">{template.description}</p>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)', marginBottom: 2 }}>
+                        {template.name}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--g05)', lineHeight: 1.5 }}>
+                        {template.description}
+                      </div>
                     </div>
-                    <span className="text-xs text-neutral-500 shrink-0 ml-2">{template.toolCount} tools</span>
+                    <span style={{ fontSize: 11, color: 'var(--g04)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {template.toolCount} tools
+                    </span>
                   </div>
                   {alreadyAdded ? (
-                    <span className="text-xs text-emerald-500">Conectada</span>
+                    <span className="badge badge-green" style={{ fontSize: 11 }}>
+                      <IconCheck />Conectada
+                    </span>
                   ) : (
                     <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ width: '100%' }}
                       onClick={() => { setConnectingType(template.type); setCredentials({}); }}
-                      className="text-xs bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded-lg w-full font-medium"
                     >
                       Conectar
                     </button>
@@ -254,40 +293,51 @@ export default function IntegrationsPage() {
               );
             })}
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Modal de credenciales */}
+      {/* ── Modal de credenciales ─────────────────────────────────────────────── */}
       {connectingType && connectingTemplate && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h3 className="font-semibold text-white">Conectar {connectingTemplate.name}</h3>
-            <p className="text-sm text-neutral-400">{connectingTemplate.description}</p>
-            <div className="space-y-3">
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 20,
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: 440, padding: '24px 28px' }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--g08)', marginBottom: 4 }}>
+                Conectar {connectingTemplate.name}
+              </div>
+              <p style={{ fontSize: 12.5, color: 'var(--g05)', margin: 0 }}>
+                {connectingTemplate.description}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
               {connectingTemplate.requiredEnv.map(key => (
                 <div key={key}>
-                  <label className="text-xs text-neutral-400 block mb-1">{key}</label>
+                  <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {key}
+                  </label>
                   <input
+                    className="input"
                     type={key.toLowerCase().includes('secret') || key.toLowerCase().includes('key') || key.toLowerCase().includes('token') ? 'password' : 'text'}
                     value={credentials[key] ?? ''}
                     onChange={e => setCredentials(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={key}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
                   />
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 justify-end">
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
+                className="btn btn-ghost"
                 onClick={() => { setConnectingType(null); setCredentials({}); }}
-                className="text-sm text-neutral-400 hover:text-white px-4 py-2"
               >
                 Cancelar
               </button>
-              <button
-                onClick={() => connect(connectingType)}
-                className="text-sm bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium"
-              >
+              <button className="btn btn-primary" onClick={() => connect(connectingType)}>
                 Guardar y conectar
               </button>
             </div>

@@ -77,7 +77,8 @@ export type LogCategory =
   | 'billing'
   | 'connector'
   | 'agent'
-  | 'conversation';
+  | 'conversation'
+  | 'core';
 
 export interface AuditLogActor {
   id?:        string;  // user _id or 'system'

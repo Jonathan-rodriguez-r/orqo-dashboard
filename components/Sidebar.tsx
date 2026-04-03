@@ -20,18 +20,17 @@ const I = {
 };
 
 const NAV_MAIN = [
-  { href: '/dashboard',               label: 'Vista General',  icon: I.home,     exact: true,  permission: 'dashboard.view'      },
-  { href: '/dashboard/conversations', label: 'Conversaciones', icon: I.conv,     exact: false, permission: 'conversations.view'  },
-  { href: '/dashboard/agents',        label: 'Agentes',        icon: I.agent,    exact: false, permission: 'agents.view'         },
-  { href: '/dashboard/reports',       label: 'Informes',       icon: I.report,   exact: false, permission: 'reports.view'        },
-  { href: '/dashboard/integrations',  label: 'Integraciones',  icon: I.plug,     exact: false, permission: 'settings.widget'     },
+  { href: '/dashboard',               label: 'Vista General',  icon: I.home,   exact: true,  permission: 'dashboard.view'     },
+  { href: '/dashboard/conversations', label: 'Conversaciones', icon: I.conv,   exact: false, permission: 'conversations.view' },
+  { href: '/dashboard/agents',        label: 'Agentes',        icon: I.agent,  exact: false, permission: 'agents.view'        },
+  { href: '/dashboard/reports',       label: 'Informes',       icon: I.report, exact: false, permission: 'reports.view'       },
 ] as const;
 
 const NAV_SYSTEM = [
-  { href: '/dashboard/settings',              label: 'Configuracion',      icon: I.settings, permission: 'settings.widget'        },
-  { href: '/dashboard/settings/integrations', label: 'MCP / Integraciones', icon: I.plug,     permission: 'settings.integrations'  },
-  { href: '/dashboard/clients',               label: 'Clientes',           icon: I.clients,  permission: 'admin.clients'          },
-  { href: '/dashboard/logs',                  label: 'Logs & Auditoria',   icon: I.logs,     permission: 'admin.logs'             },
+  { href: '/dashboard/settings',              label: 'Configuracion',  icon: I.settings, permission: 'settings.widget'        },
+  { href: '/dashboard/settings/integrations', label: 'Integraciones',  icon: I.plug,     permission: 'settings.integrations'  },
+  { href: '/dashboard/clients',               label: 'Clientes',       icon: I.clients,  permission: 'admin.clients'          },
+  { href: '/dashboard/logs',                  label: 'Logs & Auditoria', icon: I.logs,   permission: 'admin.logs'             },
 ] as const;
 
 type Props = {

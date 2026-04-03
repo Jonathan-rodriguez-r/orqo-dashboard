@@ -2,7 +2,10 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { actorFromRequest, log } from '@/lib/logger';
-import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { resolveScopedWorkspaceId, canAccessProtectedRoles } from '@/lib/access-control';
+
+// workspaceId virtual usado por el core para sus logs de plataforma
+const CORE_WORKSPACE_ID = 'orqo_platform';
 
 /**
  * GET /api/logs
@@ -45,8 +48,16 @@ export async function GET(req: Request) {
   const correlationId = searchParams.get('correlationId') ?? '';
   const workspaceId   = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
+  // Logs de categoría 'core' son de plataforma — solo visibles para usuarios globales ORQO
+  if (category === 'core') {
+    if (!canAccessProtectedRoles(session)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   const filter: Record<string, any> = {};
-  filter.workspaceId = workspaceId;
+  // Los logs del core viven bajo workspaceId='orqo_platform' independientemente del workspace del usuario
+  filter.workspaceId = category === 'core' ? CORE_WORKSPACE_ID : workspaceId;
 
   if (level)    filter.level    = level;
   if (severity) filter.severity = severity;
