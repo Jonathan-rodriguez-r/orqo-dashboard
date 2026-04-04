@@ -87,12 +87,19 @@ export async function GET(req: Request) {
     return Response.json({ provisioned: false });
   }
 
-  const webhookUrl = `${process.env.CORE_WEBHOOK_URL ?? 'http://localhost:3001'}/webhook/whatsapp`;
+  const rawCoreUrl = (process.env.CORE_WEBHOOK_URL ?? '').trim();
+  // Guard: if env var is not a valid URL (e.g. accidentally set to a secret hash), fall back to empty
+  const coreBaseUrl = /^https?:\/\//i.test(rawCoreUrl) ? rawCoreUrl.replace(/\/$/, '') : '';
+  const webhookBaseUrl = coreBaseUrl || 'http://localhost:3001';
+
   return Response.json({
     provisioned: true,
     coreWorkspaceId: (config as any).coreWorkspaceId,
     coreAgentId: (config as any).coreAgentId,
-    webhookUrl,
+    webhookBaseUrl,
+    webhookUrl:     `${webhookBaseUrl}/webhook/whatsapp`,
+    metaWebhookUrl: `${webhookBaseUrl}/webhook/meta`,
+    webhookUrlValid: Boolean(coreBaseUrl),
     provisionedAt: (config as any).provisionedAt,
   });
 }

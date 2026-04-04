@@ -11,7 +11,9 @@ interface McpServer {
   tools: Array<{ name: string; description: string }>;
 }
 interface CoreStatus {
-  provisioned: boolean; coreWorkspaceId?: string; webhookUrl?: string; provisionedAt?: string;
+  provisioned: boolean; coreWorkspaceId?: string;
+  webhookUrl?: string; metaWebhookUrl?: string; webhookUrlValid?: boolean;
+  provisionedAt?: string;
 }
 interface ChannelInfo {
   phoneNumberId?: string; igAccountId?: string; pageId?: string; tokenPrefix?: string;
@@ -585,10 +587,16 @@ export default function IntegrationsPage() {
               onDelete={deleteChannel}
             />
           </div>
+          {coreStatus.webhookUrlValid === false && (
+            <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.3)', fontSize: 12, color: '#e05555', lineHeight: 1.7 }}>
+              <b>⚠ Variable mal configurada:</b> <code style={{ fontSize: 11 }}>CORE_WEBHOOK_URL</code> en Vercel no es una URL válida.
+              Debe ser <code style={{ fontSize: 11 }}>https://core.orqo.io</code> (sin barra al final, sin rutas adicionales).
+            </div>
+          )}
           <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius)', background: 'var(--g01)', border: '1px solid var(--g03)', fontSize: 12, color: 'var(--g05)', lineHeight: 1.7 }}>
             <b style={{ color: 'var(--g06)' }}>Webhook URL para Meta:</b>{' '}
-            <code style={{ fontFamily: 'var(--f-mono)', color: 'var(--acc)', fontSize: 11.5 }}>
-              {coreStatus.webhookUrl?.replace('/webhook/whatsapp', '') ?? ''}/webhook/meta
+            <code style={{ fontFamily: 'var(--f-mono)', color: coreStatus.webhookUrlValid === false ? '#e05555' : 'var(--acc)', fontSize: 11.5 }}>
+              {coreStatus.metaWebhookUrl ?? coreStatus.webhookUrl ?? ''}
             </code>
             <br/>
             Configúrala en Meta Business Suite → WhatsApp → Configuración → Webhook. El token de verificación está en Railway bajo <code style={{ color: 'var(--acc)', fontSize: 11 }}>WHATSAPP_VERIFY_TOKEN</code>.
