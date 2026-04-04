@@ -528,7 +528,10 @@ export default function IntegrationsPage() {
     oauthUrl.searchParams.set('override_default_response_type', 'true');
 
     // Detect popup blocking first — open a test popup then close it immediately
-    const testPopup = window.open('', '_blank', 'width=1,height=1');
+    const pw = 700, ph = 700;
+    const pl = Math.max(0, (window.screen.width  - pw) / 2);
+    const pt = Math.max(0, (window.screen.height - ph) / 2);
+    const testPopup = window.open('', '_blank', `width=${pw},height=${ph},left=${pl},top=${pt}`);
     if (!testPopup || testPopup.closed) {
       logIntegrationEvent('meta_popup_blocked', 'detectado antes de abrir Meta');
       setMetaError('Tu navegador está bloqueando los popups de este sitio. Busca el ícono 🔲 en la barra de direcciones, haz clic y selecciona "Permitir siempre popups de dashboard.orqo.io", luego intenta de nuevo.');
