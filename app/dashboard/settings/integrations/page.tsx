@@ -21,6 +21,14 @@ interface CoreChannels {
   instagram?: ChannelInfo | null;
   facebook?: ChannelInfo | null;
 }
+interface AgentChannels {
+  whatsapp?: boolean;
+  instagram?: boolean;
+  messenger?: boolean;
+}
+interface SiteKey {
+  id: string; keyPrefix: string; label: string; createdAt: string; lastUsedAt: string | null;
+}
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const IconCopy = () => (
@@ -58,11 +66,12 @@ interface ChannelPanelProps {
   channel: 'whatsapp' | 'instagram' | 'facebook';
   info: ChannelInfo | null | undefined;
   fields: Array<{ key: string; label: string; placeholder: string }>;
+  agentCovered: boolean;
   onSave: (channel: string, data: Record<string, string>) => Promise<void>;
   onDelete: (channel: string) => Promise<void>;
 }
 
-function ChannelPanel({ label, icon, description, channel, info, fields, onSave, onDelete }: ChannelPanelProps) {
+function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, onSave, onDelete }: ChannelPanelProps) {
   const [editing, setEditing] = useState(!info);
   const [values, setValues]   = useState<Record<string, string>>({});
   const [saving, setSaving]   = useState(false);
@@ -130,9 +139,21 @@ function ChannelPanel({ label, icon, description, channel, info, fields, onSave,
               </code>
             </div>
           )}
-          <div style={{ marginTop: 4 }}>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span className="badge badge-green" style={{ fontSize: 11 }}><IconCheck />Configurado</span>
+            {!agentCovered && (
+              <span className="badge badge-yellow" style={{ fontSize: 11 }}>
+                ⚠ Sin agente asignado
+              </span>
+            )}
           </div>
+          {!agentCovered && (
+            <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(245,180,60,0.08)', border: '1px solid rgba(245,180,60,0.25)', fontSize: 12, color: 'var(--yellow)', lineHeight: 1.6 }}>
+              Ningún agente activo tiene el canal <b>{label}</b> habilitado. Ve a{' '}
+              <a href="/dashboard/agents" style={{ color: 'var(--acc)', textDecoration: 'underline' }}>Agentes</a>
+              {' '}→ edita un agente → activa el canal en la sección Canales.
+            </div>
+          )}
         </div>
       )}
 
@@ -184,12 +205,147 @@ function ChannelPanel({ label, icon, description, channel, info, fields, onSave,
   );
 }
 
+// ── WordPress Site Key panel ───────────────────────────────────────────────────
+function WordPressPanel() {
+  const [keys, setKeys]           = useState<SiteKey[]>([]);
+  const [loadingKeys, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [newLabel, setNewLabel]   = useState('');
+  const [newKey, setNewKey]       = useState<{ id: string; plaintext: string; keyPrefix: string } | null>(null);
+  const [copiedNew, setCopiedNew] = useState(false);
+
+  async function loadKeys() {
+    setLoading(true);
+    const res = await fetch('/api/plugin/site-key').then(r => r.json()) as SiteKey[];
+    setKeys(Array.isArray(res) ? res : []);
+    setLoading(false);
+  }
+
+  useEffect(() => { void loadKeys(); }, []);
+
+  async function generate() {
+    setGenerating(true);
+    const res = await fetch('/api/plugin/site-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: newLabel || 'WordPress' }),
+    }).then(r => r.json()) as any;
+    setNewKey({ id: res.id, plaintext: res.plaintext, keyPrefix: res.keyPrefix });
+    setNewLabel('');
+    await loadKeys();
+    setGenerating(false);
+  }
+
+  async function revoke(id: string) {
+    if (!confirm('¿Revocar esta Site Key? El plugin de WordPress perderá conexión inmediatamente.')) return;
+    await fetch(`/api/plugin/site-key?id=${id}`, { method: 'DELETE' });
+    await loadKeys();
+  }
+
+  function copy(text: string) {
+    navigator.clipboard.writeText(text).then(() => { setCopiedNew(true); setTimeout(() => setCopiedNew(false), 1800); });
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 18 }}>🔌</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--g08)' }}>WordPress</span>
+            <span className="badge" style={{ fontSize: 11 }}>Plugin v2</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: 'var(--g05)', margin: 0 }}>
+            Conecta tu sitio WordPress al widget de ORQO. Opcionalmente habilita WooCommerce como fuente de datos del agente.
+          </p>
+        </div>
+      </div>
+
+      {/* New key alert */}
+      {newKey && (
+        <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 'var(--radius)', background: 'rgba(245,180,60,0.08)', border: '1px solid rgba(245,180,60,0.25)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)', marginBottom: 6 }}>
+            Guarda esta Site Key — no se mostrará de nuevo
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <code style={{ flex: 1, fontSize: 11.5, color: 'var(--g07)', fontFamily: 'var(--f-mono)', wordBreak: 'break-all' }}>
+              {newKey.plaintext}
+            </code>
+            <button className={`btn btn-ghost btn-sm${copiedNew ? ' btn-primary' : ''}`} onClick={() => copy(newKey.plaintext)}>
+              {copiedNew ? <><IconCheck />Copiado</> : <><IconCopy />Copiar</>}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setNewKey(null)} style={{ flexShrink: 0, fontSize: 11 }}>
+              Cerrar
+            </button>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--g05)' }}>
+            Pégala en <strong>tu WordPress → Ajustes → ORQO Chat → Site Key</strong> y haz clic en "Verificar conexión".
+          </div>
+        </div>
+      )}
+
+      {/* Keys list */}
+      {loadingKeys ? (
+        <div style={{ fontSize: 12.5, color: 'var(--g04)', padding: '8px 0' }}>Cargando…</div>
+      ) : keys.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          {keys.map(k => (
+            <div key={k.id} className="card-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', gap: 10 }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g07)' }}>{k.label}</span>
+                <span style={{ marginLeft: 10, fontFamily: 'var(--f-mono)', fontSize: 11.5, color: 'var(--g05)' }}>{k.keyPrefix}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--g04)' }}>
+                  {k.lastUsedAt ? `Usado ${new Date(k.lastUsedAt).toLocaleDateString('es-CO')}` : 'Sin usar'}
+                </span>
+                <button className="btn btn-danger btn-sm btn-icon" onClick={() => revoke(k.id)} title="Revocar">
+                  <IconTrash />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ fontSize: 12.5, color: 'var(--g04)', margin: '0 0 14px' }}>No hay Site Keys. Genera una para conectar tu plugin de WordPress.</p>
+      )}
+
+      {/* Generate new key */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="input"
+          style={{ flex: 1, maxWidth: 260 }}
+          placeholder="Etiqueta (ej: Mi tienda)"
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+        />
+        <button className="btn btn-primary btn-sm" onClick={generate} disabled={generating}>
+          {generating ? 'Generando…' : 'Nueva Site Key'}
+        </button>
+      </div>
+
+      {/* Instructions */}
+      <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 'var(--radius)', background: 'var(--g01)', border: '1px solid var(--g03)', fontSize: 12, color: 'var(--g05)', lineHeight: 1.7 }}>
+        <b style={{ color: 'var(--g06)' }}>Cómo conectar:</b>
+        <ol style={{ margin: '6px 0 0 16px', padding: 0, lineHeight: 1.8 }}>
+          <li>Genera una Site Key arriba</li>
+          <li>Instala el plugin en WordPress: <span style={{ fontFamily: 'var(--f-mono)', fontSize: 11 }}>orqo-chat.zip</span></li>
+          <li>Ve a <b>WordPress → Ajustes → ORQO Chat</b> y pega la Site Key</li>
+          <li>Haz clic en <b>Verificar conexión</b> — el widget se activa automáticamente</li>
+          <li>Opcional: habilita el toggle de WooCommerce para conectar tu tienda como fuente de datos</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function IntegrationsPage() {
   const [coreStatus, setCoreStatus]     = useState<CoreStatus | null>(null);
   const [catalog, setCatalog]           = useState<Template[]>([]);
   const [servers, setServers]           = useState<McpServer[]>([]);
   const [channels, setChannels]         = useState<CoreChannels>({});
+  const [agentCoverage, setAgentCoverage] = useState<Record<string, boolean>>({});
   const [loading, setLoading]           = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [connectingType, setConnectingType] = useState<string | null>(null);
@@ -200,13 +356,24 @@ export default function IntegrationsPage() {
 
   async function load() {
     setLoading(true);
-    const [statusRes, catalogRes] = await Promise.all([
+    const [statusRes, catalogRes, agentsRes] = await Promise.all([
       fetch('/api/core/provision').then(r => r.json()),
       fetch('/api/core/catalog').then(r => r.json()),
+      fetch('/api/agents').then(r => r.json()),
     ]);
     const status = statusRes as CoreStatus;
     setCoreStatus(status);
     setCatalog(catalogRes as Template[]);
+
+    // Compute which channels have at least one active agent assigned
+    const activeAgents = (Array.isArray(agentsRes) ? agentsRes : [])
+      .filter((a: any) => a.status === 'active');
+    setAgentCoverage({
+      whatsapp:  activeAgents.some((a: any) => a.channels?.whatsapp  === true),
+      instagram: activeAgents.some((a: any) => a.channels?.instagram === true),
+      facebook:  activeAgents.some((a: any) => a.channels?.messenger === true),
+    });
+
     if (status.provisioned) {
       const [mcpRes, chanRes] = await Promise.all([
         fetch('/api/core/mcp').then(r => r.json()),
@@ -365,6 +532,24 @@ export default function IntegrationsPage() {
               <span style={{ color: 'var(--acc)' }}>Meta Business Suite → Configuración → API de WhatsApp</span>.
             </div>
           </div>
+
+          {/* Global warning: configured channels without an agent */}
+          {(() => {
+            const uncovered = [
+              channels.whatsapp  && !agentCoverage.whatsapp  && 'WhatsApp',
+              channels.instagram && !agentCoverage.instagram && 'Instagram',
+              channels.facebook  && !agentCoverage.facebook  && 'Facebook',
+            ].filter(Boolean);
+            return uncovered.length > 0 ? (
+              <div style={{ marginBottom: 10, padding: '10px 14px', borderRadius: 'var(--radius)', background: 'rgba(245,180,60,0.08)', border: '1px solid rgba(245,180,60,0.3)', fontSize: 12.5, color: 'var(--yellow)', lineHeight: 1.7 }}>
+                <b>⚠ Acción requerida:</b> Los canales <b>{uncovered.join(', ')}</b> están configurados pero
+                ningún agente activo los tiene habilitados — los mensajes entrantes serán ignorados.{' '}
+                <a href="/dashboard/agents" style={{ color: 'var(--acc)', textDecoration: 'underline' }}>
+                  Ir a Agentes →
+                </a>
+              </div>
+            ) : null;
+          })()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <ChannelPanel
               label="WhatsApp Business"
@@ -373,6 +558,7 @@ export default function IntegrationsPage() {
               channel="whatsapp"
               info={channels.whatsapp}
               fields={[{ key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123' }]}
+              agentCovered={agentCoverage.whatsapp ?? false}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
@@ -383,6 +569,7 @@ export default function IntegrationsPage() {
               channel="instagram"
               info={channels.instagram}
               fields={[{ key: 'igAccountId', label: 'Instagram Account ID', placeholder: '17841400000000000' }]}
+              agentCovered={agentCoverage.instagram ?? false}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
@@ -393,6 +580,7 @@ export default function IntegrationsPage() {
               channel="facebook"
               info={channels.facebook}
               fields={[{ key: 'pageId', label: 'Page ID', placeholder: '123456789012345' }]}
+              agentCovered={agentCoverage.facebook ?? false}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
@@ -435,6 +623,9 @@ export default function IntegrationsPage() {
           </div>
         </div>
       )}
+
+      {/* ── WordPress plugin ──────────────────────────────────────────────────── */}
+      <WordPressPanel />
 
       {/* ── Catálogo MCP ──────────────────────────────────────────────────────── */}
       {coreStatus?.provisioned && (

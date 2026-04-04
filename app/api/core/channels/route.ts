@@ -17,6 +17,7 @@ import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
 import { CoreClient } from '@/lib/core-client';
+import { writeLog } from '@/app/api/admin/logs/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,35 @@ export async function PUT(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, string>;
   const result = await CoreClient.setChannel(coreId, channel, body);
   if (!result.ok) return Response.json({ error: result.error }, { status: 502 });
-  return Response.json(result.data);
+
+  void writeLog({
+    level: 'info',
+    source: 'integration-channel',
+    msg: `Canal ${channel} configurado`,
+    detail: `channel:${channel} workspaceId:${workspaceId} by:${session.email ?? session.sub}`,
+    workspaceId,
+  });
+
+  // Verificar si hay agente activo con este canal habilitado y advertir si no hay
+  const CHANNEL_AGENT_MAP: Record<string, string> = { whatsapp: 'whatsapp', instagram: 'instagram', facebook: 'messenger' };
+  const agentChannelKey = CHANNEL_AGENT_MAP[channel];
+  const db2 = await getDb();
+  const agentWithChannel = await db2.collection('agents_v2').findOne({
+    workspaceId,
+    status: 'active',
+    [`channels.${agentChannelKey}`]: true,
+  });
+  if (!agentWithChannel) {
+    void writeLog({
+      level: 'warn',
+      source: 'integration-channel',
+      msg: `Canal ${channel} configurado sin agente activo asignado`,
+      detail: `channel:${channel} agentChannelKey:${agentChannelKey} — ningún agente activo tiene este canal habilitado`,
+      workspaceId,
+    });
+  }
+
+  return Response.json({ ...result.data, agentConfigured: Boolean(agentWithChannel) });
 }
 
 export async function DELETE(req: Request) {
@@ -82,5 +111,14 @@ export async function DELETE(req: Request) {
 
   const result = await CoreClient.deleteChannel(coreId, channel);
   if (!result.ok) return Response.json({ error: result.error }, { status: 502 });
+
+  void writeLog({
+    level: 'info',
+    source: 'integration-channel',
+    msg: `Canal ${channel} desconectado`,
+    detail: `channel:${channel} workspaceId:${workspaceId} by:${session.email ?? session.sub}`,
+    workspaceId,
+  });
+
   return Response.json(result.data);
 }
