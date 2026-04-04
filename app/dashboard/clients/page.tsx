@@ -27,6 +27,9 @@ export default function ClientsPage() {
   const [name, setName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [notes, setNotes] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceSlug, setWorkspaceSlug] = useState('');
+  const [workspaceClientId, setWorkspaceClientId] = useState('');
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,6 +48,9 @@ export default function ClientsPage() {
     }
     setClients(Array.isArray(data?.clients) ? data.clients : []);
     setWorkspaces(Array.isArray(data?.workspaces) ? data.workspaces : []);
+    if (!workspaceClientId && Array.isArray(data?.clients) && data.clients.length > 0) {
+      setWorkspaceClientId(String(data.clients[0]._id));
+    }
     setLoading(false);
   }
 
@@ -70,6 +76,26 @@ export default function ClientsPage() {
     setOwnerEmail('');
     setNotes('');
     setMsg('Cliente creado correctamente');
+    await load();
+  }
+
+  async function createWorkspace(e: React.FormEvent) {
+    e.preventDefault();
+    setErr('');
+    setMsg('');
+    const res = await fetch('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: workspaceName, slug: workspaceSlug, clientId: workspaceClientId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(String(data?.error ?? 'No se pudo crear la cuenta'));
+      return;
+    }
+    setWorkspaceName('');
+    setWorkspaceSlug('');
+    setMsg('Cuenta creada correctamente');
     await load();
   }
 
@@ -152,6 +178,43 @@ export default function ClientsPage() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button className="btn btn-primary" type="submit">
                 Crear cliente
+              </button>
+              {msg ? <span style={{ color: 'var(--acc)', fontSize: 12 }}>{msg}</span> : null}
+              {err ? <span style={{ color: 'var(--red)', fontSize: 12 }}>{err}</span> : null}
+            </div>
+          </form>
+        </div>
+
+        <div className="card">
+          <div className="card-title">Nueva cuenta / workspace</div>
+          <p style={{ color: 'var(--g05)', fontSize: 12.5, marginBottom: 12 }}>
+            Crea una cuenta independiente para cada cliente. Los usuarios del cliente deben vivir en su propio workspace.
+          </p>
+          <form onSubmit={createWorkspace}>
+            <div className="field-row">
+              <div className="field">
+                <label className="label">Nombre de la cuenta</label>
+                <input className="input" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} required />
+              </div>
+              <div className="field">
+                <label className="label">Slug</label>
+                <input className="input" value={workspaceSlug} onChange={(e) => setWorkspaceSlug(e.target.value)} placeholder="bacata" />
+              </div>
+              <div className="field">
+                <label className="label">Cliente</label>
+                <select className="input" value={workspaceClientId} onChange={(e) => setWorkspaceClientId(e.target.value)} required>
+                  <option value="">Selecciona un cliente</option>
+                  {clients.map((client) => (
+                    <option key={client._id} value={client._id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn btn-primary" type="submit">
+                Crear cuenta
               </button>
               {msg ? <span style={{ color: 'var(--acc)', fontSize: 12 }}>{msg}</span> : null}
               {err ? <span style={{ color: 'var(--red)', fontSize: 12 }}>{err}</span> : null}

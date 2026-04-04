@@ -61,6 +61,7 @@ export async function GET(req: Request) {
           name: 1,
           avatar: 1,
           role: 1,
+          workspaceId: 1,
           clientId: 1,
           clientName: 1,
           isGlobalUser: 1,
