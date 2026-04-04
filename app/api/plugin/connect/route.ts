@@ -15,6 +15,7 @@ import { createHash, randomBytes } from 'crypto';
 import { getDb } from '@/lib/mongodb';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
 import { WIDGET_DEFAULTS } from '@/app/api/config/widget/route';
+import { writeLog } from '@/app/api/admin/logs/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
   const siteKey = String(searchParams.get('site_key') ?? '').trim();
 
   if (!siteKey.startsWith('orqo_sk_')) {
+    void writeLog({ level: 'warn', source: 'plugin-connect', msg: 'Site key inválida rechazada', detail: `key_prefix:${siteKey.slice(0, 12)}` });
     return Response.json({ error: 'Site key inválida' }, { status: 401, headers: CORS });
   }
 
@@ -46,6 +48,7 @@ export async function GET(req: Request) {
     .findOne({ keyHash: hashKey(siteKey), active: true });
 
   if (!keyDoc) {
+    void writeLog({ level: 'warn', source: 'plugin-connect', msg: 'Site key no encontrada o revocada', detail: `key_prefix:${siteKey.slice(0, 20)}` });
     return Response.json({ error: 'Site key no encontrada o revocada' }, { status: 401, headers: CORS });
   }
 
@@ -64,8 +67,10 @@ export async function GET(req: Request) {
 
   // If workspace has no api_key yet, generate one and persist it
   let apiKey = String((account as any)?.api_key ?? '').trim();
+  let apiKeyWasGenerated = false;
   if (!apiKey) {
     apiKey = randomBytes(24).toString('hex');
+    apiKeyWasGenerated = true;
     await db.collection('workspace_configs').updateOne(
       { workspaceId, key: 'account' },
       { $set: { api_key: apiKey, updatedAt: new Date() } },
@@ -74,6 +79,14 @@ export async function GET(req: Request) {
   }
 
   const cfg = { ...WIDGET_DEFAULTS, ...(widgetCfgRaw ?? {}), widgetId: 'default' };
+
+  void writeLog({
+    level: 'info',
+    source: 'plugin-connect',
+    msg: apiKeyWasGenerated ? 'Plugin conectado — api_key generada automáticamente' : 'Plugin conectado',
+    detail: `prefix:${(keyDoc as any).keyPrefix} label:${(keyDoc as any).label}`,
+    workspaceId,
+  });
 
   return Response.json({
     workspaceId,

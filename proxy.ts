@@ -12,6 +12,9 @@ const PUBLIC_PREFIXES = [
   '/login',
   '/api/auth',
   '/api/public',
+  // WordPress plugins authenticate with site_key, not dashboard session.
+  '/api/plugin/connect',
+  '/api/plugin/mcp',
   '/api/widget',
   '/_next',
   '/favicon',

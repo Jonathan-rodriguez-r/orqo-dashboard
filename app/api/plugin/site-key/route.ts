@@ -16,6 +16,7 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { writeLog } from '@/app/api/admin/logs/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,14 @@ export async function POST(req: Request) {
     lastUsedAt: null,
   });
 
+  void writeLog({
+    level: 'info',
+    source: 'plugin-site-key',
+    msg: 'Site Key generada',
+    detail: `prefix:${keyPrefix} label:${body.label ?? 'WordPress'} by:${session.email ?? session.sub}`,
+    workspaceId,
+  });
+
   return Response.json({ id: String(result.insertedId), keyPrefix, plaintext });
 }
 
@@ -89,6 +98,14 @@ export async function DELETE(req: Request) {
     { _id: new ObjectId(id), workspaceId },
     { $set: { active: false } }
   );
+
+  void writeLog({
+    level: 'info',
+    source: 'plugin-site-key',
+    msg: 'Site Key revocada',
+    detail: `id:${id} by:${session.email ?? session.sub}`,
+    workspaceId,
+  });
 
   return Response.json({ ok: true });
 }

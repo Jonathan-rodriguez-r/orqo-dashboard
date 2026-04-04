@@ -37,6 +37,7 @@ export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
       src.includes('agent') ? 'agent' :
       src.includes('widget') || src.includes('conversation') ? 'conversation' :
       src.includes('security') ? 'security' :
+      src.includes('integration') || src.includes('plugin') || src.includes('channel') || src.includes('meta') ? 'integration' :
       'system';
 
     const action = `RUNTIME_${src.replace(/[^a-z0-9]+/g, '_').toUpperCase() || 'EVENT'}`;
