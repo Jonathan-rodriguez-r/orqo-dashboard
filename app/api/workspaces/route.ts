@@ -2,6 +2,8 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { canAccessProtectedRoles } from '@/lib/access-control';
+import { CoreClient } from '@/lib/core-client';
+import { writeLog } from '@/app/api/admin/logs/route';
 
 function slugify(input: string) {
   return String(input || '')
@@ -75,6 +77,67 @@ export async function POST(req: Request) {
   };
 
   await db.collection<any>('workspaces').insertOne(doc);
+
+  // Auto-provision Core workspace — best-effort, don't fail the request if Core is down
+  void (async () => {
+    try {
+      const alreadyProvisioned = await db
+        .collection('workspace_configs')
+        .findOne({ workspaceId: slug, key: 'core' });
+
+      if (alreadyProvisioned?.coreWorkspaceId) return;
+
+      const coreResult = await CoreClient.provision({
+        name,
+        agentName: name,
+        plan: 'starter',
+        timezone: 'America/Bogota',
+        trialDays: 14,
+      });
+
+      if (coreResult.ok) {
+        await db.collection('workspace_configs').updateOne(
+          { workspaceId: slug, key: 'core' },
+          {
+            $set: {
+              workspaceId: slug,
+              key: 'core',
+              clientId,
+              clientName: String(targetClient.name ?? ''),
+              coreWorkspaceId: coreResult.data.workspaceId,
+              coreAgentId: coreResult.data.agentId,
+              provisionedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+        void writeLog({
+          level: 'info',
+          source: 'workspaces',
+          msg: `Workspace provisionado en Core`,
+          detail: `workspaceId:${slug} coreWorkspaceId:${coreResult.data.workspaceId}`,
+          workspaceId: slug,
+        });
+      } else {
+        void writeLog({
+          level: 'warn',
+          source: 'workspaces',
+          msg: `Workspace creado pero fallo provisioning en Core`,
+          detail: `workspaceId:${slug} error:${coreResult.error}`,
+          workspaceId: slug,
+        });
+      }
+    } catch (e) {
+      void writeLog({
+        level: 'warn',
+        source: 'workspaces',
+        msg: `Excepción en auto-provisioning de Core`,
+        detail: `workspaceId:${slug} error:${e instanceof Error ? e.message : String(e)}`,
+        workspaceId: slug,
+      });
+    }
+  })();
 
   return Response.json({
     ok: true,

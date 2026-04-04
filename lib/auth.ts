@@ -85,10 +85,32 @@ export async function getSession(): Promise<SessionPayload | null> {
       ? requestedWorkspaceId
       : session.workspaceId;
 
-    const workspaceDoc = await db.collection('workspaces').findOne(
+    let workspaceDoc = await db.collection('workspaces').findOne(
       { _id: effectiveWorkspaceId as any },
       { projection: { _id: 1 } }
     );
+
+    // Auto-create a minimal workspace document for legacy "default" workspace or any
+    // workspace that exists in the JWT but not yet in the workspaces collection.
+    if (!workspaceDoc && effectiveWorkspaceId) {
+      await db.collection('workspaces').updateOne(
+        { _id: effectiveWorkspaceId as any },
+        {
+          $setOnInsert: {
+            _id: effectiveWorkspaceId,
+            slug: effectiveWorkspaceId,
+            name: session.clientName || effectiveWorkspaceId,
+            clientId: session.clientId || DEFAULT_CLIENT_ID,
+            clientName: session.clientName || DEFAULT_CLIENT_NAME,
+            status: 'active',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+      workspaceDoc = { _id: effectiveWorkspaceId };
+    }
 
     if (workspaceDoc?._id) {
       session.workspaceId = String(workspaceDoc._id);
