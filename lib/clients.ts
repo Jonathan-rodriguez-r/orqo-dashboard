@@ -1,7 +1,7 @@
 import type { Db } from 'mongodb';
 
 export const DEFAULT_CLIENT_ID = 'bacata-digital-meida';
-export const DEFAULT_CLIENT_NAME = 'Bacata Digital Meida';
+export const DEFAULT_CLIENT_NAME = 'Bacata Digital Media';
 export const ORQO_INTERNAL_CLIENT_ID = 'orqo-internal';
 export const ORQO_INTERNAL_CLIENT_NAME = 'ORQO Internal';
 const DEFAULT_WORKSPACE_ID = String(process.env.DEFAULT_WORKSPACE_ID ?? 'default');

@@ -1,12 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from '@/hooks/usePermissions';
 
 type User = {
   _id: string;
   email: string;
   name: string;
   role: string;
+  workspaceId?: string;
+  clientId?: string;
+  clientName?: string;
+  isGlobalUser?: boolean;
   lastLogin?: number;
   createdAt?: number;
 };
@@ -21,6 +26,7 @@ function relTime(ts?: number | null) {
 }
 
 export default function UsersPage() {
+  const session = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -74,6 +80,15 @@ export default function UsersPage() {
 
       <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
 
+        <div className="card" style={{ background: 'var(--g02)', border: '1px solid var(--g03)' }}>
+          <div className="card-title">Scope actual</div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--g05)' }}>
+            <span><b style={{ color: 'var(--g07)' }}>Cliente:</b> {session?.clientName ?? '...'}</span>
+            <span><b style={{ color: 'var(--g07)' }}>Workspace:</b> {session?.workspaceId ?? '...'}</span>
+            <span><b style={{ color: 'var(--g07)' }}>Rol:</b> {session?.role ?? '...'}</span>
+          </div>
+        </div>
+
         {/* Add user form */}
         <div className="card">
           <div className="card-title">Agregar usuario</div>
@@ -124,6 +139,7 @@ export default function UsersPage() {
                 <tr>
                   <th>Email</th>
                   <th>Nombre</th>
+                  <th>Cliente / Cuenta</th>
                   <th>Rol</th>
                   <th>Último acceso</th>
                   <th>Registrado</th>
@@ -132,15 +148,26 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {users.length === 0 ? (
-                  <tr><td colSpan={6} style={{textAlign:'center',color:'var(--g05)',padding:'32px'}}>Sin usuarios</td></tr>
+                  <tr><td colSpan={7} style={{textAlign:'center',color:'var(--g05)',padding:'32px'}}>Sin usuarios</td></tr>
                 ) : users.map(u => (
                   <tr key={u._id}>
                     <td style={{color:'var(--g07)',fontWeight:500}}>{u.email}</td>
                     <td>{u.name}</td>
+                    <td style={{ fontSize:'12px' }}>
+                      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                        <span style={{ color:'var(--g07)', fontWeight:600 }}>{u.clientName ?? u.clientId ?? 'Sin cliente'}</span>
+                        <span style={{ color:'var(--g05)' }}>{u.workspaceId ?? 'Sin workspace'}</span>
+                      </div>
+                    </td>
                     <td>
                       <span className={`badge ${u.role === 'admin' ? 'badge-green' : 'badge-gray'}`}>
                         {u.role}
                       </span>
+                      {u.isGlobalUser && (
+                        <span className="badge badge-yellow" style={{ marginLeft: 6 }}>
+                          ORQO Global
+                        </span>
+                      )}
                     </td>
                     <td>{relTime(u.lastLogin)}</td>
                     <td style={{fontSize:'12px',color:'var(--g05)'}}>

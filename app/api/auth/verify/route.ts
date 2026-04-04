@@ -1,11 +1,19 @@
 import { getDb } from '@/lib/mongodb';
-import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
+import { ACTIVE_WORKSPACE_COOKIE, signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
 import { getDefaultPermissions } from '@/lib/rbac';
 import { log, actorFromRequest } from '@/lib/logger';
 import { getDefaultWorkspaceId, resolveWorkspaceFromRequest } from '@/lib/tenant';
 import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+
+function isSharedLoginHost(tenant: Awaited<ReturnType<typeof resolveWorkspaceFromRequest>>) {
+  return Boolean(
+    tenant &&
+    tenant.workspaceId === getDefaultWorkspaceId() &&
+    ['default_host', 'local', 'fallback'].includes(String(tenant.source ?? ''))
+  );
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -43,7 +51,7 @@ export async function GET(req: Request) {
       redirectTo = '/login?error=expired';
     } else {
       const tokenWorkspaceId = String(record.workspaceId ?? getDefaultWorkspaceId());
-      if (tenant && tenant.workspaceId !== tokenWorkspaceId) {
+      if (tenant && tenant.workspaceId !== tokenWorkspaceId && !isSharedLoginHost(tenant)) {
         await log(db, {
           level: 'WARN',
           severity: 'HIGH',
@@ -135,6 +143,13 @@ export async function GET(req: Request) {
 
           const jar = await cookies();
           jar.set(COOKIE, jwt, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60 * 24 * SESSION_DAYS,
+          });
+          jar.set(ACTIVE_WORKSPACE_COOKIE, tokenWorkspaceId, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',

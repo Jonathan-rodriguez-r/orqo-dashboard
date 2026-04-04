@@ -15,6 +15,13 @@ type Notification = {
   createdAt: string;
 };
 
+type WorkspaceOption = {
+  _id: string;
+  name: string;
+  clientId: string;
+  clientName: string;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtTime(iso: string) {
@@ -75,6 +82,8 @@ export default function Topbar() {
   const [userOpen, setUserOpen]     = useState(false);
   const [theme, setTheme]           = useState<'dark'|'light'>('dark');
   const userRef = useRef<HTMLDivElement>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
+  const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
 
   // ── Init theme from localStorage ──
   useEffect(() => {
@@ -94,6 +103,21 @@ export default function Topbar() {
     const id = setInterval(loadNotifs, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!session?.isGlobalUser) {
+      setWorkspaces([]);
+      return;
+    }
+
+    fetch('/api/workspaces', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setWorkspaces(items);
+      })
+      .catch(() => setWorkspaces([]));
+  }, [session?.isGlobalUser]);
 
   // ── Close on outside click ──
   useEffect(() => {
@@ -135,6 +159,24 @@ export default function Topbar() {
     router.push('/login');
   }
 
+  async function switchWorkspace(nextWorkspaceId: string) {
+    const clean = String(nextWorkspaceId ?? '').trim();
+    if (!clean || clean === session?.workspaceId) return;
+
+    setSwitchingWorkspace(true);
+    try {
+      const res = await fetch('/api/auth/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: clean }),
+      });
+      if (!res.ok) return;
+      window.location.href = '/dashboard';
+    } finally {
+      setSwitchingWorkspace(false);
+    }
+  }
+
   const displayName = session?.name ?? session?.email ?? '…';
   const initials    = displayName.slice(0, 1).toUpperCase();
 
@@ -145,6 +187,48 @@ export default function Topbar() {
         <span>Control</span>
       </div>
       <div style={{ flex: 1 }} />
+      {session?.isGlobalUser && workspaces.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 10px',
+            marginRight: 8,
+            border: '1px solid var(--g03)',
+            borderRadius: 12,
+            background: 'var(--g01)',
+            minWidth: 260,
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span style={{ fontSize: 10, color: 'var(--g04)', lineHeight: 1.1 }}>Cuenta activa</span>
+            <span style={{ fontSize: 11.5, color: 'var(--g05)', lineHeight: 1.2 }}>
+              {session.clientName || 'Cliente'}
+            </span>
+          </div>
+          <select
+            className="input"
+            value={session.workspaceId}
+            onChange={(e) => void switchWorkspace(e.target.value)}
+            disabled={switchingWorkspace}
+            style={{
+              minWidth: 170,
+              height: 32,
+              paddingTop: 4,
+              paddingBottom: 4,
+              fontSize: 12,
+              marginBottom: 0,
+            }}
+          >
+            {workspaces.map((workspace) => (
+              <option key={workspace._id} value={workspace._id}>
+                {workspace.clientName ? `${workspace.clientName} · ${workspace.name}` : workspace.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* ── Help button ── */}
       <button
