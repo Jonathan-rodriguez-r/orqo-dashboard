@@ -60,6 +60,19 @@ const IconEdit = () => (
   </svg>
 );
 
+// ── Icons adicionales ──────────────────────────────────────────────────────────
+const IconBolt = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M9 1.5 3.5 9H8l-1 5.5 5.5-7.5H8L9 1.5Z" strokeLinejoin="round"/>
+  </svg>
+);
+const IconManual = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+    <path d="M5 8h6M5 5.5h4M5 10.5h3" strokeLinecap="round"/>
+  </svg>
+);
+
 // ── Channel config panel ───────────────────────────────────────────────────────
 interface ChannelPanelProps {
   label: string;
@@ -69,17 +82,18 @@ interface ChannelPanelProps {
   info: ChannelInfo | null | undefined;
   fields: Array<{ key: string; label: string; placeholder: string }>;
   agentCovered: boolean;
+  fastDeploy?: boolean;
   onSave: (channel: string, data: Record<string, string>) => Promise<void>;
   onDelete: (channel: string) => Promise<void>;
 }
 
-function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, onSave, onDelete }: ChannelPanelProps) {
+function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, onSave, onDelete }: ChannelPanelProps) {
+  const [mode, setMode]       = useState<'fast' | 'manual'>(fastDeploy && !info ? 'fast' : 'manual');
   const [editing, setEditing] = useState(!info);
   const [values, setValues]   = useState<Record<string, string>>({});
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
 
-  // Resetear al cambiar info
   useEffect(() => { setEditing(!info); setValues({}); setError(''); }, [info]);
 
   async function save() {
@@ -100,7 +114,8 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
 
   return (
     <div className="card-sm" style={{ padding: '16px 18px' }}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 20 }}>{icon}</span>
@@ -111,7 +126,7 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
         </div>
         {info && !editing && (
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(true); setValues({}); }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(true); setMode('manual'); setValues({}); }}>
               <IconEdit />Editar
             </button>
             <button className="btn btn-danger btn-sm btn-icon" onClick={remove} disabled={saving}>
@@ -121,7 +136,7 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
         )}
       </div>
 
-      {/* Configurado — mostrar info enmascarada */}
+      {/* ── Configurado — info enmascarada ── */}
       {info && !editing && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {fields.map(f => {
@@ -142,65 +157,131 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
             </div>
           )}
           <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="badge badge-green" style={{ fontSize: 11 }}><IconCheck />Configurado</span>
+            <span className="badge badge-green" style={{ fontSize: 11 }}><IconCheck />Conectado</span>
             {!agentCovered && (
-              <span className="badge badge-yellow" style={{ fontSize: 11 }}>
-                ⚠ Sin agente asignado
-              </span>
+              <span className="badge badge-yellow" style={{ fontSize: 11 }}>⚠ Sin agente asignado</span>
             )}
           </div>
           {!agentCovered && (
             <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(245,180,60,0.08)', border: '1px solid rgba(245,180,60,0.25)', fontSize: 12, color: 'var(--yellow)', lineHeight: 1.6 }}>
               Ningún agente activo tiene el canal <b>{label}</b> habilitado. Ve a{' '}
               <a href="/dashboard/agents" style={{ color: 'var(--acc)', textDecoration: 'underline' }}>Agentes</a>
-              {' '}→ edita un agente → activa el canal en la sección Canales.
+              {' '}→ edita un agente → activa el canal.
             </div>
           )}
         </div>
       )}
 
-      {/* Formulario */}
+      {/* ── Formulario de conexión / edición ── */}
       {(!info || editing) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {fields.map(f => (
-            <div key={f.key}>
-              <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {f.label}
-              </label>
-              <input
-                className="input"
-                placeholder={f.placeholder}
-                value={values[f.key] ?? ''}
-                onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
-              />
-            </div>
-          ))}
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Access Token
-            </label>
-            <input
-              className="input input-mono"
-              type="password"
-              placeholder="EAAxxxxxxxxxx..."
-              value={values['accessToken'] ?? ''}
-              onChange={e => setValues(v => ({ ...v, accessToken: e.target.value }))}
-            />
-            <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>
-              Se almacena cifrado. Obtenlo desde Meta Business Suite → Configuración del sistema → Tokens.
-            </div>
-          </div>
-          {error && <div style={{ fontSize: 12, color: 'var(--red)' }}>{error}</div>}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-            {info && (
-              <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(false); setValues({}); setError(''); }}>
-                Cancelar
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Selector de modo — solo si el canal soporta Fast Deploy */}
+          {fastDeploy && (
+            <div style={{ display: 'flex', gap: 0, background: 'var(--g02)', borderRadius: 'var(--radius)', padding: 3 }}>
+              <button
+                onClick={() => setMode('fast')}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '7px 0', borderRadius: 'calc(var(--radius) - 2px)', border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 600,
+                  background: mode === 'fast' ? 'var(--g04)' : 'transparent',
+                  color: mode === 'fast' ? 'var(--g08)' : 'var(--g05)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <IconBolt />WhatsApp Business Fast Deploy
               </button>
-            )}
-          </div>
+              <button
+                onClick={() => setMode('manual')}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '7px 0', borderRadius: 'calc(var(--radius) - 2px)', border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 600,
+                  background: mode === 'manual' ? 'var(--g04)' : 'transparent',
+                  color: mode === 'manual' ? 'var(--g08)' : 'var(--g05)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <IconManual />Manual (Webhook)
+              </button>
+            </div>
+          )}
+
+          {/* ── Fast Deploy ── */}
+          {fastDeploy && mode === 'fast' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.18)', fontSize: 12.5, color: 'var(--g06)', lineHeight: 1.8 }}>
+                <div style={{ fontWeight: 700, color: 'var(--acc)', marginBottom: 6, fontSize: 13 }}>⚡ Coexistencia con WhatsApp Business</div>
+                <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <li>Inicia sesión con tu cuenta de Meta — sin copiar IDs ni tokens</li>
+                  <li>Tu número sigue funcionando en la app de WhatsApp Business</li>
+                  <li>ORQO responde automáticamente; tú puedes intervenir desde la app</li>
+                  <li>Historial y sincronización de estado incluidos</li>
+                </ul>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
+                onClick={() => alert('Embedded Signup — próximamente. Requiere configuración de Meta App ID en el panel de ORQO.')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                Conectar con Meta
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--g04)', textAlign: 'center' }}>
+                También puedes usar la conexión{' '}
+                <button onClick={() => setMode('manual')} style={{ background: 'none', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
+                  manual con credenciales
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Manual (Webhook) ── */}
+          {(!fastDeploy || mode === 'manual') && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {fields.map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {f.label}
+                  </label>
+                  <input
+                    className="input"
+                    placeholder={f.placeholder}
+                    value={values[f.key] ?? ''}
+                    onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Access Token
+                </label>
+                <input
+                  className="input input-mono"
+                  type="password"
+                  placeholder="EAAxxxxxxxxxx..."
+                  value={values['accessToken'] ?? ''}
+                  onChange={e => setValues(v => ({ ...v, accessToken: e.target.value }))}
+                />
+                <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>
+                  Se almacena cifrado. Obtenlo desde Meta Business Suite → Configuración del sistema → Tokens.
+                </div>
+              </div>
+              {error && <div style={{ fontSize: 12, color: 'var(--red)' }}>{error}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
+                  {saving ? 'Guardando…' : 'Guardar'}
+                </button>
+                {info && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(false); setValues({}); setError(''); }}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
     </div>
@@ -561,6 +642,7 @@ export default function IntegrationsPage() {
               info={channels.whatsapp}
               fields={[{ key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123' }]}
               agentCovered={agentCoverage.whatsapp ?? false}
+              fastDeploy={true}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
