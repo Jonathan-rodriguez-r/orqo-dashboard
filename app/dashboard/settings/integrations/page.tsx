@@ -522,7 +522,7 @@ export default function IntegrationsPage() {
     const oauthUrl = new URL('https://www.facebook.com/dialog/oauth');
     oauthUrl.searchParams.set('client_id', appId);
     oauthUrl.searchParams.set('redirect_uri', redirectUri);
-    oauthUrl.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging,business_management');
+    oauthUrl.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging');
     oauthUrl.searchParams.set('response_type', 'code');
     oauthUrl.searchParams.set('config_id', configId);
     oauthUrl.searchParams.set('override_default_response_type', 'true');
