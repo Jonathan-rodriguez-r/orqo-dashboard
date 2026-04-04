@@ -232,7 +232,7 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                 {fastConnecting ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    Conectando…
+                    Conectando… (completa el asistente de Meta)
                   </span>
                 ) : (
                   <>
@@ -520,6 +520,13 @@ export default function IntegrationsPage() {
     setMetaConnecting(true);
     setMetaError('');
 
+    // Safety timeout — if the popup is blocked or closes without calling back, reset state
+    const connectTimeout = setTimeout(() => {
+      window.removeEventListener('message', onMetaMessage);
+      setMetaConnecting(false);
+      setMetaError('El popup de Meta no respondió. Asegúrate de que los popups estén permitidos para dashboard.orqo.io en tu navegador, luego intenta de nuevo.');
+    }, 3 * 60 * 1000); // 3 minutes
+
     // Meta sends WABA + phone number ID via postMessage from the popup
     let sessionData: { wabaId?: string; phoneNumberId?: string } = {};
 
@@ -539,19 +546,25 @@ export default function IntegrationsPage() {
     window.addEventListener('message', onMetaMessage);
 
     FB.login(async (response: any) => {
+      clearTimeout(connectTimeout);
       window.removeEventListener('message', onMetaMessage);
 
       if (!response.authResponse?.code) {
         setMetaConnecting(false);
-        if (response.status !== 'connected') {
-          setMetaError('Autorización cancelada o denegada por Meta.');
+        const status = response.status ?? '';
+        if (status !== 'connected') {
+          setMetaError(
+            status === 'unknown' || !status
+              ? 'El popup fue bloqueado o cerrado. Permite popups para dashboard.orqo.io e intenta de nuevo.'
+              : 'Autorización cancelada o denegada por Meta.'
+          );
         }
         return;
       }
 
       if (!sessionData.wabaId) {
         setMetaConnecting(false);
-        setMetaError('No se recibió el WABA ID de Meta. Intenta de nuevo.');
+        setMetaError('No se recibió el WABA ID de Meta. Asegúrate de completar todos los pasos del asistente de Meta antes de cerrar el popup.');
         return;
       }
 
