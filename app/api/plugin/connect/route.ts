@@ -11,7 +11,7 @@
  * GET ?site_key=orqo_sk_...
  */
 
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { getDb } from '@/lib/mongodb';
 import { getWorkspaceConfig } from '@/lib/workspace-config';
 import { WIDGET_DEFAULTS } from '@/app/api/config/widget/route';
@@ -62,11 +62,22 @@ export async function GET(req: Request) {
     getWorkspaceConfig(db, workspaceId, 'widget', { defaults: WIDGET_DEFAULTS }),
   ]);
 
+  // If workspace has no api_key yet, generate one and persist it
+  let apiKey = String((account as any)?.api_key ?? '').trim();
+  if (!apiKey) {
+    apiKey = randomBytes(24).toString('hex');
+    await db.collection('workspace_configs').updateOne(
+      { workspaceId, key: 'account' },
+      { $set: { api_key: apiKey, updatedAt: new Date() } },
+      { upsert: true }
+    );
+  }
+
   const cfg = { ...WIDGET_DEFAULTS, ...(widgetCfgRaw ?? {}), widgetId: 'default' };
 
   return Response.json({
     workspaceId,
-    apiKey: String((account as any)?.api_key ?? ''),
+    apiKey,
     widget: {
       title:        cfg.title,
       subtitle:     cfg.subtitle,
