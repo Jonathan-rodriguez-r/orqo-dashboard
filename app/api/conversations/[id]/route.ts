@@ -3,6 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { actorFromRequest, log } from '@/lib/logger';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { getWorkspaceClient } from '@/lib/clients';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -56,6 +58,7 @@ function parseWidgetConvIdPrefixes(convId: string) {
 
 async function loadWidgetFallbackMessages(db: Awaited<ReturnType<typeof getDb>>, conversation: any) {
   const col = db.collection('widget_conversations');
+  const workspaceId = String(conversation?.workspaceId ?? '').trim();
   const visitorId = String(conversation?.visitor_id ?? '').trim();
   const agentId = String(conversation?.agent_id ?? '').trim();
 
@@ -63,6 +66,7 @@ async function loadWidgetFallbackMessages(db: Awaited<ReturnType<typeof getDb>>,
 
   if (visitorId) {
     const filter: Record<string, any> = { visitorId };
+    if (workspaceId) filter.workspaceId = workspaceId;
     if (agentId) filter.agentId = agentId;
     doc = await col.findOne(filter, { sort: { updatedAt: -1 } });
   }
@@ -73,6 +77,7 @@ async function loadWidgetFallbackMessages(db: Awaited<ReturnType<typeof getDb>>,
       const filter: Record<string, any> = {
         visitorId: { $regex: `^${escapeRegex(parsed.visitorPrefix)}` },
       };
+      if (workspaceId) filter.workspaceId = workspaceId;
       if (parsed.agentPrefix) {
         filter.agentId = { $regex: `^${escapeRegex(parsed.agentPrefix)}` };
       }
@@ -83,15 +88,25 @@ async function loadWidgetFallbackMessages(db: Awaited<ReturnType<typeof getDb>>,
   return normalizeMessages(doc?.messages ?? [], Date.now());
 }
 
-export async function GET(_req: Request, ctx: RouteContext) {
+export async function GET(req: Request, ctx: RouteContext) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { id } = await ctx.params;
     if (!ObjectId.isValid(id)) {
       return Response.json({ error: 'Invalid id' }, { status: 400 });
     }
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
-    const conversation = await db.collection('conversations').findOne({ _id: new ObjectId(id) });
+    const client = await getWorkspaceClient(db, workspaceId);
+    const conversation = await db.collection('conversations').findOne({
+      _id: new ObjectId(id),
+      workspaceId,
+      clientId: client.clientId,
+    });
 
     if (!conversation) {
       return Response.json({ error: 'Conversation not found' }, { status: 404 });
@@ -145,16 +160,19 @@ export async function DELETE(req: Request, ctx: RouteContext) {
     if (!ObjectId.isValid(id)) {
       return Response.json({ error: 'Invalid id' }, { status: 400 });
     }
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const _id = new ObjectId(id);
-    const existing = await db.collection('conversations').findOne({ _id });
+    const existing = await db.collection('conversations').findOne({ _id, workspaceId, clientId: client.clientId });
 
     if (!existing) {
       return Response.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const result = await db.collection('conversations').deleteOne({ _id });
+    const result = await db.collection('conversations').deleteOne({ _id, workspaceId, clientId: client.clientId });
     if (!result.deletedCount) {
       return Response.json({ error: 'Conversation not found' }, { status: 404 });
     }

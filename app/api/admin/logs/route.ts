@@ -1,4 +1,7 @@
 import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +11,7 @@ export type LogEntry = {
   source: string;   // e.g. 'widget-config', 'auth', 'public-api'
   msg: string;
   detail?: string;
+  workspaceId?: string;
 };
 
 export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
@@ -33,6 +37,7 @@ export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
       src.includes('agent') ? 'agent' :
       src.includes('widget') || src.includes('conversation') ? 'conversation' :
       src.includes('security') ? 'security' :
+      src.includes('integration') || src.includes('plugin') || src.includes('channel') || src.includes('meta') ? 'integration' :
       'system';
 
     const action = `RUNTIME_${src.replace(/[^a-z0-9]+/g, '_').toUpperCase() || 'EVENT'}`;
@@ -45,6 +50,7 @@ export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
       action,
       message: doc.msg,
       metadata: doc.detail ? { extra: { detail: doc.detail, source: doc.source } } : { extra: { source: doc.source } },
+      workspaceId: doc.workspaceId ?? 'default',
       createdAt,
       expiresAt,
     } as any);
@@ -64,11 +70,19 @@ export async function writeLog(entry: Omit<LogEntry, 'ts'>) {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasPermission(session.permissions, 'admin.logs')) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '100'), 200);
     const db = await getDb();
+    const filter = { workspaceId };
     const logs = await db.collection('activity_logs')
-      .find()
+      .find(filter)
       .sort({ ts: -1 })
       .limit(limit)
       .toArray();
@@ -78,10 +92,19 @@ export async function GET(req: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasPermission(session.permissions, 'admin.logs')) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
     const db = await getDb();
-    await db.collection('activity_logs').deleteMany({});
+    const filter = { workspaceId };
+    await db.collection('activity_logs').deleteMany(filter);
     return Response.json({ ok: true });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });

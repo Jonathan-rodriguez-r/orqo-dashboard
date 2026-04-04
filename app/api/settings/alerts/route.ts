@@ -1,6 +1,9 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { defaultAlertSettings } from '@/lib/alerts';
+import { getWorkspaceClient } from '@/lib/clients';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { hasPermission } from '@/lib/rbac';
 
 function sanitizeSettings(body: any) {
   const defaults = defaultAlertSettings();
@@ -48,18 +51,23 @@ function sanitizeSettings(body: any) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession();
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const defaults = defaultAlertSettings();
-    const doc = await db.collection('workspace_alert_settings').findOne({ workspaceId: session.workspaceId });
+    const doc = await db.collection('workspace_alert_settings').findOne({ workspaceId });
     const merged = {
       ...defaults,
       ...(doc ?? {}),
-      workspaceId: session.workspaceId,
+      workspaceId,
+      clientId: doc?.clientId ?? client.clientId,
+      clientName: doc?.clientName ?? client.clientName,
     };
 
     delete (merged as any)._id;
@@ -72,17 +80,27 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const session = await getSession();
-    if (!session || !['owner', 'admin'].includes(session.role)) {
+    if (!session || !hasPermission(session.permissions, 'settings.widget')) {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const raw = await req.json();
+    const workspaceId = resolveScopedWorkspaceId(session, raw.workspaceId ?? raw.workspace_id ?? null);
     const payload = sanitizeSettings(raw);
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     await db.collection('workspace_alert_settings').updateOne(
-      { workspaceId: session.workspaceId },
-      { $set: { ...payload, workspaceId: session.workspaceId, updatedAt: new Date() } },
+      { workspaceId },
+      {
+        $set: {
+          ...payload,
+          workspaceId,
+          clientId: client.clientId,
+          clientName: client.clientName,
+          updatedAt: new Date(),
+        },
+      },
       { upsert: true }
     );
 

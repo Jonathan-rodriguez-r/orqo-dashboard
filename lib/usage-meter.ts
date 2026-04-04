@@ -1,4 +1,6 @@
 import type { Db } from 'mongodb';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getDefaultWorkspaceId } from '@/lib/tenant';
 
 const MONTHLY_USAGE_COLLECTION = 'usage_monthly';
 const USAGE_EVENTS_COLLECTION = 'usage_events';
@@ -73,10 +75,18 @@ export async function getCurrentPeriodUsage(args: {
   let doc = await monthlyCollection.findOne({ _id: monthlyId });
 
   if (!doc) {
-    const account = await args.db
-      .collection('config')
-      .findOne({ _id: 'account' as any }, { projection: { interactions_used: 1 } });
-    const legacyUsed = Math.max(0, Number(account?.interactions_used ?? 0));
+    const account = await getWorkspaceConfig(args.db, args.workspaceId, 'account', {
+      defaults: { interactions_used: 0 } as any,
+    });
+    let legacyUsed = Math.max(0, Number(account?.interactions_used ?? 0));
+
+    if (!legacyUsed && args.workspaceId === getDefaultWorkspaceId()) {
+      const legacyAccount = await args.db
+        .collection('config')
+        .findOne({ _id: 'account' as any }, { projection: { interactions_used: 1 } });
+      legacyUsed = Math.max(0, Number(legacyAccount?.interactions_used ?? 0));
+    }
+
     if (legacyUsed > 0) {
       await monthlyCollection.updateOne(
         { _id: monthlyId },
@@ -128,10 +138,18 @@ export async function bumpInteractionUsage(db: Db, input: UsageBumpInput) {
   const monthlyExists = await monthlyCollection.findOne({ _id: monthlyId }, { projection: { _id: 1 } });
   let legacyBase = 0;
   if (!monthlyExists) {
-    const account = await db
-      .collection('config')
-      .findOne({ _id: 'account' as any }, { projection: { interactions_used: 1 } });
+    const account = await getWorkspaceConfig(db, input.workspaceId, 'account', {
+      defaults: { interactions_used: 0 } as any,
+    });
     legacyBase = Math.max(0, Number(account?.interactions_used ?? 0));
+
+    if (!legacyBase && input.workspaceId === getDefaultWorkspaceId()) {
+      const legacyAccount = await db
+        .collection('config')
+        .findOne({ _id: 'account' as any }, { projection: { interactions_used: 1 } });
+      legacyBase = Math.max(0, Number(legacyAccount?.interactions_used ?? 0));
+    }
+
     if (legacyBase > 0) {
       await monthlyCollection.updateOne(
         { _id: monthlyId },

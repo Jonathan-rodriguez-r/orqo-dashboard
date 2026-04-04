@@ -1,6 +1,8 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { randomBytes } from 'crypto';
+import { getWorkspaceClient } from '@/lib/clients';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 const DEFAULT_AGENT = {
   name: 'Asistente Informativo',
@@ -39,16 +41,19 @@ const DEFAULT_AGENT = {
   },
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession();
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const agents = await db
       .collection('agents_v2')
       .find(
-        { workspaceId: session.workspaceId },
+        { workspaceId },
         { projection: { _id: 1, name: 1, status: 1, avatar: 1, channels: 1, createdAt: 1 } }
       )
       .toArray();
@@ -57,7 +62,9 @@ export async function GET() {
     if (agents.length === 0) {
       const now = new Date();
       const doc = {
-        workspaceId: session.workspaceId,
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         ...DEFAULT_AGENT,
         webWidgetToken: 'awt_' + randomBytes(18).toString('hex'),
         createdAt: now,
@@ -83,11 +90,18 @@ export async function POST(req: Request) {
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
+    const workspaceId = resolveScopedWorkspaceId(session, body.workspaceId ?? body.workspace_id ?? null);
+    delete body.workspaceId;
+    delete body.workspace_id;
     delete body._id;
 
     const now = new Date();
+    const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     const doc = {
-      workspaceId: session.workspaceId,
+      workspaceId,
+      clientId: client.clientId,
+      clientName: client.clientName,
       name: body.name ?? 'Nuevo agente',
       status: body.status ?? 'draft',
       avatar: body.avatar ?? 'ai-core',
@@ -129,7 +143,6 @@ export async function POST(req: Request) {
       updatedAt: now,
     };
 
-    const db = await getDb();
     const result = await db.collection('agents_v2').insertOne(doc);
 
     return Response.json({ ...doc, _id: result.insertedId.toString() }, { status: 201 });

@@ -1,6 +1,9 @@
 import { getDb } from '@/lib/mongodb';
 import OverviewBoard from '@/components/dashboard/OverviewBoard';
 import { getCurrentPeriodUsage } from '@/lib/usage-meter';
+import { getSession } from '@/lib/auth';
+import { getWorkspaceConfig } from '@/lib/workspace-config';
+import { getWorkspaceClient } from '@/lib/clients';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,12 +26,23 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  if (!session) return null;
+
   const db = await getDb();
+  const workspaceId = session.workspaceId;
+  const client = await getWorkspaceClient(db, workspaceId);
 
   const [configDoc, agentDocs, recentConvs] = await Promise.all([
-    db.collection('config').findOne({ _id: 'account' as any }),
-    db.collection('agents').find({}).toArray(),
-    db.collection('conversations').find({}).sort({ updatedAt: -1 }).limit(8).toArray(),
+    getWorkspaceConfig(db, workspaceId, 'account', {
+      defaults: {
+        plan: 'Starter',
+        interactions_limit: 1000,
+        timezone: 'America/Bogota',
+      } as any,
+    }),
+    db.collection('agents_v2').find({ workspaceId, status: { $ne: 'disabled' } }).toArray(),
+    db.collection('conversations').find({ workspaceId, clientId: client.clientId }).sort({ updatedAt: -1 }).limit(8).toArray(),
   ]);
 
   const config: any = configDoc ?? { plan: 'Starter', interactions_limit: 1000, timezone: 'America/Bogota' };
@@ -37,15 +51,15 @@ export default async function DashboardPage() {
 
   const usage = await getCurrentPeriodUsage({
     db,
-    workspaceId: 'default',
+    workspaceId,
     timeZone: String(config?.timezone ?? 'America/Bogota'),
   });
 
   const [usageDoc, recentUsageRaw] = await Promise.all([
-    db.collection<any>('usage_monthly').findOne({ _id: `default:${usage.periodKey}` }),
+    db.collection<any>('usage_monthly').findOne({ _id: `${workspaceId}:${usage.periodKey}` }),
     db
       .collection<any>('usage_events')
-      .find({ workspaceId: 'default', periodKey: usage.periodKey })
+      .find({ workspaceId, periodKey: usage.periodKey })
       .sort({ ts: -1 })
       .limit(8)
       .toArray(),

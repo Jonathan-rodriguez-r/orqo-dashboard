@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
+import { getWorkspaceClient } from '@/lib/clients';
 
 /**
  * POST /api/seed/conversations
@@ -11,6 +12,8 @@ export async function POST() {
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const db = await getDb();
+  const workspaceId = String(session.workspaceId ?? 'default');
+  const client = await getWorkspaceClient(db, workspaceId);
 
   const now = Date.now();
   const hr  = 3_600_000;
@@ -120,6 +123,9 @@ export async function POST() {
     const tokensOutput = msgCount * randInt(120, 280) + randInt(100, 500);
 
     const doc: Record<string, any> = {
+      workspaceId,
+      clientId: client.clientId,
+      clientName: client.clientName,
       conv_id:       genConvId(),
       user_name:     user.name,
       channel:       channel.id,
@@ -149,11 +155,11 @@ export async function POST() {
   await db.collection('conversations').insertMany(docs);
 
   // Ensure index on conv_id
-  await db.collection('conversations').createIndex({ conv_id: 1 }, { unique: false });
-  await db.collection('conversations').createIndex({ channel: 1 });
-  await db.collection('conversations').createIndex({ status: 1 });
-  await db.collection('conversations').createIndex({ model: 1 });
-  await db.collection('conversations').createIndex({ updatedAt: -1 });
+  await db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, conv_id: 1 }, { unique: false });
+  await db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, channel: 1 });
+  await db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, status: 1 });
+  await db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, model: 1 });
+  await db.collection('conversations').createIndex({ workspaceId: 1, clientId: 1, updatedAt: -1 });
 
   return Response.json({ ok: true, inserted: docs.length });
 }

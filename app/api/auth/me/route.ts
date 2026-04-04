@@ -14,8 +14,12 @@ export async function GET() {
     email:       session.email,
     name:        session.name,
     avatar:      session.avatar,
+    workspaceId: session.workspaceId,
+    clientId:    session.clientId,
+    clientName:  session.clientName,
     role:        session.role,
     permissions: session.permissions,
+    isGlobalUser: session.isGlobalUser,
     provider:    session.provider,
   });
 }

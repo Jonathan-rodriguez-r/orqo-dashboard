@@ -30,6 +30,8 @@ type AccountCfg = {
   escalation_email: string;
   incident_whatsapp: string;
   report_footer_note: string;
+  client_id: string;
+  client_name: string;
 };
 
 const DEFAULTS: AccountCfg = {
@@ -60,6 +62,8 @@ const DEFAULTS: AccountCfg = {
   escalation_email: '',
   incident_whatsapp: '',
   report_footer_note: '',
+  client_id: '',
+  client_name: '',
 };
 
 const INDUSTRIES = [
@@ -508,6 +512,16 @@ export default function AccountPage({ embedded = false }: Props) {
           <div className="field">
             <label className="label">Dirección</label>
             <input className="input" value={cfg.address} onChange={e => set('address', e.target.value)} placeholder="Calle 123 #45-67, Bogotá, Colombia"/>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label className="label">Cliente asociado</label>
+              <input className="input" value={cfg.client_name || cfg.client_id || 'Sin asignar'} disabled readOnly />
+            </div>
+            <div className="field">
+              <label className="label">ID cliente</label>
+              <input className="input input-mono" value={cfg.client_id || '-'} disabled readOnly />
+            </div>
           </div>
           <div className="field-row">
             <div className="field">

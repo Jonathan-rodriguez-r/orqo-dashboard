@@ -1,6 +1,11 @@
-import { getDb } from '@/lib/mongodb';
+﻿import { getDb } from '@/lib/mongodb';
+import { getSession } from '@/lib/auth';
 import { randomBytes } from 'crypto';
 import { getCurrentPeriodUsage } from '@/lib/usage-meter';
+import { getWorkspaceConfig, setWorkspaceConfig } from '@/lib/workspace-config';
+import { assignWorkspaceClient, getWorkspaceClient } from '@/lib/clients';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
+import { hasPermission } from '@/lib/rbac';
 
 const DEFAULTS = {
   plan: 'Starter',
@@ -21,33 +26,45 @@ const DEFAULTS = {
   escalation_email: '',
   incident_whatsapp: '',
   report_footer_note: '',
+  logo_url: '',
+  operations_owner: '',
+  report_recipients: '',
+  sla_first_response_min: 0,
+  client_id: '',
+  client_name: '',
 };
 
-export async function GET() {
+function generateApiKey() {
+  return 'orqo_' + randomBytes(24).toString('hex');
+}
+
+export async function GET(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const db = await getDb();
-    let doc = await db.collection('config').findOne({ _id: 'account' as any });
-    if (!doc) {
-      const newDoc = { ...DEFAULTS, api_key: 'orqo_' + randomBytes(24).toString('hex') };
-      await db.collection('config').insertOne({ _id: 'account' as any, ...newDoc });
-      return Response.json(newDoc);
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
+    const client = await getWorkspaceClient(db, workspaceId);
+
+    const cfg = await getWorkspaceConfig(db, workspaceId, 'account', { defaults: DEFAULTS });
+    if (!cfg.api_key) {
+      cfg.api_key = generateApiKey();
+      await setWorkspaceConfig(db, workspaceId, 'account', { api_key: cfg.api_key });
     }
-    const { _id, ...rest } = doc;
-    if (!rest.api_key) {
-      rest.api_key = 'orqo_' + randomBytes(24).toString('hex');
-      await db.collection('config').updateOne(
-        { _id: 'account' as any },
-        { $set: { api_key: rest.api_key } }
-      );
-    }
+
     const usage = await getCurrentPeriodUsage({
       db,
-      workspaceId: 'default',
-      timeZone: String(rest?.timezone ?? DEFAULTS.timezone),
+      workspaceId,
+      timeZone: String(cfg?.timezone ?? DEFAULTS.timezone),
     });
+
     return Response.json({
       ...DEFAULTS,
-      ...rest,
+      ...cfg,
+      client_id: client.clientId,
+      client_name: client.clientName,
       interactions_used: usage.interactions,
       interactions_period_key: usage.periodKey,
     });
@@ -58,7 +75,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await req.json();
+    const workspaceId = resolveScopedWorkspaceId(session, body.workspaceId ?? body.workspace_id ?? null);
+    delete body.workspaceId;
+    delete body.workspace_id;
     delete body.api_key;
     delete body.interactions_used;
     delete body.interactions_period_key;
@@ -68,12 +91,18 @@ export async function POST(req: Request) {
     delete body.widget_page_url;
     delete body.widget_last_seen_at;
     delete body.widget_seen_domains;
+    const requestedClientId = String(body.client_id ?? '').trim();
+    delete body.client_id;
+    delete body.client_name;
+
     const db = await getDb();
-    await db.collection('config').updateOne(
-      { _id: 'account' as any },
-      { $set: body },
-      { upsert: true }
-    );
+    if (requestedClientId && hasPermission(session.permissions, 'admin.clients')) {
+      const assigned = await assignWorkspaceClient(db, workspaceId, requestedClientId);
+      if (!assigned) {
+        return Response.json({ error: 'Cliente no encontrado' }, { status: 404 });
+      }
+    }
+    await setWorkspaceConfig(db, workspaceId, 'account', body ?? {});
     return Response.json({ ok: true });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });

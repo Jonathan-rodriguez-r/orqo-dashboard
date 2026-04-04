@@ -76,16 +76,27 @@ export default function DashboardNav({ userEmail, userName }: Props) {
 
     (async () => {
       try {
-        const accountRes = await fetch('/api/account', { cache: 'no-store' });
+        const [accountRes, prefRes] = await Promise.all([
+          fetch('/api/account', { cache: 'no-store' }),
+          fetch('/api/account/preferences', { cache: 'no-store' }),
+        ]);
         const account = await accountRes.json().catch(() => ({}));
+        const prefs = await prefRes.json().catch(() => ({}));
         if (cancelled) return;
 
         const logoUrl = String(account?.logo_url || '').trim();
         const brandName = String(account?.sidebar_name || account?.business_name || 'ORQO').trim();
         setBranding({ logoUrl, brandName: brandName || 'ORQO' });
 
-        const accent = String(account?.brand_primary_color || '#2CB978').trim();
-        const secondary = String(account?.brand_secondary_color || '#0B100D').trim();
+        const workspaceAccent = String(account?.brand_primary_color || '#2CB978').trim();
+        const workspaceSecondary = String(account?.brand_secondary_color || '#0B100D').trim();
+        const usePersonalTheme = Boolean(prefs?.dashboardTheme?.enabled);
+        const accent = usePersonalTheme
+          ? String(prefs?.dashboardTheme?.primaryColor || workspaceAccent).trim()
+          : workspaceAccent;
+        const secondary = usePersonalTheme
+          ? String(prefs?.dashboardTheme?.secondaryColor || workspaceSecondary).trim()
+          : workspaceSecondary;
         applyBrandTheme(accent, secondary);
         localStorage.setItem(BRAND_THEME_KEY, JSON.stringify({
           primary: normalizeHexColor(accent, '#2CB978'),

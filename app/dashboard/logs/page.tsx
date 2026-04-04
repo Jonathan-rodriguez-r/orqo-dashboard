@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSession } from '@/hooks/usePermissions';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LogLevel    = 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
 type LogSeverity = 'LOW'  | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-type LogCategory = 'auth' | 'security' | 'users' | 'roles' | 'system' | 'billing' | 'connector' | 'agent' | 'conversation';
+type LogCategory = 'auth' | 'security' | 'users' | 'roles' | 'system' | 'billing' | 'connector' | 'agent' | 'conversation' | 'core';
 
 type AuditLog = {
   _id:           string;
@@ -56,11 +57,13 @@ const CATEGORY_STYLE: Record<string, { bg: string; color: string; label: string 
   connector:    { bg: 'rgba(20,184,166,0.12)',  color: '#14B8A6', label: 'Conectores'      },
   agent:        { bg: 'rgba(99,102,241,0.12)',  color: '#6366F1', label: 'Agentes'         },
   conversation: { bg: 'rgba(6,182,212,0.12)',   color: '#06B6D4', label: 'Conversaciones'  },
+  core:         { bg: 'rgba(44,185,120,0.10)',  color: 'var(--acc)', label: 'Core'         },
 };
 
-const ALL_LEVELS:     LogLevel[]    = ['INFO', 'WARN', 'ERROR', 'FATAL'];
-const ALL_SEVERITIES: LogSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-const ALL_CATEGORIES: LogCategory[] = ['auth', 'security', 'users', 'roles', 'system', 'billing', 'connector', 'agent', 'conversation'];
+const ALL_LEVELS:      LogLevel[]    = ['INFO', 'WARN', 'ERROR', 'FATAL'];
+const ALL_SEVERITIES:  LogSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const BASE_CATEGORIES: LogCategory[] = ['auth', 'security', 'users', 'roles', 'system', 'billing', 'connector', 'agent', 'conversation'];
+// 'core' se añade dinámicamente solo si el usuario es global (orqo_platform)
 
 const PAGE_SIZE = 50;
 
@@ -221,6 +224,13 @@ function ExpandedRow({ log }: { log: AuditLog }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function LogsPage() {
+  const session   = useSession();
+  const isGlobal  = session?.isGlobalUser === true;
+  const ALL_CATEGORIES = useMemo(
+    () => isGlobal ? [...BASE_CATEGORIES, 'core' as LogCategory] : BASE_CATEGORIES,
+    [isGlobal],
+  );
+
   const [logs, setLogs]       = useState<AuditLog[]>([]);
   const [total, setTotal]     = useState(0);
   const [stats, setStats]     = useState<Stats>({ byLevel: {}, byCategory: {} });

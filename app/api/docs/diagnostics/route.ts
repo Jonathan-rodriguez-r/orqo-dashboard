@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth';
 import { getDb } from '@/lib/mongodb';
 import { writeLog } from '@/app/api/admin/logs/route';
 import { emitWorkspaceAlert } from '@/lib/alerts';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 type CheckStatus = 'ok' | 'warn' | 'error';
 type CheckResult = {
@@ -31,6 +32,9 @@ function looksLikeQuotaError(message: string) {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
   const db = await getDb();
   const results: CheckResult[] = [];
@@ -81,7 +85,7 @@ export async function POST(req: Request) {
   }
 
   // 2) Workspace providers and fallback
-  const ws = await db.collection('workspace_settings').findOne({ workspaceId: session.workspaceId });
+  const ws = await db.collection('workspace_settings').findOne({ workspaceId: workspaceId });
   const providers = ws?.aiProviders ?? {};
   const providerList = ['google', 'openai', 'grok', 'anthropic'];
   const activeCount = providerList.filter((k) => providers?.[k]?.enabled && String(providers?.[k]?.apiKey ?? '').trim()).length;
@@ -164,7 +168,7 @@ export async function POST(req: Request) {
 
   // 3) Agents for web channel
   const activeWebAgents = await db.collection('agents_v2').countDocuments({
-    workspaceId: session.workspaceId,
+    workspaceId: workspaceId,
     status: 'active',
     'channels.web': true,
   });
@@ -178,7 +182,9 @@ export async function POST(req: Request) {
 
   // 4) Recent runtime errors
   const last24h = Date.now() - 24 * 60 * 60 * 1000;
-  const runtimeErrors = await db.collection('activity_logs').countDocuments({ ts: { $gte: last24h }, level: 'error' });
+  const runtimeErrors = await db
+    .collection('activity_logs')
+    .countDocuments({ workspaceId: workspaceId, ts: { $gte: last24h }, level: 'error' });
   if (runtimeErrors > 0) {
     results.push({
       key: 'runtime_errors',
@@ -197,6 +203,7 @@ export async function POST(req: Request) {
   await writeLog({
     level: hasError ? 'error' : hasWarn ? 'warn' : 'info',
     source: 'help-diagnostics',
+    workspaceId: workspaceId,
     msg: hasError ? 'Diagnostico finalizo con errores' : hasWarn ? 'Diagnostico finalizo con advertencias' : 'Diagnostico finalizo OK',
     detail: [...errors, ...warnings].join(' | ').slice(0, 1300),
   }).catch(() => {});
@@ -204,7 +211,7 @@ export async function POST(req: Request) {
   if (hasError) {
     await emitWorkspaceAlert({
       db,
-      workspaceId: session.workspaceId,
+      workspaceId: workspaceId,
       eventCode: 'DIAGNOSTIC_FAILURE',
       severity: 'critical',
       title: 'Diagnostico detecto errores',
@@ -216,7 +223,7 @@ export async function POST(req: Request) {
   if (hasWarn) {
     await emitWorkspaceAlert({
       db,
-      workspaceId: session.workspaceId,
+      workspaceId: workspaceId,
       eventCode: 'DIAGNOSTIC_WARNINGS',
       severity: 'warning',
       title: 'Diagnostico detecto advertencias',
@@ -228,7 +235,7 @@ export async function POST(req: Request) {
   if (warnings.some((w) => w.includes('Widget configurado como inactivo'))) {
     await emitWorkspaceAlert({
       db,
-      workspaceId: session.workspaceId,
+      workspaceId: workspaceId,
       eventCode: 'WIDGET_INACTIVE',
       severity: 'warning',
       title: 'Widget inactivo detectado',
@@ -239,7 +246,7 @@ export async function POST(req: Request) {
   if (errors.some((w) => w.includes('API publica'))) {
     await emitWorkspaceAlert({
       db,
-      workspaceId: session.workspaceId,
+      workspaceId: workspaceId,
       eventCode: 'PUBLIC_API_UNHEALTHY',
       severity: 'critical',
       title: 'API publica del widget con falla',

@@ -2,6 +2,10 @@ import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { actorFromRequest, log } from '@/lib/logger';
+import { resolveScopedWorkspaceId, canAccessProtectedRoles } from '@/lib/access-control';
+
+// workspaceId virtual usado por el core para sus logs de plataforma
+const CORE_WORKSPACE_ID = 'orqo_platform';
 
 /**
  * GET /api/logs
@@ -42,8 +46,18 @@ export async function GET(req: Request) {
   const from          = searchParams.get('from')          ?? '';
   const to            = searchParams.get('to')            ?? '';
   const correlationId = searchParams.get('correlationId') ?? '';
+  const workspaceId   = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
+
+  // Logs de categoría 'core' son de plataforma — solo visibles para usuarios globales ORQO
+  if (category === 'core') {
+    if (!canAccessProtectedRoles(session)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   const filter: Record<string, any> = {};
+  // Los logs del core viven bajo workspaceId='orqo_platform' independientemente del workspace del usuario
+  filter.workspaceId = category === 'core' ? CORE_WORKSPACE_ID : workspaceId;
 
   if (level)    filter.level    = level;
   if (severity) filter.severity = severity;
@@ -132,13 +146,14 @@ export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const days = Math.min(3650, Math.max(1, Number(searchParams.get('days') ?? 30)));
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const cutoffTs = cutoff.getTime();
 
     const db = await getDb();
     const [auditDelete, runtimeDelete] = await Promise.all([
-      db.collection('audit_logs').deleteMany({ createdAt: { $lt: cutoff } }),
-      db.collection('activity_logs').deleteMany({ ts: { $lt: cutoffTs } }),
+      db.collection('audit_logs').deleteMany({ workspaceId, createdAt: { $lt: cutoff } }),
+      db.collection('activity_logs').deleteMany({ workspaceId, ts: { $lt: cutoffTs } }),
     ]);
 
     await log(db, {

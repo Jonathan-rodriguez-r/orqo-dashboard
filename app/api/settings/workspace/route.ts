@@ -1,11 +1,13 @@
 import { getDb } from '@/lib/mongodb';
 import { getSession } from '@/lib/auth';
+import { getWorkspaceClient } from '@/lib/clients';
+import { resolveScopedWorkspaceId } from '@/lib/access-control';
 
 const DEFAULT_SETTINGS = {
   aiProviders: {
-    google:    { apiKey: '', model: 'gemini-2.0-flash', enabled: false },
-    openai:    { apiKey: '', model: 'gpt-4o', enabled: false },
-    grok:      { apiKey: '', model: 'grok-3', enabled: false },
+    google: { apiKey: '', model: 'gemini-2.0-flash', enabled: false },
+    openai: { apiKey: '', model: 'gpt-4o', enabled: false },
+    grok: { apiKey: '', model: 'grok-3', enabled: false },
     anthropic: { apiKey: '', model: 'claude-sonnet-4-6', enabled: false },
   },
   orchestration: {
@@ -24,17 +26,23 @@ const DEFAULT_SETTINGS = {
   },
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession();
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { searchParams } = new URL(req.url);
+    const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
+
     const db = await getDb();
-    let doc = await db.collection('workspace_settings').findOne({ workspaceId: session.workspaceId });
+    const client = await getWorkspaceClient(db, workspaceId);
+    let doc = await db.collection('workspace_settings').findOne({ workspaceId });
 
     if (!doc) {
       const newDoc = {
-        workspaceId: session.workspaceId,
+        workspaceId,
+        clientId: client.clientId,
+        clientName: client.clientName,
         ...DEFAULT_SETTINGS,
         updatedAt: new Date(),
       };
@@ -47,6 +55,8 @@ export async function GET() {
     return Response.json({
       ...DEFAULT_SETTINGS,
       ...rest,
+      clientId: rest.clientId ?? client.clientId,
+      clientName: rest.clientName ?? client.clientName,
       aiProviders: { ...DEFAULT_SETTINGS.aiProviders, ...(rest.aiProviders ?? {}) },
       orchestration: { ...DEFAULT_SETTINGS.orchestration, ...(rest.orchestration ?? {}) },
       fallback: { ...DEFAULT_SETTINGS.fallback, ...(rest.fallback ?? {}) },
@@ -62,13 +72,24 @@ export async function PUT(req: Request) {
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
+    const workspaceId = resolveScopedWorkspaceId(session, body.workspaceId ?? body.workspace_id ?? null);
     delete body.workspaceId;
+    delete body.workspace_id;
     delete body._id;
 
     const db = await getDb();
+    const client = await getWorkspaceClient(db, workspaceId);
     await db.collection('workspace_settings').updateOne(
-      { workspaceId: session.workspaceId },
-      { $set: { ...body, workspaceId: session.workspaceId, updatedAt: new Date() } },
+      { workspaceId },
+      {
+        $set: {
+          ...body,
+          workspaceId,
+          clientId: client.clientId,
+          clientName: client.clientName,
+          updatedAt: new Date(),
+        },
+      },
       { upsert: true }
     );
 

@@ -123,6 +123,32 @@ a{color:inherit;text-decoration:none;}button{font-family:var(--f-body);cursor:po
     inset 0 0 0 1px color-mix(in srgb, var(--acc) 12%, transparent);
   position:relative;
   z-index:70;
+  isolation:isolate;
+}
+.topbar > *{
+  position:relative;
+  z-index:1;
+}
+.topbar::after{
+  content:'';
+  position:absolute;
+  left:2px;
+  right:2px;
+  top:100%;
+  height:34px;
+  pointer-events:none;
+  border-radius:0 0 14px 14px;
+  background:linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--g01) 68%, var(--acc) 6%) 0%,
+    color-mix(in srgb, var(--g01) 46%, transparent) 28%,
+    color-mix(in srgb, var(--g01) 18%, transparent) 58%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.72) 36%, rgba(0,0,0,0.26) 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.72) 36%, rgba(0,0,0,0.26) 72%, transparent 100%);
+  -webkit-backdrop-filter: blur(12px) saturate(118%);
+  backdrop-filter: blur(12px) saturate(118%);
 }
 .topbar-left-chip{
   display:inline-flex;
@@ -739,6 +765,7 @@ tr:hover td{background:var(--g02);}
 
 @media (max-width:900px){
   .topbar{margin:10px 12px 0;padding:8px 10px;}
+  .topbar::after{left:4px;right:4px;top:100%;height:24px;}
   .world-main{grid-template-columns:1fr;}
   .world-stats-strip{grid-template-columns:repeat(2,minmax(0,1fr));}
   .marketing-preview-wrap{aspect-ratio:4 / 3;min-height:190px;}
@@ -764,4 +791,8 @@ tr:hover td{background:var(--g02);}
   .marketing-controls > .btn{flex:1 1 48%;}
   .marketing-actions > .btn{flex:1 1 100%;}
   .marketing-preview-wrap{aspect-ratio:5 / 4;min-height:170px;}
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
