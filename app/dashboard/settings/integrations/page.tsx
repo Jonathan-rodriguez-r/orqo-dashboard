@@ -460,13 +460,22 @@ export default function IntegrationsPage() {
   // ── Facebook SDK loader ────────────────────────────────────────────────────
   useEffect(() => {
     const appId = process.env.NEXT_PUBLIC_META_APP_ID;
-    if (!appId || typeof window === 'undefined') return;
+    if (!appId) return;
 
-    (window as any).fbAsyncInit = function () {
+    function initFB() {
       (window as any).FB.init({ appId, version: 'v21.0', cookie: true, xfbml: false });
-    };
+    }
 
-    if (!(window as any).FB) {
+    // If FB already loaded from cache, init immediately
+    if ((window as any).FB) {
+      initFB();
+      return;
+    }
+
+    // Otherwise set the async init callback and inject the script once
+    (window as any).fbAsyncInit = initFB;
+
+    if (!document.getElementById('facebook-jssdk')) {
       const script = document.createElement('script');
       script.id = 'facebook-jssdk';
       script.src = 'https://connect.facebook.net/en_US/sdk.js';
@@ -479,15 +488,32 @@ export default function IntegrationsPage() {
 
   // ── Embedded Signup handler ────────────────────────────────────────────────
   function handleMetaSignup() {
-    const FB = (window as any).FB;
+    const appId    = process.env.NEXT_PUBLIC_META_APP_ID;
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
 
-    if (!FB) {
-      setMetaError('El SDK de Facebook aún no cargó. Refresca la página e intenta de nuevo.');
+    if (!appId) {
+      setMetaError('NEXT_PUBLIC_META_APP_ID no está configurado. Agrega la variable en Vercel y redespliega.');
       return;
     }
     if (!configId) {
-      setMetaError('NEXT_PUBLIC_META_CONFIG_ID no está configurado. Contacta soporte de ORQO.');
+      setMetaError('NEXT_PUBLIC_META_CONFIG_ID no está configurado. Obtenlo en Meta App → WhatsApp → Embedded Signup.');
+      return;
+    }
+
+    const FB = (window as any).FB;
+    if (!FB) {
+      // SDK not yet loaded — inject script inline as fallback and ask to retry
+      if (!document.getElementById('facebook-jssdk')) {
+        (window as any).fbAsyncInit = () => {
+          (window as any).FB.init({ appId, version: 'v21.0', cookie: true, xfbml: false });
+        };
+        const s = document.createElement('script');
+        s.id = 'facebook-jssdk';
+        s.src = 'https://connect.facebook.net/en_US/sdk.js';
+        s.async = true; s.defer = true; s.crossOrigin = 'anonymous';
+        document.body.appendChild(s);
+      }
+      setMetaError('Cargando SDK de Facebook… Haz clic de nuevo en 2 segundos.');
       return;
     }
 
