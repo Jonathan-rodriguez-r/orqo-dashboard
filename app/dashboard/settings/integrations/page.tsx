@@ -83,11 +83,14 @@ interface ChannelPanelProps {
   fields: Array<{ key: string; label: string; placeholder: string }>;
   agentCovered: boolean;
   fastDeploy?: boolean;
+  fastConnecting?: boolean;
+  fastError?: string;
+  onFastConnect?: () => void;
   onSave: (channel: string, data: Record<string, string>) => Promise<void>;
   onDelete: (channel: string) => Promise<void>;
 }
 
-function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, onSave, onDelete }: ChannelPanelProps) {
+function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, fastConnecting, fastError, onFastConnect, onSave, onDelete }: ChannelPanelProps) {
   const [mode, setMode]       = useState<'fast' | 'manual'>(fastDeploy && !info ? 'fast' : 'manual');
   const [editing, setEditing] = useState(!info);
   const [values, setValues]   = useState<Record<string, string>>({});
@@ -223,11 +226,26 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
               <button
                 className="btn btn-primary"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
-                onClick={() => alert('Embedded Signup — próximamente. Requiere configuración de Meta App ID en el panel de ORQO.')}
+                onClick={onFastConnect}
+                disabled={fastConnecting || !onFastConnect}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Conectar con Meta
+                {fastConnecting ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    Conectando…
+                  </span>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    Conectar con Meta
+                  </>
+                )}
               </button>
+              {fastError && (
+                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
+                  {fastError}
+                </div>
+              )}
               <div style={{ fontSize: 11, color: 'var(--g04)', textAlign: 'center' }}>
                 También puedes usar la conexión{' '}
                 <button onClick={() => setMode('manual')} style={{ background: 'none', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
@@ -436,6 +454,109 @@ export default function IntegrationsPage() {
   const [apiKeyResult, setApiKeyResult] = useState<string | null>(null);
   const [copied, setCopied]             = useState(false);
   const [copiedKey, setCopiedKey]       = useState(false);
+  const [metaConnecting, setMetaConnecting] = useState(false);
+  const [metaError, setMetaError]           = useState('');
+
+  // ── Facebook SDK loader ────────────────────────────────────────────────────
+  useEffect(() => {
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID;
+    if (!appId || typeof window === 'undefined') return;
+
+    (window as any).fbAsyncInit = function () {
+      (window as any).FB.init({ appId, version: 'v21.0', cookie: true, xfbml: false });
+    };
+
+    if (!(window as any).FB) {
+      const script = document.createElement('script');
+      script.id = 'facebook-jssdk';
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = 'anonymous';
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  // ── Embedded Signup handler ────────────────────────────────────────────────
+  function handleMetaSignup() {
+    const FB = (window as any).FB;
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
+
+    if (!FB) {
+      setMetaError('El SDK de Facebook aún no cargó. Refresca la página e intenta de nuevo.');
+      return;
+    }
+    if (!configId) {
+      setMetaError('NEXT_PUBLIC_META_CONFIG_ID no está configurado. Contacta soporte de ORQO.');
+      return;
+    }
+
+    setMetaConnecting(true);
+    setMetaError('');
+
+    // Meta sends WABA + phone number ID via postMessage from the popup
+    let sessionData: { wabaId?: string; phoneNumberId?: string } = {};
+
+    function onMetaMessage(event: MessageEvent) {
+      if (event.origin !== 'https://www.facebook.com') return;
+      try {
+        const msg = JSON.parse(event.data as string);
+        if (msg.type === 'WA_EMBEDDED_SIGNUP' && msg.event === 'FINISH') {
+          sessionData = {
+            wabaId:        msg.data?.waba_id,
+            phoneNumberId: msg.data?.phone_number_id,
+          };
+        }
+      } catch { /* non-JSON message, ignore */ }
+    }
+
+    window.addEventListener('message', onMetaMessage);
+
+    FB.login(async (response: any) => {
+      window.removeEventListener('message', onMetaMessage);
+
+      if (!response.authResponse?.code) {
+        setMetaConnecting(false);
+        if (response.status !== 'connected') {
+          setMetaError('Autorización cancelada o denegada por Meta.');
+        }
+        return;
+      }
+
+      if (!sessionData.wabaId) {
+        setMetaConnecting(false);
+        setMetaError('No se recibió el WABA ID de Meta. Intenta de nuevo.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/core/channels/meta/onboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code:          response.authResponse.code,
+            wabaId:        sessionData.wabaId,
+            phoneNumberId: sessionData.phoneNumberId,
+          }),
+        }).then(r => r.json()) as any;
+
+        if (res.ok) {
+          await load();
+        } else {
+          setMetaError(res.error ?? 'Error desconocido al conectar con Meta.');
+        }
+      } catch (e: any) {
+        setMetaError(e.message ?? 'Error de red.');
+      } finally {
+        setMetaConnecting(false);
+      }
+    }, {
+      config_id: configId,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -643,6 +764,9 @@ export default function IntegrationsPage() {
               fields={[{ key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123' }]}
               agentCovered={agentCoverage.whatsapp ?? false}
               fastDeploy={true}
+              fastConnecting={metaConnecting}
+              fastError={metaError}
+              onFastConnect={handleMetaSignup}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
