@@ -486,23 +486,34 @@ export default function IntegrationsPage() {
     }
   }, []);
 
+  // ── Integration event logger (client-side) ───────────────────────────────
+  function logIntegrationEvent(event: string, detail?: string) {
+    void fetch('/api/integrations/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, detail, channel: 'whatsapp' }),
+    });
+  }
+
   // ── Embedded Signup handler ────────────────────────────────────────────────
   function handleMetaSignup() {
     const appId    = process.env.NEXT_PUBLIC_META_APP_ID;
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
 
     if (!appId) {
+      logIntegrationEvent('meta_config_missing', 'NEXT_PUBLIC_META_APP_ID ausente');
       setMetaError('NEXT_PUBLIC_META_APP_ID no está configurado. Agrega la variable en Vercel y redespliega.');
       return;
     }
     if (!configId) {
+      logIntegrationEvent('meta_config_missing', 'NEXT_PUBLIC_META_CONFIG_ID ausente');
       setMetaError('NEXT_PUBLIC_META_CONFIG_ID no está configurado. Obtenlo en Meta App → WhatsApp → Embedded Signup.');
       return;
     }
 
     const FB = (window as any).FB;
     if (!FB) {
-      // SDK not yet loaded — inject script inline as fallback and ask to retry
+      logIntegrationEvent('meta_sdk_not_loaded');
       if (!document.getElementById('facebook-jssdk')) {
         (window as any).fbAsyncInit = () => {
           (window as any).FB.init({ appId, version: 'v21.0', cookie: true, xfbml: false });
@@ -517,12 +528,14 @@ export default function IntegrationsPage() {
       return;
     }
 
+    logIntegrationEvent('meta_signup_started');
     setMetaConnecting(true);
     setMetaError('');
 
     // Safety timeout — if the popup is blocked or closes without calling back, reset state
     const connectTimeout = setTimeout(() => {
       window.removeEventListener('message', onMetaMessage);
+      logIntegrationEvent('meta_popup_timeout');
       setMetaConnecting(false);
       setMetaError('El popup de Meta no respondió. Asegúrate de que los popups estén permitidos para dashboard.orqo.io en tu navegador, luego intenta de nuevo.');
     }, 3 * 60 * 1000); // 3 minutes
@@ -553,16 +566,19 @@ export default function IntegrationsPage() {
         setMetaConnecting(false);
         const status = response.status ?? '';
         if (status !== 'connected') {
-          setMetaError(
-            status === 'unknown' || !status
-              ? 'El popup fue bloqueado o cerrado. Permite popups para dashboard.orqo.io e intenta de nuevo.'
-              : 'Autorización cancelada o denegada por Meta.'
-          );
+          if (status === 'unknown' || !status) {
+            logIntegrationEvent('meta_popup_blocked', `status:${status}`);
+            setMetaError('El popup fue bloqueado o cerrado. Permite popups para dashboard.orqo.io e intenta de nuevo.');
+          } else {
+            logIntegrationEvent('meta_signup_cancelled', `status:${status}`);
+            setMetaError('Autorización cancelada o denegada por Meta.');
+          }
         }
         return;
       }
 
       if (!sessionData.wabaId) {
+        logIntegrationEvent('meta_signup_no_waba', 'popup cerrado antes de FINISH');
         setMetaConnecting(false);
         setMetaError('No se recibió el WABA ID de Meta. Asegúrate de completar todos los pasos del asistente de Meta antes de cerrar el popup.');
         return;

@@ -104,9 +104,12 @@ export async function POST(req: Request) {
   if (!body.code) return Response.json({ error: 'code requerido' }, { status: 400 });
   if (!body.wabaId) return Response.json({ error: 'wabaId requerido' }, { status: 400 });
 
+  const actor = session.email ?? session.sub;
+
   // 1. Exchange code → short-lived token
   const shortToken = await exchangeCode(body.code);
   if (!shortToken) {
+    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo intercambio de código OAuth con Meta', detail: `wabaId:${body.wabaId} by:${actor} — verifica META_APP_SECRET`, workspaceId });
     return Response.json({ error: 'No se pudo obtener token de Meta. Verifica META_APP_SECRET.' }, { status: 502 });
   }
 
@@ -116,6 +119,7 @@ export async function POST(req: Request) {
   // 3. Get phone numbers in this WABA
   const phones = await getWabaPhones(body.wabaId, accessToken);
   if (!phones.length) {
+    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'WABA sin números verificados', detail: `wabaId:${body.wabaId} by:${actor}`, workspaceId });
     return Response.json({ error: 'No se encontraron números en el WABA. Verifica que el WABA tenga al menos un número verificado.' }, { status: 404 });
   }
 
@@ -128,7 +132,10 @@ export async function POST(req: Request) {
 
   // 6. Save to core
   const result = await CoreClient.setChannel(coreId, 'whatsapp', { phoneNumberId: phoneEntry.id, accessToken });
-  if (!result.ok) return Response.json({ error: result.error }, { status: 502 });
+  if (!result.ok) {
+    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo guardando canal WhatsApp en core', detail: `wabaId:${body.wabaId} error:${result.error} by:${actor}`, workspaceId });
+    return Response.json({ error: result.error }, { status: 502 });
+  }
 
   void writeLog({
     level: 'info',
