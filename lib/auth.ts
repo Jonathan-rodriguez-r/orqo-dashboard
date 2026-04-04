@@ -2,14 +2,15 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies, headers } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { getDb } from '@/lib/mongodb';
-import { readHostFromHeaders, resolveWorkspaceFromHost } from '@/lib/tenant';
-import { DEFAULT_CLIENT_ID, DEFAULT_CLIENT_NAME } from '@/lib/clients';
+import { getDefaultWorkspaceId, readHostFromHeaders, resolveWorkspaceFromHost } from '@/lib/tenant';
+import { DEFAULT_CLIENT_ID, DEFAULT_CLIENT_NAME, getWorkspaceClient } from '@/lib/clients';
 
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'orqo-dev-secret-change-in-production'
 );
 
 export const COOKIE = 'orqo_session';
+export const ACTIVE_WORKSPACE_COOKIE = 'orqo_active_workspace';
 export const SESSION_DAYS = 1;
 
 export type AuthProvider = 'magic_link' | 'google';
@@ -51,6 +52,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
+  const requestedWorkspaceId = String(jar.get(ACTIVE_WORKSPACE_COOKIE)?.value ?? '').trim();
 
   const session = await verifySession(token);
   if (!session) return null;
@@ -70,10 +72,51 @@ export async function getSession(): Promise<SessionPayload | null> {
     const host = readHostFromHeaders(reqHeaders);
     const db = await getDb();
     const tenant = await resolveWorkspaceFromHost(db, host);
+    const isSharedLoginHost =
+      tenant?.workspaceId === getDefaultWorkspaceId() &&
+      ['default_host', 'local', 'fallback'].includes(String(tenant?.source ?? ''));
 
     if (!tenant) return null;
-    if (tenant.workspaceId !== session.workspaceId && !session.isGlobalUser) {
+    if (tenant.workspaceId !== session.workspaceId && !session.isGlobalUser && !isSharedLoginHost) {
       return null;
+    }
+
+    const effectiveWorkspaceId = session.isGlobalUser && requestedWorkspaceId
+      ? requestedWorkspaceId
+      : session.workspaceId;
+
+    let workspaceDoc = await db.collection('workspaces').findOne(
+      { _id: effectiveWorkspaceId as any },
+      { projection: { _id: 1 } }
+    );
+
+    // Auto-create a minimal workspace document for legacy "default" workspace or any
+    // workspace that exists in the JWT but not yet in the workspaces collection.
+    if (!workspaceDoc && effectiveWorkspaceId) {
+      await db.collection('workspaces').updateOne(
+        { _id: effectiveWorkspaceId as any },
+        {
+          $setOnInsert: {
+            _id: effectiveWorkspaceId,
+            slug: effectiveWorkspaceId,
+            name: session.clientName || effectiveWorkspaceId,
+            clientId: session.clientId || DEFAULT_CLIENT_ID,
+            clientName: session.clientName || DEFAULT_CLIENT_NAME,
+            status: 'active',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+      workspaceDoc = { _id: effectiveWorkspaceId };
+    }
+
+    if (workspaceDoc?._id) {
+      session.workspaceId = String(workspaceDoc._id);
+      const workspaceClient = await getWorkspaceClient(db, session.workspaceId);
+      session.clientId = workspaceClient.clientId;
+      session.clientName = workspaceClient.clientName;
     }
   } catch {
     // If request headers are unavailable (non-request execution), keep JWT session fallback.
