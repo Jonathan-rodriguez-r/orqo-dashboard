@@ -241,6 +241,11 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                   </>
                 )}
               </button>
+              {fastConnecting && (
+                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.2)', fontSize: 12, color: 'var(--g06)', lineHeight: 1.6 }}>
+                  📋 Debería haberse abierto una ventana de Facebook. Completa los pasos del asistente en esa ventana. Si no apareció nada, revisa que los popups estén permitidos para este sitio en tu navegador.
+                </div>
+              )}
               {fastError && (
                 <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
                   {fastError}
@@ -528,6 +533,15 @@ export default function IntegrationsPage() {
       return;
     }
 
+    // Detect popup blocking before calling FB.login — open a test popup then close it immediately
+    const testPopup = window.open('', '_blank', 'width=1,height=1');
+    if (!testPopup || testPopup.closed) {
+      logIntegrationEvent('meta_popup_blocked', 'detectado antes de FB.login');
+      setMetaError('Tu navegador está bloqueando los popups de este sitio. Busca el ícono 🔲 en la barra de direcciones, haz clic y selecciona "Permitir siempre popups de dashboard.orqo.io", luego intenta de nuevo.');
+      return;
+    }
+    testPopup.close();
+
     logIntegrationEvent('meta_signup_started');
     setMetaConnecting(true);
     setMetaError('');
@@ -537,7 +551,7 @@ export default function IntegrationsPage() {
       window.removeEventListener('message', onMetaMessage);
       logIntegrationEvent('meta_popup_timeout');
       setMetaConnecting(false);
-      setMetaError('El popup de Meta no respondió. Asegúrate de que los popups estén permitidos para dashboard.orqo.io en tu navegador, luego intenta de nuevo.');
+      setMetaError('El popup de Meta no respondió. Revisa si se abrió una ventana de Facebook detrás de esta página. Si no apareció nada, permite popups de dashboard.orqo.io en tu navegador e intenta de nuevo.');
     }, 3 * 60 * 1000); // 3 minutes
 
     // Meta sends WABA + phone number ID via postMessage from the popup
