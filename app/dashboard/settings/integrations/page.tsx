@@ -547,8 +547,9 @@ export default function IntegrationsPage() {
       (response: any) => {
         // FB.login no acepta async — la lógica async va en void IIFE
         setMetaConnecting(true);
-        const token = response?.authResponse?.access_token ?? response?.authResponse?.code ?? '';
-        if (!token) {
+        const token = response?.authResponse?.access_token ?? '';
+        const code  = response?.authResponse?.code ?? '';
+        if (!token && !code) {
           setMetaError(
             response?.status === 'not_authorized'
               ? 'Conexión no autorizada. Verifica que tu cuenta Meta tiene acceso al WABA.'
@@ -564,7 +565,7 @@ export default function IntegrationsPage() {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                token,
+                ...(code  ? { code }  : { token }),
                 wabaId:        capturedWabaId        || undefined,
                 phoneNumberId: capturedPhoneNumberId || undefined,
               }),
@@ -589,7 +590,7 @@ export default function IntegrationsPage() {
       },
       {
         config_id:                    configId,
-        response_type:                'token',
+        response_type:                'code',
         override_default_response_type: true,
         extras: {
           setup:              {},
