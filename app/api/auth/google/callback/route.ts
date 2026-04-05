@@ -1,13 +1,21 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb } from '@/lib/mongodb';
-import { signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
+import { ACTIVE_WORKSPACE_COOKIE, signSession, buildSessionPayload, COOKIE, SESSION_DAYS } from '@/lib/auth';
 import { getDefaultPermissions } from '@/lib/rbac';
 import { log, actorFromRequest } from '@/lib/logger';
 import { getDefaultWorkspaceId, resolveWorkspaceFromRequest } from '@/lib/tenant';
 import { getWorkspaceClient, resolveClientScopeForRole } from '@/lib/clients';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+
+function isSharedLoginHost(tenant: Awaited<ReturnType<typeof resolveWorkspaceFromRequest>>) {
+  return Boolean(
+    tenant &&
+    tenant.workspaceId === getDefaultWorkspaceId() &&
+    ['default_host', 'local', 'fallback'].includes(String(tenant.source ?? ''))
+  );
+}
 
 /**
  * GET /api/auth/google/callback
@@ -78,13 +86,37 @@ export async function GET(req: Request) {
       redirect('/login?error=tenant_not_found');
     }
 
-    const workspaceId = tenant.workspaceId;
-    const workspaceClient = await getWorkspaceClient(db, workspaceId);
+    const sharedLoginHost = isSharedLoginHost(tenant);
+    let workspaceId = tenant.workspaceId;
+    let workspaceClient = await getWorkspaceClient(db, workspaceId);
     const users = db.collection('users');
-    const workspaceUsers = await users.countDocuments({ workspaceId });
+    let workspaceUsers = await users.countDocuments({ workspaceId });
     const totalUsers = await users.countDocuments();
 
     let user = await users.findOne({ email: profile.email, workspaceId });
+
+    if (!user && sharedLoginHost) {
+      const matchedUsers = await users
+        .find({ email: profile.email }, { projection: { workspaceId: 1 } })
+        .limit(3)
+        .toArray();
+      const matchedWorkspaceIds = Array.from(
+        new Set(
+          matchedUsers
+            .map((matched) => String(matched?.workspaceId ?? getDefaultWorkspaceId()).trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (matchedWorkspaceIds.length === 1) {
+        workspaceId = matchedWorkspaceIds[0];
+        workspaceClient = await getWorkspaceClient(db, workspaceId);
+        workspaceUsers = await users.countDocuments({ workspaceId });
+        user = await users.findOne({ email: profile.email, workspaceId });
+      } else if (matchedWorkspaceIds.length > 1) {
+        redirect('/login?error=multiple_accounts');
+      }
+    }
 
     if (!user && workspaceId === getDefaultWorkspaceId()) {
       const legacyUser = await users.findOne({ email: profile.email, workspaceId: { $exists: false } as any });
@@ -200,6 +232,13 @@ export async function GET(req: Request) {
     const jwt = await signSession(sessionPayload);
 
     jar.set(COOKIE, jwt, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * SESSION_DAYS,
+    });
+    jar.set(ACTIVE_WORKSPACE_COOKIE, workspaceId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
