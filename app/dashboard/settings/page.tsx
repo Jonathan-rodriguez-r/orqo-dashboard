@@ -17,9 +17,17 @@ type AccessSubTab = 'users' | 'roles' | 'alerts';
 type User = {
   _id: string; email: string; name?: string; avatar?: string;
   role?: string; createdAt?: string | number; lastLogin?: string | number;
+  workspaceId?: string; clientId?: string; clientName?: string; isGlobalUser?: boolean;
 };
 type Role = { _id: string; slug: string; label: string; description?: string; permissions: string[]; custom?: boolean };
-type SessionIdentity = { role: string; permissions: string[] };
+type SessionIdentity = {
+  role: string;
+  permissions: string[];
+  workspaceId?: string;
+  clientId?: string;
+  clientName?: string;
+  isGlobalUser?: boolean;
+};
 
 // â”€â”€ Integration catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type IntegrationDef = { id: string; name: string; desc: string; icon: string; color: string; status: 'connected' | 'available' | 'coming_soon' };
@@ -178,6 +186,10 @@ export default function SettingsPage() {
         setSessionIdentity({
           role: String(d.role ?? ''),
           permissions: Array.isArray(d.permissions) ? d.permissions.map((p: unknown) => String(p)) : [],
+          workspaceId: String(d.workspaceId ?? ''),
+          clientId: String(d.clientId ?? ''),
+          clientName: String(d.clientName ?? ''),
+          isGlobalUser: Boolean(d.isGlobalUser),
         });
       })
       .catch(() => {});
@@ -464,6 +476,18 @@ export default function SettingsPage() {
           {accessSub === 'users' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+              <div className="card" style={{ background: 'var(--g02)', border: '1px solid var(--g03)' }}>
+                <div className="card-title">Scope actual</div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--g05)' }}>
+                  <span><strong style={{ color: 'var(--g07)' }}>Cliente:</strong> {sessionIdentity?.clientName || '...'}</span>
+                  <span><strong style={{ color: 'var(--g07)' }}>Workspace:</strong> {sessionIdentity?.workspaceId || '...'}</span>
+                  <span><strong style={{ color: 'var(--g07)' }}>Rol:</strong> {sessionIdentity?.role || '...'}</span>
+                  {sessionIdentity?.isGlobalUser && (
+                    <span className="badge badge-yellow" style={{ alignSelf: 'center' }}>ORQO Global</span>
+                  )}
+                </div>
+              </div>
+
               {/* Invite form */}
               {!showInvite ? (
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -474,6 +498,9 @@ export default function SettingsPage() {
               ) : (
                 <div className="card" style={{ background: 'var(--g02)', border: '1px solid var(--g03)' }}>
                   <div className="card-title">Invitar nuevo usuario</div>
+                  <p style={{ marginTop: -4, marginBottom: 12, fontSize: 12, color: 'var(--g05)' }}>
+                    La invitaciÃ³n se crearÃ¡ dentro del workspace activo: <strong style={{ color: 'var(--g07)' }}>{sessionIdentity?.workspaceId || '...'}</strong>.
+                  </p>
                   <form onSubmit={inviteUser}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                       <div className="field" style={{ marginBottom: 0 }}>
@@ -527,13 +554,13 @@ export default function SettingsPage() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Último acceso</th><th>Desde</th><th>Acciones</th></tr>
+                      <tr><th>Usuario</th><th>Email</th><th>Cliente / Cuenta</th><th>Rol</th><th>Último acceso</th><th>Desde</th><th>Acciones</th></tr>
                     </thead>
                     <tbody>
                       {loadingUsers ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--g05)' }}>Cargando...</td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--g05)' }}>Cargando...</td></tr>
                       ) : users.length === 0 ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--g05)' }}>Sin usuarios</td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--g05)' }}>Sin usuarios</td></tr>
                       ) : users.map(u => (
                         <tr key={u._id} style={{ background: editingUser?._id === u._id ? 'var(--g02)' : undefined }}>
                           <td>
@@ -546,7 +573,18 @@ export default function SettingsPage() {
                             </div>
                           </td>
                           <td style={{ color: 'var(--g05)', fontSize: 12.5 }}>{u.email}</td>
-                          <td><RoleBadge role={u.role}/></td>
+                          <td style={{ fontSize: 12 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ color: 'var(--g07)', fontWeight: 600 }}>{u.clientName ?? u.clientId ?? 'Sin cliente'}</span>
+                              <span style={{ color: 'var(--g05)' }}>{u.workspaceId ?? 'Sin workspace'}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <RoleBadge role={u.role}/>
+                            {u.isGlobalUser && (
+                              <span className="badge badge-yellow" style={{ marginLeft: 6 }}>ORQO Global</span>
+                            )}
+                          </td>
                           <td style={{ color: 'var(--g05)', fontSize: 12 }}>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('es') : 'Nunca'}</td>
                           <td style={{ color: 'var(--g05)', fontSize: 12 }}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('es') : 'â€”'}</td>
                           <td>
