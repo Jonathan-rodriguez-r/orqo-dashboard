@@ -83,12 +83,15 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({})) as {
     token?: string;
+    accessToken?: string;
     wabaId?: string;
     phoneNumberId?: string;
   };
 
-  if (!body.token)  return Response.json({ error: 'token requerido' }, { status: 400 });
-  if (!body.wabaId) return Response.json({ error: 'wabaId requerido' }, { status: 400 });
+  const rawToken = (body.token ?? body.accessToken ?? '').trim();
+  if (!rawToken)    return Response.json({ error: 'token requerido' }, { status: 400 });
+  if (!body.wabaId && !body.phoneNumberId)
+    return Response.json({ error: 'wabaId o phoneNumberId requerido' }, { status: 400 });
 
   const actor = session.email ?? session.sub;
 
