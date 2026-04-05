@@ -528,18 +528,23 @@ export default function IntegrationsPage() {
     setMetaError('');
     setMetaSuccess(null);
 
-    // Captura WABA ID + Phone Number ID desde el evento de sesión de Meta
-    // (se dispara durante el flujo, antes del callback de login)
     let capturedWabaId = '';
     let capturedPhoneNumberId = '';
 
-    fb.Event.subscribe(
-      'WhatsAppEmbeddedSignup.sessionInfoVersion.3',
-      (data: any) => {
-        capturedWabaId        = data?.waba_id        ?? '';
-        capturedPhoneNumberId = data?.phone_number_id ?? '';
-      },
-    );
+    // Meta envía WABA ID + Phone Number ID via postMessage desde business.facebook.com
+    // antes de que el callback de fb.login() se dispare
+    const META_ORIGINS = ['https://www.facebook.com', 'https://business.facebook.com'];
+    function onMetaMessage(event: MessageEvent) {
+      if (!META_ORIGINS.includes(event.origin)) return;
+      try {
+        const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (msg?.type === 'WA_EMBEDDED_SIGNUP') {
+          capturedWabaId        = msg.data?.waba_id        ?? capturedWabaId;
+          capturedPhoneNumberId = msg.data?.phone_number_id ?? capturedPhoneNumberId;
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('message', onMetaMessage);
 
     // Llamar fb.login() sincrónicamente dentro del handler del click
     // para que el browser lo trate como gesto directo del usuario
@@ -550,6 +555,7 @@ export default function IntegrationsPage() {
         const token = response?.authResponse?.access_token ?? '';
         const code  = response?.authResponse?.code ?? '';
         if (!token && !code) {
+          window.removeEventListener('message', onMetaMessage);
           setMetaError(
             response?.status === 'not_authorized'
               ? 'Conexión no autorizada. Verifica que tu cuenta Meta tiene acceso al WABA.'
@@ -585,6 +591,7 @@ export default function IntegrationsPage() {
           } catch (e: any) {
             setMetaError(e.message ?? 'Error conectando con Meta.');
           }
+          window.removeEventListener('message', onMetaMessage);
           setMetaConnecting(false);
         })();
       },
