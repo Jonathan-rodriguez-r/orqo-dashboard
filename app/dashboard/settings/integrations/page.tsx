@@ -516,16 +516,12 @@ export default function IntegrationsPage() {
       return;
     }
 
-    // Build the Meta OAuth URL — same flow as FB.login() but uses our redirect URI
-    // so the popup doesn't get rejected due to missing OAuth redirect URI config.
-    const redirectUri = `${window.location.origin}/meta-callback`;
-    const oauthUrl = new URL('https://www.facebook.com/dialog/oauth');
-    oauthUrl.searchParams.set('client_id', appId);
-    oauthUrl.searchParams.set('redirect_uri', redirectUri);
-    oauthUrl.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging');
-    oauthUrl.searchParams.set('response_type', 'code');
-    oauthUrl.searchParams.set('config_id', configId);
-    oauthUrl.searchParams.set('override_default_response_type', 'true');
+    const FB = (window as any).FB;
+    if (!FB) {
+      logIntegrationEvent('meta_sdk_not_loaded');
+      setMetaError('El SDK de Facebook aún no terminó de cargar. Espera 2 segundos e intenta de nuevo.');
+      return;
+    }
 
     // Detect popup blocking first — open a test popup then close it immediately
     const pw = 700, ph = 700;
@@ -537,9 +533,7 @@ export default function IntegrationsPage() {
       setMetaError('Tu navegador está bloqueando los popups de este sitio. Busca el ícono 🔲 en la barra de direcciones, haz clic y selecciona "Permitir siempre popups de dashboard.orqo.io", luego intenta de nuevo.');
       return;
     }
-    // Reuse the test popup for the real URL
-    testPopup.location.href = oauthUrl.toString();
-    const metaPopup = testPopup;
+    testPopup.close();
 
     logIntegrationEvent('meta_signup_started');
     setMetaConnecting(true);
@@ -548,20 +542,43 @@ export default function IntegrationsPage() {
     let sessionData: { wabaId?: string; phoneNumberId?: string } = {};
     let settled = false;
 
+    function assignSessionData(raw: any) {
+      if (!raw || typeof raw !== 'object') return;
+      const wabaId = raw.waba_id ?? raw.wabaId;
+      const phoneNumberId = raw.phone_number_id ?? raw.phoneNumberId;
+      if (wabaId || phoneNumberId) {
+        sessionData = {
+          wabaId: wabaId ?? sessionData.wabaId,
+          phoneNumberId: phoneNumberId ?? sessionData.phoneNumberId,
+        };
+      }
+    }
+
     function cleanup() {
       settled = true;
-      clearTimeout(connectTimeout);
+      clearTimeout(softTimeout);
+      clearTimeout(hardTimeout);
+      clearInterval(pollClosed);
       window.removeEventListener('message', onMessage);
     }
 
-    // Safety timeout — 3 minutes
-    const connectTimeout = setTimeout(() => {
+    // Soft timeout — Meta sometimes stays on a "connected / under review" step
+    // until the user clicks "Finalizar". Don't abort the flow yet.
+    const softTimeout = setTimeout(() => {
+      if (settled) return;
+      logIntegrationEvent('meta_popup_timeout');
+      setMetaError('Meta sigue abierto después de 3 minutos. Si en el popup ya ves "Tu cuenta está conectada...", haz clic en "Finalizar" para que Meta regrese a ORQO. La revisión de Meta puede seguir pendiente, pero ORQO necesita ese paso final para recibir el callback.');
+    }, 3 * 60 * 1000);
+
+    // Hard timeout — only give up if the popup still hasn't returned after a much
+    // longer wait.
+    const hardTimeout = setTimeout(() => {
       if (settled) return;
       cleanup();
-      logIntegrationEvent('meta_popup_timeout');
+      logIntegrationEvent('meta_popup_timeout', 'hard-timeout-15m');
       setMetaConnecting(false);
-      setMetaError('El popup de Meta no respondió en 3 minutos. Revisa si la ventana de Facebook se abrió detrás de esta página. Si no apareció nada, permite popups de dashboard.orqo.io en tu navegador e intenta de nuevo.');
-    }, 3 * 60 * 1000);
+      setMetaError('Meta no devolvió el control a ORQO después de 15 minutos. Cierra el popup, vuelve a abrir "Conectar con Meta" y completa el asistente hasta "Finalizar". Si vuelve a pasar, revisamos el callback de Meta.');
+    }, 15 * 60 * 1000);
 
     async function onMessage(event: MessageEvent) {
       if (settled) return;
@@ -572,8 +589,10 @@ export default function IntegrationsPage() {
       if (META_ORIGINS.includes(event.origin)) {
         try {
           const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          if (msg.type === 'WA_EMBEDDED_SIGNUP' && msg.event === 'FINISH') {
-            sessionData = { wabaId: msg.data?.waba_id, phoneNumberId: msg.data?.phone_number_id };
+          if (msg?.type === 'WA_EMBEDDED_SIGNUP') {
+            if (msg.event === 'FINISH' || msg.event === 'FINISH_ONLY_WABA') {
+              assignSessionData(msg.data);
+            }
           }
         } catch { /* non-JSON, ignore */ }
         return;
@@ -584,10 +603,10 @@ export default function IntegrationsPage() {
       const msg = event.data as any;
       if (!msg || msg.type !== 'META_OAUTH_CALLBACK') return;
 
-      cleanup();
-      setMetaConnecting(false);
-
       if (msg.error) {
+        cleanup();
+        setMetaError('');
+        setMetaConnecting(false);
         logIntegrationEvent('meta_signup_cancelled', `error:${msg.error}`);
         setMetaError('Autorización cancelada o denegada por Meta.');
         return;
@@ -595,13 +614,26 @@ export default function IntegrationsPage() {
 
       const code = msg.code as string;
       if (!code) {
+        cleanup();
+        setMetaError('');
+        setMetaConnecting(false);
         setMetaError('No se recibió código de autorización de Meta.');
         return;
       }
 
       if (!sessionData.wabaId) {
+        for (let i = 0; i < 8 && !sessionData.wabaId; i += 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      cleanup();
+      setMetaError('');
+      setMetaConnecting(false);
+
+      if (!sessionData.wabaId) {
         logIntegrationEvent('meta_signup_no_waba', 'callback sin WABA ID');
-        setMetaError('No se recibió el WABA ID de Meta. Asegúrate de completar todos los pasos del asistente antes de cerrar el popup.');
+        setMetaError('Meta devolvió la autorización, pero no envió la sesión de WhatsApp Business. Esto suele pasar cuando el Embedded Signup no terminó de publicar la información del WABA. Intenta de nuevo y completa el asistente hasta el final; si vuelve a pasar, ajustamos la configuración de Meta.');
         return;
       }
 
@@ -627,16 +659,44 @@ export default function IntegrationsPage() {
 
     window.addEventListener('message', onMessage);
 
-    // Poll for popup closed without callback (user closed manually)
+    FB.login((response: any) => {
+      if (settled) return;
+
+      const code = response?.authResponse?.code;
+      if (!code) {
+        cleanup();
+        setMetaConnecting(false);
+        const status = response?.status ?? '';
+        logIntegrationEvent('meta_signup_cancelled', `status:${status || 'unknown'} — callback sin code`);
+        setMetaError('Meta cerró o canceló la autorización antes de terminar el alta del canal.');
+        return;
+      }
+
+      void onMessage(new MessageEvent('message', {
+        origin: window.location.origin,
+        data: { type: 'META_OAUTH_CALLBACK', code },
+      }));
+    }, {
+      config_id: configId,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: {
+        feature: 'whatsapp_embedded_signup',
+        setup: {},
+        sessionInfoVersion: 3,
+      },
+    });
+
+    // FB.login handles the popup lifecycle. We keep a light safety net only for
+    // cases where the popup is manually closed and Meta never answers.
     const pollClosed = setInterval(() => {
-      if (!metaPopup || metaPopup.closed) {
+      const dialog = document.querySelector('iframe[src*="facebook.com"]');
+      if (settled) {
         clearInterval(pollClosed);
-        if (!settled) {
-          cleanup();
-          logIntegrationEvent('meta_signup_cancelled', 'popup cerrado por el usuario');
-          setMetaConnecting(false);
-          // Don't show an error if the user just closed — they know what they did
-        }
+        return;
+      }
+      if (!dialog && !metaConnecting) {
+        clearInterval(pollClosed);
       }
     }, 1000);
   }
