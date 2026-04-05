@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   const actor = session.email ?? session.sub;
 
   // 1. Extend short-lived token → long-lived (60 days)
-  const accessToken = await extendToken(body.token);
+  const accessToken = await extendToken(rawToken);
 
   // 2. Get phone numbers in this WABA
   const { phones, error: phonesError } = await getWabaPhones(body.wabaId, accessToken);
