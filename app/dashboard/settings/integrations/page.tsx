@@ -522,7 +522,9 @@ export default function IntegrationsPage() {
       return;
     }
 
-    setMetaConnecting(true);
+    // IMPORTANTE: NO llamar setState antes de fb.login() — React puede romper
+    // la cadena de gesto de usuario y el browser bloquea el popup.
+    // El spinner se activa dentro del callback de fb.login().
     setMetaError('');
     setMetaSuccess(null);
 
@@ -539,8 +541,12 @@ export default function IntegrationsPage() {
       },
     );
 
+    // Llamar fb.login() sincrónicamente dentro del handler del click
+    // para que el browser lo trate como gesto directo del usuario
     fb.login(
       async (response: any) => {
+        // Activar spinner aquí (dentro del callback) para no romper el gesto de usuario
+        setMetaConnecting(true);
         const token = response?.authResponse?.access_token ?? response?.authResponse?.code ?? '';
         if (!token) {
           setMetaError(
