@@ -554,22 +554,20 @@ export default function IntegrationsPage() {
     setMetaOAuthCode('');
     setMetaWabaInput('');
 
-    // Standard OAuth — no config_id (Embedded Signup requires BSP/TP status)
+    // Standard OAuth — response_type:'token' returns accessToken directly (no code exchange needed)
     FB.login((response: any) => {
       setMetaConnecting(false);
-      const code = response?.authResponse?.code;
-      if (!code) {
+      const token = response?.authResponse?.accessToken;
+      if (!token) {
         const status = response?.status ?? '';
         logIntegrationEvent('meta_signup_cancelled', `status:${status || 'unknown'}`);
         setMetaError('Autorización cancelada o denegada por Meta.');
         return;
       }
       // Step 1 done — now ask for WABA ID
-      setMetaOAuthCode(code);
+      setMetaOAuthCode(token);
     }, {
       scope: 'whatsapp_business_management,whatsapp_business_messaging',
-      response_type: 'code',
-      override_default_response_type: true,
     });
   }
 
@@ -584,7 +582,7 @@ export default function IntegrationsPage() {
       const res = await fetch('/api/core/channels/meta/onboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: metaOAuthCode, wabaId }),
+        body: JSON.stringify({ token: metaOAuthCode, wabaId }),
       }).then(r => r.json()) as any;
 
       if (res.ok) {
