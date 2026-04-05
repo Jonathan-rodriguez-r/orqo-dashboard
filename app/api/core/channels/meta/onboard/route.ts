@@ -113,8 +113,8 @@ export async function POST(req: Request) {
   const phoneNumberId = body.phoneNumberId ?? phones[0].id;
   const phoneEntry = phones.find(p => p.id === phoneNumberId) ?? phones[0];
 
-  // 4. Subscribe WABA to webhook
-  await subscribeWaba(body.wabaId, accessToken);
+  // 4. Subscribe WABA to webhook (optional — skip if no wabaId)
+  if (body.wabaId) await subscribeWaba(body.wabaId, accessToken);
 
   // 5. Save to core
   const result = await CoreClient.setChannel(coreId, 'whatsapp', { phoneNumberId: phoneEntry.id, accessToken });
