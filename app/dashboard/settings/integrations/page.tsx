@@ -544,8 +544,8 @@ export default function IntegrationsPage() {
     // Llamar fb.login() sincrónicamente dentro del handler del click
     // para que el browser lo trate como gesto directo del usuario
     fb.login(
-      async (response: any) => {
-        // Activar spinner aquí (dentro del callback) para no romper el gesto de usuario
+      (response: any) => {
+        // FB.login no acepta async — la lógica async va en void IIFE
         setMetaConnecting(true);
         const token = response?.authResponse?.access_token ?? response?.authResponse?.code ?? '';
         if (!token) {
@@ -558,32 +558,34 @@ export default function IntegrationsPage() {
           return;
         }
 
-        try {
-          const res = await fetch('/api/core/channels/meta/onboard', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token,
-              wabaId:        capturedWabaId        || undefined,
-              phoneNumberId: capturedPhoneNumberId || undefined,
-            }),
-          }).then(r => r.json()) as any;
+        void (async () => {
+          try {
+            const res = await fetch('/api/core/channels/meta/onboard', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token,
+                wabaId:        capturedWabaId        || undefined,
+                phoneNumberId: capturedPhoneNumberId || undefined,
+              }),
+            }).then(r => r.json()) as any;
 
-          if (res.error) {
-            setMetaError(res.error);
-          } else {
-            setMetaSuccess({
-              wabaId:        capturedWabaId || '—',
-              phoneNumberId: res.phoneNumberId,
-              displayPhone:  res.displayPhone,
-            });
-            logIntegrationEvent('embedded_signup_success', `waba:${capturedWabaId} phoneId:${res.phoneNumberId}`);
-            await load();
+            if (res.error) {
+              setMetaError(res.error);
+            } else {
+              setMetaSuccess({
+                wabaId:        capturedWabaId || '—',
+                phoneNumberId: res.phoneNumberId,
+                displayPhone:  res.displayPhone,
+              });
+              logIntegrationEvent('embedded_signup_success', `waba:${capturedWabaId} phoneId:${res.phoneNumberId}`);
+              await load();
+            }
+          } catch (e: any) {
+            setMetaError(e.message ?? 'Error conectando con Meta.');
           }
-        } catch (e: any) {
-          setMetaError(e.message ?? 'Error conectando con Meta.');
-        }
-        setMetaConnecting(false);
+          setMetaConnecting(false);
+        })();
       },
       {
         config_id:                    configId,
