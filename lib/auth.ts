@@ -109,7 +109,7 @@ export async function getSession(): Promise<SessionPayload | null> {
         },
         { upsert: true }
       );
-      workspaceDoc = { _id: effectiveWorkspaceId };
+      workspaceDoc = { _id: effectiveWorkspaceId as any };
     }
 
     if (workspaceDoc?._id) {
