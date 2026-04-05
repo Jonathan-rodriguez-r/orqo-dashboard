@@ -216,70 +216,43 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
             </div>
           )}
 
-          {/* ── Fast Deploy ── */}
+          {/* ── Guided setup (System User Token) ── */}
           {fastDeploy && mode === 'fast' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.18)', fontSize: 12.5, color: 'var(--g06)', lineHeight: 1.8 }}>
-                <div style={{ fontWeight: 700, color: 'var(--acc)', marginBottom: 6, fontSize: 13 }}>⚡ Coexistencia con WhatsApp Business</div>
-                <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <li>Inicia sesión con tu cuenta de Meta — sin copiar IDs ni tokens</li>
-                  <li>Tu número sigue funcionando en la app de WhatsApp Business</li>
-                  <li>ORQO responde automáticamente; tú puedes intervenir desde la app</li>
-                  <li>Historial y sincronización de estado incluidos</li>
-                </ul>
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius)', background: 'var(--g01)', border: '1px solid var(--g03)', fontSize: 12, color: 'var(--g05)', lineHeight: 1.8 }}>
+                <div style={{ fontWeight: 700, color: 'var(--g07)', marginBottom: 6 }}>Cómo obtener tus credenciales</div>
+                <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <li>Abre <b>Meta Business Suite → Configuración → Usuarios del sistema</b></li>
+                  <li>Crea un usuario de sistema (o usa uno existente) y asígnale acceso al WABA</li>
+                  <li>Genera un token con permisos <code>whatsapp_business_management</code> y <code>whatsapp_business_messaging</code></li>
+                  <li>El <b>Phone Number ID</b> lo encuentras en <b>Configuración → Cuentas de WhatsApp → tu número</b></li>
+                </ol>
               </div>
-              {fastOAuthDone ? (
-                /* ── Paso 2: ingresar WABA ID ── */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.2)', fontSize: 12, color: 'var(--g06)', lineHeight: 1.6 }}>
-                    ✅ Meta autorizó la conexión. Ahora ingresa tu <b>WABA ID</b> (WhatsApp Business Account ID).<br/>
-                    Encuéntralo en <b>Meta Business Suite → Configuración → Cuentas de WhatsApp</b>.
-                  </div>
-                  <input
-                    className="input input-mono"
-                    placeholder="Ej: 123456789012345"
-                    value={fastWabaInput ?? ''}
-                    onChange={e => onFastWabaChange?.(e.target.value)}
-                  />
-                  {fastError && (
-                    <div style={{ fontSize: 12, color: '#e05555' }}>{fastError}</div>
-                  )}
-                  <button
-                    className="btn btn-primary"
-                    style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
-                    onClick={onFastWabaSubmit}
-                    disabled={fastSubmitting}
-                  >
-                    {fastSubmitting ? 'Conectando…' : 'Conectar WhatsApp'}
-                  </button>
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone Number ID</label>
+                <input
+                  className="input input-mono"
+                  placeholder="Ej: 123456789012345"
+                  value={fastWabaInput ?? ''}
+                  onChange={e => onFastWabaChange?.(e.target.value)}
+                />
+              </div>
+
+              {fastError && (
+                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
+                  {fastError}
                 </div>
-              ) : (
-                <>
-                  <button
-                    className="btn btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
-                    onClick={onFastConnect}
-                    disabled={fastConnecting || !onFastConnect}
-                  >
-                    {fastConnecting ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                        Conectando con Meta…
-                      </span>
-                    ) : (
-                      <>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                        Autorizar con Meta
-                      </>
-                    )}
-                  </button>
-                  {fastError && (
-                    <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
-                      {fastError}
-                    </div>
-                  )}
-                </>
               )}
+
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
+                onClick={onFastConnect}
+                disabled={fastConnecting || fastSubmitting}
+              >
+                {(fastConnecting || fastSubmitting) ? 'Conectando…' : 'Conectar WhatsApp'}
+              </button>
               <div style={{ fontSize: 11, color: 'var(--g04)', textAlign: 'center' }}>
                 También puedes usar la conexión{' '}
                 <button onClick={() => setMode('manual')} style={{ background: 'none', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
@@ -316,8 +289,9 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                   value={values['accessToken'] ?? ''}
                   onChange={e => setValues(v => ({ ...v, accessToken: e.target.value }))}
                 />
-                <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4 }}>
-                  Se almacena cifrado. Obtenlo desde Meta Business Suite → Configuración del sistema → Tokens.
+                <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4, lineHeight: 1.6 }}>
+                  Usa un <b>System User Token</b> permanente:<br/>
+                  Meta Business Suite → Configuración → Usuarios del sistema → genera token con permisos <code>whatsapp_business_management</code> y <code>whatsapp_business_messaging</code>.
                 </div>
               </div>
               {error && <div style={{ fontSize: 12, color: 'var(--red)' }}>{error}</div>}
@@ -532,71 +506,14 @@ export default function IntegrationsPage() {
     });
   }
 
-  // ── Meta OAuth handler (step 1: get token via FB.login, no config_id) ──────
+  // ── Meta guided connect: user provides Phone Number ID + token via manual fields ──
   function handleMetaSignup() {
-    const appId = process.env.NEXT_PUBLIC_META_APP_ID;
-    if (!appId) {
-      logIntegrationEvent('meta_config_missing', 'NEXT_PUBLIC_META_APP_ID ausente');
-      setMetaError('NEXT_PUBLIC_META_APP_ID no está configurado. Agrega la variable en Vercel y redespliega.');
-      return;
-    }
-
-    const FB = (window as any).FB;
-    if (!FB) {
-      logIntegrationEvent('meta_sdk_not_loaded');
-      setMetaError('El SDK de Facebook aún no terminó de cargar. Espera 2 segundos e intenta de nuevo.');
-      return;
-    }
-
-    logIntegrationEvent('meta_signup_started');
-    setMetaConnecting(true);
-    setMetaError('');
-    setMetaOAuthCode('');
-    setMetaWabaInput('');
-
-    // Standard OAuth — response_type:'token' returns accessToken directly (no code exchange needed)
-    FB.login((response: any) => {
-      setMetaConnecting(false);
-      const token = response?.authResponse?.accessToken;
-      if (!token) {
-        const status = response?.status ?? '';
-        logIntegrationEvent('meta_signup_cancelled', `status:${status || 'unknown'}`);
-        setMetaError('Autorización cancelada o denegada por Meta.');
-        return;
-      }
-      // Step 1 done — now ask for WABA ID
-      setMetaOAuthCode(token);
-    }, {
-      scope: 'whatsapp_business_management,whatsapp_business_messaging',
-    });
+    // This button now just triggers the manual save flow via the ChannelPanel
+    // The actual submit is handled by onFastWabaSubmit / handleMetaSubmitWaba
   }
 
-  // ── Meta onboard handler (step 2: submit WABA ID + code to backend) ────────
   async function handleMetaSubmitWaba() {
-    const wabaId = metaWabaInput.trim();
-    if (!wabaId) { setMetaError('Ingresa el WABA ID.'); return; }
-
-    setMetaSubmitting(true);
-    setMetaError('');
-    try {
-      const res = await fetch('/api/core/channels/meta/onboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: metaOAuthCode, wabaId }),
-      }).then(r => r.json()) as any;
-
-      if (res.ok) {
-        setMetaOAuthCode('');
-        setMetaWabaInput('');
-        await load();
-      } else {
-        setMetaError(res.error ?? 'Error al conectar con Meta.');
-      }
-    } catch (e: any) {
-      setMetaError(e.message ?? 'Error de red.');
-    } finally {
-      setMetaSubmitting(false);
-    }
+    // no-op — guided setup uses the manual ChannelPanel fields directly
   }
 
   async function load() {
@@ -804,15 +721,6 @@ export default function IntegrationsPage() {
               info={channels.whatsapp}
               fields={[{ key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123' }]}
               agentCovered={agentCoverage.whatsapp ?? false}
-              fastDeploy={true}
-              fastConnecting={metaConnecting}
-              fastError={metaError}
-              fastOAuthDone={!!metaOAuthCode}
-              fastWabaInput={metaWabaInput}
-              fastSubmitting={metaSubmitting}
-              onFastConnect={handleMetaSignup}
-              onFastWabaChange={setMetaWabaInput}
-              onFastWabaSubmit={handleMetaSubmitWaba}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
