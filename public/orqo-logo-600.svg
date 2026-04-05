@@ -1,0 +1,40 @@
+<svg width="600" height="600" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="600" height="600" fill="#060908"/>
+
+  <!-- Outer ring (subtle) -->
+  <circle cx="300" cy="300" r="250" stroke="#2E4038" stroke-width="16"/>
+
+  <!-- Main arc — the "O" / orbit path -->
+  <path
+    d="M433 496 A250 250 0 1 1 496 433"
+    stroke="#E9EDE9"
+    stroke-width="24"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- Connector line — the "tail" pointing to the dot -->
+  <line
+    x1="496" y1="433"
+    x2="549" y2="486"
+    stroke="#E9EDE9"
+    stroke-width="24"
+    stroke-linecap="round"
+  />
+
+  <!-- Green dot — the active node -->
+  <circle cx="549" cy="486" r="29" fill="#2CB978"/>
+
+  <!-- ORQO wordmark -->
+  <text
+    x="300"
+    y="332"
+    text-anchor="middle"
+    font-family="'Figtree', 'Inter', system-ui, sans-serif"
+    font-size="96"
+    font-weight="800"
+    letter-spacing="-4"
+    fill="#F5F5F2"
+  >OR<tspan fill="#2CB978">QO</tspan></text>
+</svg>

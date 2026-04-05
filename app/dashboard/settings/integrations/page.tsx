@@ -218,25 +218,13 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
 
           {/* ── Guided setup (System User Token) ── */}
           {fastDeploy && mode === 'fast' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius)', background: 'var(--g01)', border: '1px solid var(--g03)', fontSize: 12, color: 'var(--g05)', lineHeight: 1.8 }}>
-                <div style={{ fontWeight: 700, color: 'var(--g07)', marginBottom: 6 }}>Cómo obtener tus credenciales</div>
-                <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <li>Abre <b>Meta Business Suite → Configuración → Usuarios del sistema</b></li>
-                  <li>Crea un usuario de sistema (o usa uno existente) y asígnale acceso al WABA</li>
-                  <li>Genera un token con permisos <code>whatsapp_business_management</code> y <code>whatsapp_business_messaging</code></li>
-                  <li>El <b>Phone Number ID</b> lo encuentras en <b>Configuración → Cuentas de WhatsApp → tu número</b></li>
-                </ol>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone Number ID</label>
-                <input
-                  className="input input-mono"
-                  placeholder="Ej: 123456789012345"
-                  value={fastWabaInput ?? ''}
-                  onChange={e => onFastWabaChange?.(e.target.value)}
-                />
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius)', background: 'var(--g01)', border: '1px solid var(--g03)', fontSize: 12, color: 'var(--g05)', lineHeight: 1.7 }}>
+                Conecta tu cuenta de WhatsApp Business usando el flujo oficial de Meta.
+                Esto configurará automáticamente tu <b style={{ color: 'var(--g06)' }}>WABA ID</b>,{' '}
+                <b style={{ color: 'var(--g06)' }}>Phone Number ID</b> y{' '}
+                <b style={{ color: 'var(--g06)' }}>Access Token</b> — sin copiar ni pegar nada.
               </div>
 
               {fastError && (
@@ -247,16 +235,30 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
 
               <button
                 className="btn btn-primary"
-                style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
+                style={{ width: '100%', padding: '11px 0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onClick={onFastConnect}
-                disabled={fastConnecting || fastSubmitting}
+                disabled={fastConnecting}
               >
-                {(fastConnecting || fastSubmitting) ? 'Conectando…' : 'Conectar WhatsApp'}
+                {fastConnecting ? (
+                  <>
+                    <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                    Conectando con Meta…
+                  </>
+                ) : (
+                  <>
+                    {/* Meta icon */}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
+                    </svg>
+                    Conectar con Meta
+                  </>
+                )}
               </button>
+
               <div style={{ fontSize: 11, color: 'var(--g04)', textAlign: 'center' }}>
-                También puedes usar la conexión{' '}
+                ¿Prefieres ingresar las credenciales manualmente?{' '}
                 <button onClick={() => setMode('manual')} style={{ background: 'none', border: 'none', color: 'var(--acc)', cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
-                  manual con credenciales
+                  Configuración manual
                 </button>
               </div>
             </div>
@@ -467,6 +469,7 @@ export default function IntegrationsPage() {
   const [metaOAuthCode, setMetaOAuthCode]   = useState('');   // set after OAuth succeeds
   const [metaWabaInput, setMetaWabaInput]   = useState('');   // WABA ID entered by user
   const [metaSubmitting, setMetaSubmitting] = useState(false);
+  const [metaSuccess, setMetaSuccess]       = useState<{ wabaId: string; phoneNumberId: string; displayPhone: string } | null>(null);
 
   // ── Facebook SDK loader ────────────────────────────────────────────────────
   useEffect(() => {
@@ -506,14 +509,91 @@ export default function IntegrationsPage() {
     });
   }
 
-  // ── Meta guided connect: user provides Phone Number ID + token via manual fields ──
+  // ── Meta Embedded Signup — lanza el popup oficial de Meta ────────────────
   function handleMetaSignup() {
-    // This button now just triggers the manual save flow via the ChannelPanel
-    // The actual submit is handled by onFastWabaSubmit / handleMetaSubmitWaba
+    const fb = (window as any).FB;
+    if (!fb) {
+      setMetaError('Facebook SDK no disponible. Recarga la página e intenta de nuevo.');
+      return;
+    }
+    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
+    if (!configId) {
+      setMetaError('NEXT_PUBLIC_META_CONFIG_ID no configurado en Vercel.');
+      return;
+    }
+
+    setMetaConnecting(true);
+    setMetaError('');
+    setMetaSuccess(null);
+
+    // Captura WABA ID + Phone Number ID desde el evento de sesión de Meta
+    // (se dispara durante el flujo, antes del callback de login)
+    let capturedWabaId = '';
+    let capturedPhoneNumberId = '';
+
+    fb.Event.subscribe(
+      'WhatsAppEmbeddedSignup.sessionInfoVersion.3',
+      (data: any) => {
+        capturedWabaId        = data?.waba_id        ?? '';
+        capturedPhoneNumberId = data?.phone_number_id ?? '';
+      },
+    );
+
+    fb.login(
+      async (response: any) => {
+        const token = response?.authResponse?.access_token ?? response?.authResponse?.code ?? '';
+        if (!token) {
+          setMetaError(
+            response?.status === 'not_authorized'
+              ? 'Conexión no autorizada. Verifica que tu cuenta Meta tiene acceso al WABA.'
+              : 'Conexión cancelada.',
+          );
+          setMetaConnecting(false);
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/core/channels/meta/onboard', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token,
+              wabaId:        capturedWabaId        || undefined,
+              phoneNumberId: capturedPhoneNumberId || undefined,
+            }),
+          }).then(r => r.json()) as any;
+
+          if (res.error) {
+            setMetaError(res.error);
+          } else {
+            setMetaSuccess({
+              wabaId:        capturedWabaId || '—',
+              phoneNumberId: res.phoneNumberId,
+              displayPhone:  res.displayPhone,
+            });
+            logIntegrationEvent('embedded_signup_success', `waba:${capturedWabaId} phoneId:${res.phoneNumberId}`);
+            await load();
+          }
+        } catch (e: any) {
+          setMetaError(e.message ?? 'Error conectando con Meta.');
+        }
+        setMetaConnecting(false);
+      },
+      {
+        config_id:                    configId,
+        response_type:                'token',
+        override_default_response_type: true,
+        extras: {
+          setup:              {},
+          featureName:        'whatsapp_embedded_signup',
+          sessionInfoVersion: '3',
+        },
+      },
+    );
   }
 
   async function handleMetaSubmitWaba() {
-    // no-op — guided setup uses the manual ChannelPanel fields directly
+    // no-op — reemplazado por handleMetaSignup (Embedded Signup)
   }
 
   async function load() {
@@ -721,6 +801,10 @@ export default function IntegrationsPage() {
               info={channels.whatsapp}
               fields={[{ key: 'phoneNumberId', label: 'Phone Number ID', placeholder: '1234567890123' }]}
               agentCovered={agentCoverage.whatsapp ?? false}
+              fastDeploy={Boolean(process.env.NEXT_PUBLIC_META_APP_ID && process.env.NEXT_PUBLIC_META_CONFIG_ID)}
+              fastConnecting={metaConnecting}
+              fastError={metaError}
+              onFastConnect={handleMetaSignup}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
@@ -747,6 +831,28 @@ export default function IntegrationsPage() {
               onDelete={deleteChannel}
             />
           </div>
+          {/* ── Toast: WhatsApp conectado vía Embedded Signup ── */}
+          {metaSuccess && (
+            <div style={{ marginTop: 4, padding: '12px 16px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.10)', border: '1px solid rgba(44,185,120,0.35)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <span style={{ fontSize: 18, lineHeight: 1, marginTop: 1 }}>✅</span>
+              <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+                <div style={{ fontWeight: 700, color: 'var(--acc)', marginBottom: 3 }}>WhatsApp Business conectado</div>
+                {metaSuccess.wabaId !== '—' && (
+                  <div style={{ color: 'var(--g05)' }}>WABA ID: <code style={{ fontFamily: 'var(--f-mono)', color: 'var(--g07)', fontSize: 12 }}>{metaSuccess.wabaId}</code></div>
+                )}
+                <div style={{ color: 'var(--g05)' }}>Phone Number ID: <code style={{ fontFamily: 'var(--f-mono)', color: 'var(--g07)', fontSize: 12 }}>{metaSuccess.phoneNumberId}</code></div>
+                {metaSuccess.displayPhone && (
+                  <div style={{ color: 'var(--g05)' }}>Número: <b style={{ color: 'var(--g07)' }}>{metaSuccess.displayPhone}</b></div>
+                )}
+                <div style={{ marginTop: 4, color: 'var(--g05)' }}>Tu cuenta está lista para recibir mensajes.</div>
+              </div>
+              <button
+                onClick={() => setMetaSuccess(null)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--g04)', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}
+              >×</button>
+            </div>
+          )}
+
           {coreStatus.webhookUrlValid === false && (
             <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.3)', fontSize: 12, color: '#e05555', lineHeight: 1.7 }}>
               <b>⚠ Variable mal configurada:</b> <code style={{ fontSize: 11 }}>CORE_WEBHOOK_URL</code> en Vercel no es una URL válida.
