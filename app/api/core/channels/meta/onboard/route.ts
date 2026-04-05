@@ -27,6 +27,27 @@ async function getCoreWorkspaceId(db: Awaited<ReturnType<typeof import('@/lib/mo
   return (cfg as any)?.coreWorkspaceId ?? null;
 }
 
+async function exchangeCode(code: string): Promise<string | null> {
+  const appId = process.env.NEXT_PUBLIC_META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return null;
+
+  const url = new URL(`${META_GRAPH}/oauth/access_token`);
+  url.searchParams.set('client_id', appId);
+  url.searchParams.set('client_secret', appSecret);
+  url.searchParams.set('code', code);
+  // redirect_uri used internally by FB SDK with config_id flow
+  url.searchParams.set('redirect_uri', 'https://www.facebook.com/connect/login_success.html');
+
+  const res = await fetch(url.toString());
+  const data = await res.json() as any;
+  if (!res.ok) {
+    console.error('[meta-onboard] exchangeCode failed:', res.status, data);
+    return null;
+  }
+  return data.access_token ?? null;
+}
+
 async function extendToken(shortToken: string): Promise<string> {
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
@@ -83,20 +104,33 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({})) as {
     token?: string;
+    code?: string;
     accessToken?: string;
     wabaId?: string;
     phoneNumberId?: string;
   };
 
   const rawToken = (body.token ?? body.accessToken ?? '').trim();
-  if (!rawToken)    return Response.json({ error: 'token requerido' }, { status: 400 });
+  const rawCode  = (body.code ?? '').trim();
+
+  if (!rawToken && !rawCode)
+    return Response.json({ error: 'token o code requerido' }, { status: 400 });
   if (!body.wabaId && !body.phoneNumberId)
     return Response.json({ error: 'wabaId o phoneNumberId requerido' }, { status: 400 });
 
   const actor = session.email ?? session.sub;
 
-  // 1. Extend short-lived token → long-lived (60 days)
-  const accessToken = await extendToken(rawToken);
+  // 1. Resolve token: if code provided, exchange it first; then extend to long-lived
+  let shortToken = rawToken;
+  if (rawCode) {
+    const exchanged = await exchangeCode(rawCode);
+    if (!exchanged) {
+      void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo intercambio de código OAuth', detail: `by:${actor}`, workspaceId });
+      return Response.json({ error: 'No se pudo intercambiar el código con Meta. Intenta de nuevo.' }, { status: 502 });
+    }
+    shortToken = exchanged;
+  }
+  const accessToken = await extendToken(shortToken);
 
   // 2. Get phone numbers in this WABA
   const { phones, error: phonesError } = await getWabaPhones(body.wabaId ?? '', accessToken);
