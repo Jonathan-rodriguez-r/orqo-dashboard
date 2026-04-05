@@ -99,7 +99,7 @@ export async function POST(req: Request) {
   const accessToken = await extendToken(rawToken);
 
   // 2. Get phone numbers in this WABA
-  const { phones, error: phonesError } = await getWabaPhones(body.wabaId, accessToken);
+  const { phones, error: phonesError } = await getWabaPhones(body.wabaId ?? '', accessToken);
   if (!phones.length) {
     const detail = `wabaId:${body.wabaId} by:${actor}${phonesError ? ' metaError:' + phonesError : ''}`;
     void writeLog({ level: 'error', source: 'meta-onboard', msg: 'WABA sin números o sin acceso', detail, workspaceId });
