@@ -27,25 +27,25 @@ async function getCoreWorkspaceId(db: Awaited<ReturnType<typeof import('@/lib/mo
   return (cfg as any)?.coreWorkspaceId ?? null;
 }
 
-async function exchangeCode(code: string): Promise<string | null> {
+async function exchangeCode(code: string): Promise<{ token: string | null; metaError?: string }> {
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
-  if (!appId || !appSecret) return null;
+  if (!appId || !appSecret) return { token: null };
 
+  // Business Login / config_id flow does NOT use redirect_uri in the exchange
   const url = new URL(`${META_GRAPH}/oauth/access_token`);
   url.searchParams.set('client_id', appId);
   url.searchParams.set('client_secret', appSecret);
   url.searchParams.set('code', code);
-  // redirect_uri used internally by FB SDK with config_id flow
-  url.searchParams.set('redirect_uri', 'https://www.facebook.com/connect/login_success.html');
 
   const res = await fetch(url.toString());
   const data = await res.json() as any;
   if (!res.ok) {
-    console.error('[meta-onboard] exchangeCode failed:', res.status, data);
-    return null;
+    const metaError = data?.error?.message ?? `HTTP ${res.status}`;
+    console.error('[meta-onboard] exchangeCode failed:', res.status, JSON.stringify(data));
+    return { token: null, metaError };
   }
-  return data.access_token ?? null;
+  return { token: data.access_token ?? null };
 }
 
 async function extendToken(shortToken: string): Promise<string> {
@@ -123,10 +123,14 @@ export async function POST(req: Request) {
   // 1. Resolve token: if code provided, exchange it first; then extend to long-lived
   let shortToken = rawToken;
   if (rawCode) {
-    const exchanged = await exchangeCode(rawCode);
+    const { token: exchanged, metaError: exchangeError } = await exchangeCode(rawCode);
     if (!exchanged) {
-      void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo intercambio de código OAuth', detail: `by:${actor}`, workspaceId });
-      return Response.json({ error: 'No se pudo intercambiar el código con Meta. Intenta de nuevo.' }, { status: 502 });
+      const detail = `by:${actor}${exchangeError ? ' metaError:' + exchangeError : ''}`;
+      void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo intercambio de código OAuth', detail, workspaceId });
+      const userMsg = exchangeError
+        ? `Meta rechazó el código OAuth: ${exchangeError}`
+        : 'No se pudo intercambiar el código con Meta. Intenta de nuevo.';
+      return Response.json({ error: userMsg }, { status: 502 });
     }
     shortToken = exchanged;
   }
