@@ -17,6 +17,14 @@ function requestBaseUrl(req: Request) {
   return `${proto}://${host}`;
 }
 
+function isSharedLoginHost(tenant: Awaited<ReturnType<typeof resolveWorkspaceFromRequest>>) {
+  return Boolean(
+    tenant &&
+    tenant.workspaceId === getDefaultWorkspaceId() &&
+    ['default_host', 'local', 'fallback'].includes(String(tenant.source ?? ''))
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const { email } = await req.json();
@@ -35,11 +43,38 @@ export async function POST(req: Request) {
       );
     }
 
-    const workspaceId = tenant.workspaceId;
-    const workspaceClient = await getWorkspaceClient(db, workspaceId);
-    const userCount = await db.collection('users').countDocuments({ workspaceId });
+    const sharedLoginHost = isSharedLoginHost(tenant);
+    let workspaceId = tenant.workspaceId;
+    let workspaceClient = await getWorkspaceClient(db, workspaceId);
+    let userCount = await db.collection('users').countDocuments({ workspaceId });
     const totalUsers = await db.collection('users').countDocuments();
-    const user = await db.collection('users').findOne({ email: cleanEmail, workspaceId });
+    let user = await db.collection('users').findOne({ email: cleanEmail, workspaceId });
+
+    if (!user && sharedLoginHost) {
+      const matchedUsers = await db.collection('users')
+        .find({ email: cleanEmail }, { projection: { workspaceId: 1 } })
+        .limit(3)
+        .toArray();
+      const matchedWorkspaceIds = Array.from(
+        new Set(
+          matchedUsers
+            .map((matched) => String(matched?.workspaceId ?? getDefaultWorkspaceId()).trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (matchedWorkspaceIds.length === 1) {
+        workspaceId = matchedWorkspaceIds[0];
+        workspaceClient = await getWorkspaceClient(db, workspaceId);
+        userCount = await db.collection('users').countDocuments({ workspaceId });
+        user = await db.collection('users').findOne({ email: cleanEmail, workspaceId });
+      } else if (matchedWorkspaceIds.length > 1) {
+        return Response.json(
+          { error: 'Este correo existe en varias cuentas. Usa el acceso directo de tu cliente o contacta a ORQO.' },
+          { status: 409 }
+        );
+      }
+    }
 
     if (userCount > 0 && !user) {
       await log(db, {
