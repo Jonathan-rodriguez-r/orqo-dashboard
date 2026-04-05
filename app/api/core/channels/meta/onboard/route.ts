@@ -37,9 +37,15 @@ async function exchangeCode(code: string): Promise<string | null> {
   url.searchParams.set('client_id', appId);
   url.searchParams.set('client_secret', appSecret);
   url.searchParams.set('code', code);
+  // FB.login() uses this redirect URI internally — must match in the code exchange
+  url.searchParams.set('redirect_uri', 'https://www.facebook.com/connect/login_success.html');
 
   const res = await fetch(url.toString());
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as any;
+    console.error('[meta-onboard] exchangeCode failed:', res.status, err);
+    return null;
+  }
   const data = await res.json() as any;
   return data.access_token ?? null;
 }
