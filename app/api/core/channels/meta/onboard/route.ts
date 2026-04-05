@@ -1,15 +1,14 @@
 /**
  * /api/core/channels/meta/onboard
  *
- * Backend handler for WhatsApp Business Embedded Signup.
- * Called by the dashboard after the Meta popup returns an auth code.
+ * POST { token, wabaId, phoneNumberId? }
+ *   1. Extend short-lived user token → long-lived token (60 days)
+ *   2. Fetch WABA phone numbers
+ *   3. Subscribe WABA to our app's webhook
+ *   4. Save phoneNumberId + accessToken via CoreClient.setChannel
  *
- * POST { code, wabaId, phoneNumberId? }
- *   1. Exchange authorization code → short-lived user token
- *   2. Extend → long-lived token (60 days)
- *   3. Fetch WABA phone numbers (if phoneNumberId not provided, use the first)
- *   4. Subscribe WABA to our app's webhook
- *   5. Save phoneNumberId + accessToken via CoreClient.setChannel
+ * The client (FB.login response_type:'token') provides the short-lived token directly.
+ * No code exchange needed — avoids redirect_uri mismatch issues.
  */
 
 import { getDb } from '@/lib/mongodb';
@@ -26,28 +25,6 @@ const META_GRAPH = 'https://graph.facebook.com/v21.0';
 async function getCoreWorkspaceId(db: Awaited<ReturnType<typeof import('@/lib/mongodb')['getDb']>>, workspaceId: string): Promise<string | null> {
   const cfg = await db.collection('workspace_configs').findOne({ workspaceId, key: 'core' });
   return (cfg as any)?.coreWorkspaceId ?? null;
-}
-
-async function exchangeCode(code: string): Promise<string | null> {
-  const appId = process.env.NEXT_PUBLIC_META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
-  if (!appId || !appSecret) return null;
-
-  const url = new URL(`${META_GRAPH}/oauth/access_token`);
-  url.searchParams.set('client_id', appId);
-  url.searchParams.set('client_secret', appSecret);
-  url.searchParams.set('code', code);
-  // FB.login() uses this redirect URI internally — must match in the code exchange
-  url.searchParams.set('redirect_uri', 'https://www.facebook.com/connect/login_success.html');
-
-  const res = await fetch(url.toString());
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as any;
-    console.error('[meta-onboard] exchangeCode failed:', res.status, err);
-    return null;
-  }
-  const data = await res.json() as any;
-  return data.access_token ?? null;
 }
 
 async function extendToken(shortToken: string): Promise<string> {
@@ -91,8 +68,8 @@ export async function POST(req: Request) {
   if (!hasPermission(session.permissions, 'settings.integrations'))
     return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  if (!process.env.NEXT_PUBLIC_META_APP_ID || !process.env.META_APP_SECRET) {
-    return Response.json({ error: 'Meta App no configurado en el servidor. Agrega NEXT_PUBLIC_META_APP_ID y META_APP_SECRET.' }, { status: 503 });
+  if (!process.env.META_APP_SECRET) {
+    return Response.json({ error: 'META_APP_SECRET no configurado en el servidor.' }, { status: 503 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -102,41 +79,34 @@ export async function POST(req: Request) {
   if (!coreId) return Response.json({ error: 'Workspace no provisionado en el core' }, { status: 409 });
 
   const body = await req.json().catch(() => ({})) as {
-    code?: string;
+    token?: string;
     wabaId?: string;
     phoneNumberId?: string;
   };
 
-  if (!body.code) return Response.json({ error: 'code requerido' }, { status: 400 });
+  if (!body.token)  return Response.json({ error: 'token requerido' }, { status: 400 });
   if (!body.wabaId) return Response.json({ error: 'wabaId requerido' }, { status: 400 });
 
   const actor = session.email ?? session.sub;
 
-  // 1. Exchange code → short-lived token
-  const shortToken = await exchangeCode(body.code);
-  if (!shortToken) {
-    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo intercambio de código OAuth con Meta', detail: `wabaId:${body.wabaId} by:${actor} — verifica META_APP_SECRET`, workspaceId });
-    return Response.json({ error: 'No se pudo obtener token de Meta. Verifica META_APP_SECRET.' }, { status: 502 });
-  }
+  // 1. Extend short-lived token → long-lived (60 days)
+  const accessToken = await extendToken(body.token);
 
-  // 2. Extend to long-lived token (60 days)
-  const accessToken = await extendToken(shortToken);
-
-  // 3. Get phone numbers in this WABA
+  // 2. Get phone numbers in this WABA
   const phones = await getWabaPhones(body.wabaId, accessToken);
   if (!phones.length) {
     void writeLog({ level: 'error', source: 'meta-onboard', msg: 'WABA sin números verificados', detail: `wabaId:${body.wabaId} by:${actor}`, workspaceId });
-    return Response.json({ error: 'No se encontraron números en el WABA. Verifica que el WABA tenga al menos un número verificado.' }, { status: 404 });
+    return Response.json({ error: 'No se encontraron números en el WABA. Verifica que tenga al menos un número verificado.' }, { status: 404 });
   }
 
-  // 4. Use the phone number ID from session info, or fall back to first available
+  // 3. Use provided phoneNumberId or fall back to first
   const phoneNumberId = body.phoneNumberId ?? phones[0].id;
   const phoneEntry = phones.find(p => p.id === phoneNumberId) ?? phones[0];
 
-  // 5. Subscribe WABA to webhook
+  // 4. Subscribe WABA to webhook
   await subscribeWaba(body.wabaId, accessToken);
 
-  // 6. Save to core
+  // 5. Save to core
   const result = await CoreClient.setChannel(coreId, 'whatsapp', { phoneNumberId: phoneEntry.id, accessToken });
   if (!result.ok) {
     void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo guardando canal WhatsApp en core', detail: `wabaId:${body.wabaId} error:${result.error} by:${actor}`, workspaceId });
@@ -146,8 +116,8 @@ export async function POST(req: Request) {
   void writeLog({
     level: 'info',
     source: 'integration-channel',
-    msg: 'WhatsApp conectado vía Embedded Signup',
-    detail: `wabaId:${body.wabaId} phoneNumberId:${phoneEntry.id} phone:${phoneEntry.display_phone_number} by:${session.email ?? session.sub}`,
+    msg: 'WhatsApp conectado',
+    detail: `wabaId:${body.wabaId} phoneNumberId:${phoneEntry.id} phone:${phoneEntry.display_phone_number} by:${actor}`,
     workspaceId,
   });
 
