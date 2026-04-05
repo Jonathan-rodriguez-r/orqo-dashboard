@@ -46,13 +46,16 @@ async function extendToken(shortToken: string): Promise<string> {
 
 interface PhoneEntry { id: string; display_phone_number: string; verified_name: string; }
 
-async function getWabaPhones(wabaId: string, token: string): Promise<PhoneEntry[]> {
+async function getWabaPhones(wabaId: string, token: string): Promise<{ phones: PhoneEntry[]; error?: string }> {
   const res = await fetch(
     `${META_GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${token}`
   );
-  if (!res.ok) return [];
   const data = await res.json() as any;
-  return (data.data ?? []) as PhoneEntry[];
+  if (!res.ok) {
+    const msg = data?.error?.message ?? `HTTP ${res.status}`;
+    return { phones: [], error: msg };
+  }
+  return { phones: (data.data ?? []) as PhoneEntry[] };
 }
 
 async function subscribeWaba(wabaId: string, token: string): Promise<void> {
@@ -93,10 +96,14 @@ export async function POST(req: Request) {
   const accessToken = await extendToken(body.token);
 
   // 2. Get phone numbers in this WABA
-  const phones = await getWabaPhones(body.wabaId, accessToken);
+  const { phones, error: phonesError } = await getWabaPhones(body.wabaId, accessToken);
   if (!phones.length) {
-    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'WABA sin números verificados', detail: `wabaId:${body.wabaId} by:${actor}`, workspaceId });
-    return Response.json({ error: 'No se encontraron números en el WABA. Verifica que tenga al menos un número verificado.' }, { status: 404 });
+    const detail = `wabaId:${body.wabaId} by:${actor}${phonesError ? ' metaError:' + phonesError : ''}`;
+    void writeLog({ level: 'error', source: 'meta-onboard', msg: 'WABA sin números o sin acceso', detail, workspaceId });
+    const userMsg = phonesError
+      ? `Meta respondió: ${phonesError}`
+      : 'No se encontraron números en el WABA. Verifica que el WABA ID sea correcto y que tu cuenta tenga acceso administrador.';
+    return Response.json({ error: userMsg }, { status: 404 });
   }
 
   // 3. Use provided phoneNumberId or fall back to first
