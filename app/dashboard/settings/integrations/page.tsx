@@ -85,12 +85,17 @@ interface ChannelPanelProps {
   fastDeploy?: boolean;
   fastConnecting?: boolean;
   fastError?: string;
+  fastOAuthDone?: boolean;
+  fastWabaInput?: string;
+  fastSubmitting?: boolean;
   onFastConnect?: () => void;
+  onFastWabaChange?: (v: string) => void;
+  onFastWabaSubmit?: () => void;
   onSave: (channel: string, data: Record<string, string>) => Promise<void>;
   onDelete: (channel: string) => Promise<void>;
 }
 
-function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, fastConnecting, fastError, onFastConnect, onSave, onDelete }: ChannelPanelProps) {
+function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, fastConnecting, fastError, fastOAuthDone, fastWabaInput, fastSubmitting, onFastConnect, onFastWabaChange, onFastWabaSubmit, onSave, onDelete }: ChannelPanelProps) {
   const [mode, setMode]       = useState<'fast' | 'manual'>(fastDeploy && !info ? 'fast' : 'manual');
   const [editing, setEditing] = useState(!info);
   const [values, setValues]   = useState<Record<string, string>>({});
@@ -223,33 +228,57 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                   <li>Historial y sincronización de estado incluidos</li>
                 </ul>
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
-                onClick={onFastConnect}
-                disabled={fastConnecting || !onFastConnect}
-              >
-                {fastConnecting ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    Conectando… (completa el asistente de Meta)
-                  </span>
-                ) : (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                    Conectar con Meta
-                  </>
-                )}
-              </button>
-              {fastConnecting && (
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.2)', fontSize: 12, color: 'var(--g06)', lineHeight: 1.6 }}>
-                  📋 Debería haberse abierto una ventana de Facebook. Completa los pasos del asistente en esa ventana. Si no apareció nada, revisa que los popups estén permitidos para este sitio en tu navegador.
+              {fastOAuthDone ? (
+                /* ── Paso 2: ingresar WABA ID ── */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius)', background: 'rgba(44,185,120,0.06)', border: '1px solid rgba(44,185,120,0.2)', fontSize: 12, color: 'var(--g06)', lineHeight: 1.6 }}>
+                    ✅ Meta autorizó la conexión. Ahora ingresa tu <b>WABA ID</b> (WhatsApp Business Account ID).<br/>
+                    Encuéntralo en <b>Meta Business Suite → Configuración → Cuentas de WhatsApp</b>.
+                  </div>
+                  <input
+                    className="input input-mono"
+                    placeholder="Ej: 123456789012345"
+                    value={fastWabaInput ?? ''}
+                    onChange={e => onFastWabaChange?.(e.target.value)}
+                  />
+                  {fastError && (
+                    <div style={{ fontSize: 12, color: '#e05555' }}>{fastError}</div>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
+                    onClick={onFastWabaSubmit}
+                    disabled={fastSubmitting}
+                  >
+                    {fastSubmitting ? 'Conectando…' : 'Conectar WhatsApp'}
+                  </button>
                 </div>
-              )}
-              {fastError && (
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
-                  {fastError}
-                </div>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 700 }}
+                    onClick={onFastConnect}
+                    disabled={fastConnecting || !onFastConnect}
+                  >
+                    {fastConnecting ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                        Conectando con Meta…
+                      </span>
+                    ) : (
+                      <>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        Autorizar con Meta
+                      </>
+                    )}
+                  </button>
+                  {fastError && (
+                    <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
+                      {fastError}
+                    </div>
+                  )}
+                </>
               )}
               <div style={{ fontSize: 11, color: 'var(--g04)', textAlign: 'center' }}>
                 También puedes usar la conexión{' '}
@@ -461,6 +490,9 @@ export default function IntegrationsPage() {
   const [copiedKey, setCopiedKey]       = useState(false);
   const [metaConnecting, setMetaConnecting] = useState(false);
   const [metaError, setMetaError]           = useState('');
+  const [metaOAuthCode, setMetaOAuthCode]   = useState('');   // set after OAuth succeeds
+  const [metaWabaInput, setMetaWabaInput]   = useState('');   // WABA ID entered by user
+  const [metaSubmitting, setMetaSubmitting] = useState(false);
 
   // ── Facebook SDK loader ────────────────────────────────────────────────────
   useEffect(() => {
@@ -500,19 +532,12 @@ export default function IntegrationsPage() {
     });
   }
 
-  // ── Embedded Signup handler ────────────────────────────────────────────────
+  // ── Meta OAuth handler (step 1: get token via FB.login, no config_id) ──────
   function handleMetaSignup() {
-    const appId    = process.env.NEXT_PUBLIC_META_APP_ID;
-    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
-
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID;
     if (!appId) {
       logIntegrationEvent('meta_config_missing', 'NEXT_PUBLIC_META_APP_ID ausente');
       setMetaError('NEXT_PUBLIC_META_APP_ID no está configurado. Agrega la variable en Vercel y redespliega.');
-      return;
-    }
-    if (!configId) {
-      logIntegrationEvent('meta_config_missing', 'NEXT_PUBLIC_META_CONFIG_ID ausente');
-      setMetaError('NEXT_PUBLIC_META_CONFIG_ID no está configurado. Obtenlo en Meta App → WhatsApp → Embedded Signup.');
       return;
     }
 
@@ -523,182 +548,57 @@ export default function IntegrationsPage() {
       return;
     }
 
-    // Detect popup blocking first — open a test popup then close it immediately
-    const pw = 700, ph = 700;
-    const pl = Math.max(0, (window.screen.width  - pw) / 2);
-    const pt = Math.max(0, (window.screen.height - ph) / 2);
-    const testPopup = window.open('', '_blank', `width=${pw},height=${ph},left=${pl},top=${pt}`);
-    if (!testPopup || testPopup.closed) {
-      logIntegrationEvent('meta_popup_blocked', 'detectado antes de abrir Meta');
-      setMetaError('Tu navegador está bloqueando los popups de este sitio. Busca el ícono 🔲 en la barra de direcciones, haz clic y selecciona "Permitir siempre popups de dashboard.orqo.io", luego intenta de nuevo.');
-      return;
-    }
-    testPopup.close();
-
     logIntegrationEvent('meta_signup_started');
     setMetaConnecting(true);
     setMetaError('');
+    setMetaOAuthCode('');
+    setMetaWabaInput('');
 
-    let sessionData: { wabaId?: string; phoneNumberId?: string } = {};
-    let settled = false;
-
-    function assignSessionData(raw: any) {
-      if (!raw || typeof raw !== 'object') return;
-      const wabaId = raw.waba_id ?? raw.wabaId;
-      const phoneNumberId = raw.phone_number_id ?? raw.phoneNumberId;
-      if (wabaId || phoneNumberId) {
-        sessionData = {
-          wabaId: wabaId ?? sessionData.wabaId,
-          phoneNumberId: phoneNumberId ?? sessionData.phoneNumberId,
-        };
-      }
-    }
-
-    function cleanup() {
-      settled = true;
-      clearTimeout(softTimeout);
-      clearTimeout(hardTimeout);
-      clearInterval(pollClosed);
-      window.removeEventListener('message', onMessage);
-    }
-
-    // Soft timeout — Meta sometimes stays on a "connected / under review" step
-    // until the user clicks "Finalizar". Don't abort the flow yet.
-    const softTimeout = setTimeout(() => {
-      if (settled) return;
-      logIntegrationEvent('meta_popup_timeout');
-      setMetaError('Meta sigue abierto después de 3 minutos. Si en el popup ya ves "Tu cuenta está conectada...", haz clic en "Finalizar" para que Meta regrese a ORQO. La revisión de Meta puede seguir pendiente, pero ORQO necesita ese paso final para recibir el callback.');
-    }, 3 * 60 * 1000);
-
-    // Hard timeout — only give up if the popup still hasn't returned after a much
-    // longer wait.
-    const hardTimeout = setTimeout(() => {
-      if (settled) return;
-      cleanup();
-      logIntegrationEvent('meta_popup_timeout', 'hard-timeout-15m');
+    // Standard OAuth — no config_id (Embedded Signup requires BSP/TP status)
+    FB.login((response: any) => {
       setMetaConnecting(false);
-      setMetaError('Meta no devolvió el control a ORQO después de 15 minutos. Cierra el popup, vuelve a abrir "Conectar con Meta" y completa el asistente hasta "Finalizar". Si vuelve a pasar, revisamos el callback de Meta.');
-    }, 15 * 60 * 1000);
-
-    async function onMessage(event: MessageEvent) {
-      if (settled) return;
-
-      const META_ORIGINS = ['https://www.facebook.com', 'https://business.facebook.com'];
-
-      // 1. Meta sends WABA + phone number ID via postMessage from the popup
-      if (META_ORIGINS.includes(event.origin)) {
-        try {
-          const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          if (msg?.type === 'WA_EMBEDDED_SIGNUP') {
-            if (msg.event === 'FINISH' || msg.event === 'FINISH_ONLY_WABA') {
-              assignSessionData(msg.data);
-            }
-          }
-        } catch { /* non-JSON, ignore */ }
-        return;
-      }
-
-      // 2. Our /meta-callback page posts { type: 'META_OAUTH_CALLBACK', code } back to us
-      if (event.origin !== window.location.origin) return;
-      const msg = event.data as any;
-      if (!msg || msg.type !== 'META_OAUTH_CALLBACK') return;
-
-      if (msg.error) {
-        cleanup();
-        setMetaError('');
-        setMetaConnecting(false);
-        logIntegrationEvent('meta_signup_cancelled', `error:${msg.error}`);
+      const code = response?.authResponse?.code;
+      if (!code) {
+        const status = response?.status ?? '';
+        logIntegrationEvent('meta_signup_cancelled', `status:${status || 'unknown'}`);
         setMetaError('Autorización cancelada o denegada por Meta.');
         return;
       }
-
-      const code = msg.code as string;
-      if (!code) {
-        cleanup();
-        setMetaError('');
-        setMetaConnecting(false);
-        setMetaError('No se recibió código de autorización de Meta.');
-        return;
-      }
-
-      if (!sessionData.wabaId) {
-        for (let i = 0; i < 8 && !sessionData.wabaId; i += 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      cleanup();
-      setMetaError('');
-      setMetaConnecting(false);
-
-      if (!sessionData.wabaId) {
-        logIntegrationEvent('meta_signup_no_waba', 'callback sin WABA ID');
-        setMetaError('Meta devolvió la autorización, pero no envió la sesión de WhatsApp Business. Esto suele pasar cuando el Embedded Signup no terminó de publicar la información del WABA. Intenta de nuevo y completa el asistente hasta el final; si vuelve a pasar, ajustamos la configuración de Meta.');
-        return;
-      }
-
-      setMetaConnecting(true);
-      try {
-        const res = await fetch('/api/core/channels/meta/onboard', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, wabaId: sessionData.wabaId, phoneNumberId: sessionData.phoneNumberId }),
-        }).then(r => r.json()) as any;
-
-        if (res.ok) {
-          await load();
-        } else {
-          setMetaError(res.error ?? 'Error desconocido al conectar con Meta.');
-        }
-      } catch (e: any) {
-        setMetaError(e.message ?? 'Error de red.');
-      } finally {
-        setMetaConnecting(false);
-      }
-    }
-
-    window.addEventListener('message', onMessage);
-
-    FB.login((response: any) => {
-      if (settled) return;
-
-      const code = response?.authResponse?.code;
-      if (!code) {
-        cleanup();
-        setMetaConnecting(false);
-        const status = response?.status ?? '';
-        logIntegrationEvent('meta_signup_cancelled', `status:${status || 'unknown'} — callback sin code`);
-        setMetaError('Meta cerró o canceló la autorización antes de terminar el alta del canal.');
-        return;
-      }
-
-      void onMessage(new MessageEvent('message', {
-        origin: window.location.origin,
-        data: { type: 'META_OAUTH_CALLBACK', code },
-      }));
+      // Step 1 done — now ask for WABA ID
+      setMetaOAuthCode(code);
     }, {
-      config_id: configId,
+      scope: 'whatsapp_business_management,whatsapp_business_messaging',
       response_type: 'code',
       override_default_response_type: true,
-      extras: {
-        feature: 'whatsapp_embedded_signup',
-        setup: {},
-        sessionInfoVersion: 3,
-      },
     });
+  }
 
-    // FB.login handles the popup lifecycle. We keep a light safety net only for
-    // cases where the popup is manually closed and Meta never answers.
-    const pollClosed = setInterval(() => {
-      const dialog = document.querySelector('iframe[src*="facebook.com"]');
-      if (settled) {
-        clearInterval(pollClosed);
-        return;
+  // ── Meta onboard handler (step 2: submit WABA ID + code to backend) ────────
+  async function handleMetaSubmitWaba() {
+    const wabaId = metaWabaInput.trim();
+    if (!wabaId) { setMetaError('Ingresa el WABA ID.'); return; }
+
+    setMetaSubmitting(true);
+    setMetaError('');
+    try {
+      const res = await fetch('/api/core/channels/meta/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: metaOAuthCode, wabaId }),
+      }).then(r => r.json()) as any;
+
+      if (res.ok) {
+        setMetaOAuthCode('');
+        setMetaWabaInput('');
+        await load();
+      } else {
+        setMetaError(res.error ?? 'Error al conectar con Meta.');
       }
-      if (!dialog && !metaConnecting) {
-        clearInterval(pollClosed);
-      }
-    }, 1000);
+    } catch (e: any) {
+      setMetaError(e.message ?? 'Error de red.');
+    } finally {
+      setMetaSubmitting(false);
+    }
   }
 
   async function load() {
@@ -909,7 +809,12 @@ export default function IntegrationsPage() {
               fastDeploy={true}
               fastConnecting={metaConnecting}
               fastError={metaError}
+              fastOAuthDone={!!metaOAuthCode}
+              fastWabaInput={metaWabaInput}
+              fastSubmitting={metaSubmitting}
               onFastConnect={handleMetaSignup}
+              onFastWabaChange={setMetaWabaInput}
+              onFastWabaSubmit={handleMetaSubmitWaba}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
