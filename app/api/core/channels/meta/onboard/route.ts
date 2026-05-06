@@ -79,11 +79,17 @@ async function getWabaPhones(wabaId: string, token: string): Promise<{ phones: P
   return { phones: (data.data ?? []) as PhoneEntry[] };
 }
 
-async function subscribeWaba(wabaId: string, token: string): Promise<void> {
-  await fetch(`${META_GRAPH}/${wabaId}/subscribed_apps`, {
+async function subscribeWaba(wabaId: string, token: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${META_GRAPH}/${wabaId}/subscribed_apps`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as any;
+    const msg = data?.error?.message ?? `HTTP ${res.status}`;
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
 }
 
 export async function POST(req: Request) {
@@ -151,8 +157,14 @@ export async function POST(req: Request) {
   const phoneNumberId = body.phoneNumberId ?? phones[0].id;
   const phoneEntry = phones.find(p => p.id === phoneNumberId) ?? phones[0];
 
-  // 4. Subscribe WABA to webhook (optional — skip if no wabaId)
-  if (body.wabaId) await subscribeWaba(body.wabaId, accessToken);
+  // 4. Subscribe WABA to webhook
+  if (body.wabaId) {
+    const sub = await subscribeWaba(body.wabaId, accessToken);
+    if (!sub.ok) {
+      void writeLog({ level: 'error', source: 'meta-onboard', msg: 'Fallo suscribiendo WABA al webhook', detail: `wabaId:${body.wabaId} metaError:${sub.error} by:${actor}`, workspaceId });
+      return Response.json({ error: `Meta no pudo suscribir el WABA al webhook: ${sub.error}` }, { status: 502 });
+    }
+  }
 
   // 5. Save to core
   const result = await CoreClient.setChannel(coreId, 'whatsapp', { phoneNumberId: phoneEntry.id, accessToken });

@@ -22,6 +22,7 @@ const ALLOWED_EVENTS = new Set([
   'meta_signup_started',
   'meta_sdk_not_loaded',
   'meta_config_missing',
+  'embedded_signup_success',
 ]);
 
 export async function POST(req: Request) {
@@ -51,8 +52,9 @@ export async function POST(req: Request) {
     meta_popup_timeout:    { level: 'warn',  msg: `Embedded Signup timeout — popup no respondió (${channel})` },
     meta_signup_cancelled: { level: 'warn',  msg: `Embedded Signup cancelado por el usuario (${channel})` },
     meta_signup_no_waba:   { level: 'error', msg: `Embedded Signup completado sin WABA ID (${channel})` },
-    meta_sdk_not_loaded:   { level: 'warn',  msg: 'SDK de Facebook no cargó al intentar Embedded Signup' },
-    meta_config_missing:   { level: 'error', msg: 'NEXT_PUBLIC_META_CONFIG_ID no configurado' },
+    meta_sdk_not_loaded:      { level: 'warn',  msg: 'SDK de Facebook no cargó al intentar Embedded Signup' },
+    meta_config_missing:      { level: 'error', msg: 'NEXT_PUBLIC_META_CONFIG_ID no configurado' },
+    embedded_signup_success:  { level: 'info',  msg: `Embedded Signup completado exitosamente (${channel})` },
   };
 
   const { level, msg } = MESSAGE_MAP[event];
