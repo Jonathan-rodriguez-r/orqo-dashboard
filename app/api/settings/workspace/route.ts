@@ -79,19 +79,31 @@ export async function PUT(req: Request) {
 
     const db = await getDb();
     const client = await getWorkspaceClient(db, workspaceId);
+    const settingsPayload = {
+      ...body,
+      workspaceId,
+      clientId: client.clientId,
+      clientName: client.clientName,
+      updatedAt: new Date(),
+    };
     await db.collection('workspace_settings').updateOne(
       { workspaceId },
-      {
-        $set: {
-          ...body,
-          workspaceId,
-          clientId: client.clientId,
-          clientName: client.clientName,
-          updatedAt: new Date(),
-        },
-      },
+      { $set: settingsPayload },
       { upsert: true }
     );
+
+    // Sync settings to core workspaceId so the core ModelRouter can read them
+    const coreConfig = await db
+      .collection<any>('workspace_configs')
+      .findOne({ workspaceId, key: 'core' });
+    const coreWorkspaceId = coreConfig?.coreWorkspaceId as string | undefined;
+    if (coreWorkspaceId && coreWorkspaceId !== workspaceId) {
+      await db.collection('workspace_settings').updateOne(
+        { workspaceId: coreWorkspaceId },
+        { $set: { ...settingsPayload, workspaceId: coreWorkspaceId } },
+        { upsert: true }
+      );
+    }
 
     return Response.json({ ok: true });
   } catch (e: any) {
