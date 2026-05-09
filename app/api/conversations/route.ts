@@ -3,6 +3,26 @@ import { getSession } from '@/lib/auth';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
 import { getWorkspaceClient } from '@/lib/clients';
 
+function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string) {
+  const messages: any[] = doc.messages ?? [];
+  const lastMsg = messages.at(-1);
+  const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');
+  return {
+    _id: String(doc._id),
+    workspaceId: dashboardWorkspaceId,
+    conv_id: String(doc._id),
+    channel: 'whatsapp',
+    user_name: doc.phoneNumber ?? 'WhatsApp',
+    user_phone: doc.phoneNumber,
+    last_message: lastUserMsg?.content ?? lastMsg?.content ?? '',
+    status: 'open',
+    model: '',
+    createdAt: doc.createdAt,
+    updatedAt: lastMsg?.timestamp ?? doc.createdAt,
+    _source: 'core',
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const session = await getSession();
@@ -20,6 +40,12 @@ export async function GET(req: Request) {
     const db = await getDb();
     const client = await getWorkspaceClient(db, workspaceId);
 
+    // Lookup coreWorkspaceId to also fetch conversations saved by the core
+    const coreConfig = await db
+      .collection<any>('workspace_configs')
+      .findOne({ workspaceId, key: 'core' });
+    const coreWorkspaceId = coreConfig?.coreWorkspaceId as string | undefined;
+
     const filter: Record<string, any> = { workspaceId, clientId: client.clientId };
     if (q)
       filter.$or = [
@@ -32,21 +58,36 @@ export async function GET(req: Request) {
     if (status) filter.status = status;
     if (model) filter.model = model;
 
-    const [items, total] = await Promise.all([
-      db.collection('conversations')
-        .find(filter)
-        .sort({ updatedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .toArray(),
+    const [dashboardItems, dashboardTotal] = await Promise.all([
+      db.collection('conversations').find(filter).sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
       db.collection('conversations').countDocuments(filter),
     ]);
 
+    // Fetch core conversations if provisioned and no channel/status/model filter conflicts
+    let coreItems: any[] = [];
+    let coreTotal = 0;
+    if (coreWorkspaceId && (!channel || channel === 'whatsapp') && !model) {
+      const coreFilter: Record<string, any> = { workspaceId: coreWorkspaceId };
+      if (q) coreFilter.$or = [
+        { phoneNumber: { $regex: q, $options: 'i' } },
+        { 'messages.content': { $regex: q, $options: 'i' } },
+      ];
+      [coreItems, coreTotal] = await Promise.all([
+        db.collection('conversations').find(coreFilter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+        db.collection('conversations').countDocuments(coreFilter),
+      ]);
+    }
+
+    const normalizedCore = coreItems.map(d => normalizeCoreConversation(d, workspaceId));
+    const allItems = [...dashboardItems.map(({ _id, ...rest }) => ({ _id: String(_id), ...rest })), ...normalizedCore]
+      .sort((a, b) => new Date((b as any).updatedAt ?? (b as any).createdAt).getTime() - new Date((a as any).updatedAt ?? (a as any).createdAt).getTime())
+      .slice(0, limit);
+
     return Response.json({
-      items: items.map(({ _id, ...rest }) => ({ _id: String(_id), ...rest })),
-      total,
+      items: allItems,
+      total: dashboardTotal + coreTotal,
       page,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil((dashboardTotal + coreTotal) / limit),
     });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
