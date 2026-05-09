@@ -94,13 +94,50 @@ export async function GET(req: Request, ctx: RouteContext) {
     if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await ctx.params;
-    if (!ObjectId.isValid(id)) {
-      return Response.json({ error: 'Invalid id' }, { status: 400 });
-    }
     const { searchParams } = new URL(req.url);
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+
+    // Core conversations (WhatsApp) have UUID string _id, not ObjectId
+    if (!ObjectId.isValid(id)) {
+      const coreConfig = await db.collection<any>('workspace_configs').findOne({ workspaceId, key: 'core' });
+      const coreWorkspaceId = coreConfig?.coreWorkspaceId as string | undefined;
+      if (!coreWorkspaceId) {
+        return Response.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+      const coreConv = await db.collection('conversations').findOne({ _id: id as any, workspaceId: coreWorkspaceId });
+      if (!coreConv) {
+        return Response.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+      const rawMessages: any[] = coreConv.messages ?? [];
+      const messages: ConversationMessage[] = rawMessages
+        .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+        .map((m: any) => ({
+          role: m.role as 'user' | 'assistant',
+          content: String(m.content ?? '').trim(),
+          ts: toTs(m.timestamp, Date.now()),
+        }))
+        .filter((m: any) => m.content);
+      return Response.json({
+        conversation: {
+          _id: id,
+          workspaceId,
+          channel: 'whatsapp',
+          user_name: coreConv.phoneNumber ?? 'WhatsApp',
+          user_phone: coreConv.phoneNumber,
+          status: 'open',
+          model: coreConv.lastModel ?? '',
+          totalTokens: coreConv.totalTokens ?? 0,
+          createdAt: coreConv.createdAt,
+          updatedAt: rawMessages.at(-1)?.timestamp ?? coreConv.createdAt,
+          _source: 'core',
+        },
+        messages,
+        source: 'conversation',
+      });
+    }
+
     const client = await getWorkspaceClient(db, workspaceId);
     const conversation = await db.collection('conversations').findOne({
       _id: new ObjectId(id),
