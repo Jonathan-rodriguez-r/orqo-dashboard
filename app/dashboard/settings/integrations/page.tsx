@@ -87,15 +87,17 @@ interface ChannelPanelProps {
   fastError?: string;
   fastOAuthDone?: boolean;
   fastWabaInput?: string;
+  fastRegisterPin?: string;
   fastSubmitting?: boolean;
   onFastConnect?: () => void;
   onFastWabaChange?: (v: string) => void;
+  onFastRegisterPinChange?: (v: string) => void;
   onFastWabaSubmit?: () => void;
   onSave: (channel: string, data: Record<string, string>) => Promise<void>;
   onDelete: (channel: string) => Promise<void>;
 }
 
-function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, fastConnecting, fastError, fastOAuthDone, fastWabaInput, fastSubmitting, onFastConnect, onFastWabaChange, onFastWabaSubmit, onSave, onDelete }: ChannelPanelProps) {
+function ChannelPanel({ label, icon, description, channel, info, fields, agentCovered, fastDeploy, fastConnecting, fastError, fastOAuthDone, fastWabaInput, fastRegisterPin, fastSubmitting, onFastConnect, onFastWabaChange, onFastRegisterPinChange, onFastWabaSubmit, onSave, onDelete }: ChannelPanelProps) {
   const [mode, setMode]       = useState<'fast' | 'manual'>(fastDeploy && !info ? 'fast' : 'manual');
   const [editing, setEditing] = useState(!info);
   const [values, setValues]   = useState<Record<string, string>>({});
@@ -227,6 +229,24 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                 <b style={{ color: 'var(--g06)' }}>Access Token</b> — sin copiar ni pegar nada.
               </div>
 
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--g05)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  PIN de registro Cloud API
+                </label>
+                <input
+                  className="input input-mono"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={fastRegisterPin ?? ''}
+                  onChange={e => onFastRegisterPinChange?.(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+                <div style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4, lineHeight: 1.6 }}>
+                  Define un PIN de 6 dígitos para completar el registro del número en Meta. Guárdalo para futuras verificaciones de la cuenta.
+                </div>
+              </div>
+
               {fastError && (
                 <div style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', fontSize: 12, color: '#e05555', lineHeight: 1.5 }}>
                   {fastError}
@@ -237,7 +257,7 @@ function ChannelPanel({ label, icon, description, channel, info, fields, agentCo
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '11px 0', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onClick={onFastConnect}
-                disabled={fastConnecting}
+                disabled={fastConnecting || !/^\d{6}$/.test(fastRegisterPin ?? '')}
               >
                 {fastConnecting ? (
                   <>
@@ -468,6 +488,7 @@ export default function IntegrationsPage() {
   const [metaError, setMetaError]           = useState('');
   const [metaOAuthCode, setMetaOAuthCode]   = useState('');   // set after OAuth succeeds
   const [metaWabaInput, setMetaWabaInput]   = useState('');   // WABA ID entered by user
+  const [metaRegisterPin, setMetaRegisterPin] = useState('');
   const [metaSubmitting, setMetaSubmitting] = useState(false);
   const [metaSuccess, setMetaSuccess]       = useState<{ wabaId: string; phoneNumberId: string; displayPhone: string } | null>(null);
 
@@ -519,6 +540,10 @@ export default function IntegrationsPage() {
     const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
     if (!configId) {
       setMetaError('NEXT_PUBLIC_META_CONFIG_ID no configurado en Vercel.');
+      return;
+    }
+    if (!/^\d{6}$/.test(metaRegisterPin)) {
+      setMetaError('Ingresa un PIN de registro de 6 dígitos antes de conectar el número.');
       return;
     }
 
@@ -574,6 +599,7 @@ export default function IntegrationsPage() {
                 ...(code  ? { code }  : { token }),
                 wabaId:        capturedWabaId        || undefined,
                 phoneNumberId: capturedPhoneNumberId || undefined,
+                pin:           metaRegisterPin,
               }),
             }).then(r => r.json()) as any;
 
@@ -586,6 +612,7 @@ export default function IntegrationsPage() {
                 displayPhone:  res.displayPhone,
               });
               logIntegrationEvent('embedded_signup_success', `waba:${capturedWabaId} phoneId:${res.phoneNumberId}`);
+              setMetaRegisterPin('');
               await load();
             }
           } catch (e: any) {
@@ -599,6 +626,7 @@ export default function IntegrationsPage() {
         config_id:                    configId,
         response_type:                'code',
         override_default_response_type: true,
+        scope:                        'business_management,whatsapp_business_management,whatsapp_business_messaging',
         extras: {
           setup:              {},
           featureName:        'whatsapp_embedded_signup',
@@ -820,7 +848,9 @@ export default function IntegrationsPage() {
               fastDeploy={Boolean(process.env.NEXT_PUBLIC_META_APP_ID && process.env.NEXT_PUBLIC_META_CONFIG_ID)}
               fastConnecting={metaConnecting}
               fastError={metaError}
+              fastRegisterPin={metaRegisterPin}
               onFastConnect={handleMetaSignup}
+              onFastRegisterPinChange={setMetaRegisterPin}
               onSave={saveChannel}
               onDelete={deleteChannel}
             />
