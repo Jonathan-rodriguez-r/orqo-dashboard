@@ -32,6 +32,7 @@ type AgentFull = AgentSummary & {
     geofencingEnabled: boolean;
     escalationKeywords: string;
     humanHandoffMsg: string;
+    inactivityTimeoutMinutes: number;
   };
   preChatForm: {
     enabled: boolean;
@@ -151,7 +152,7 @@ const DEFAULT_FORM: FormState = {
   corporateContext: '',
   advanced: {
     timezone: 'America/Bogota', scheduleEnabled: false, geofencingEnabled: false,
-    escalationKeywords: '', humanHandoffMsg: 'En un momento te atiendo un agente humano.',
+    escalationKeywords: '', humanHandoffMsg: 'En un momento te atiendo un agente humano.', inactivityTimeoutMinutes: 0,
   },
   preChatForm: {
     enabled: false,
@@ -1245,6 +1246,25 @@ export default function AgentsPage() {
                           onChange={e => setF('advanced', { ...form.advanced, humanHandoffMsg: e.target.value })}
                           placeholder="En un momento te atiendo un agente humano."
                         />
+                      </div>
+
+                      <div className="field" style={{ marginTop: 14 }}>
+                        <label className="label">Cierre automático por inactividad</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            className="input"
+                            type="number"
+                            min={0}
+                            max={10080}
+                            style={{ width: 90 }}
+                            value={form.advanced.inactivityTimeoutMinutes}
+                            onChange={e => setF('advanced', { ...form.advanced, inactivityTimeoutMinutes: Math.max(0, Number(e.target.value)) })}
+                          />
+                          <span style={{ fontSize: 13, color: 'var(--g06)' }}>minutos</span>
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--g05)', marginTop: 4, display: 'block' }}>
+                          Aplica a WhatsApp, Instagram y Messenger. 0 = desactivado.
+                        </span>
                       </div>
                     </div>
 
