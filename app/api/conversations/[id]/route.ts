@@ -194,13 +194,34 @@ export async function DELETE(req: Request, ctx: RouteContext) {
 
   try {
     const { id } = await ctx.params;
-    if (!ObjectId.isValid(id)) {
-      return Response.json({ error: 'Invalid id' }, { status: 400 });
-    }
     const { searchParams } = new URL(req.url);
     const workspaceId = resolveScopedWorkspaceId(session, searchParams.get('workspaceId'));
 
     const db = await getDb();
+
+    // Core conversations (WhatsApp) have UUID string _id, not ObjectId
+    if (!ObjectId.isValid(id)) {
+      const coreConfig = await db.collection<any>('workspace_configs').findOne({ workspaceId, key: 'core' });
+      const coreWorkspaceId = coreConfig?.coreWorkspaceId as string | undefined;
+      if (!coreWorkspaceId) {
+        return Response.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+      const result = await db.collection('conversations').deleteOne({ _id: id as any, workspaceId: coreWorkspaceId });
+      if (!result.deletedCount) {
+        return Response.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+      await log(db, {
+        level: 'WARN', severity: 'MEDIUM', category: 'conversation',
+        action: 'CONVERSATION_DELETED',
+        message: `${session.email} elimino la conversacion ${id}`,
+        actor: actorFromRequest(req, { id: session.sub, email: session.email, role: session.role }),
+        target: { type: 'conversation', id, label: id },
+        metadata: { before: { channel: 'whatsapp', _source: 'core' } },
+        http: { method: 'DELETE', path: `/api/conversations/${id}`, statusCode: 200 },
+      });
+      return Response.json({ ok: true });
+    }
+
     const client = await getWorkspaceClient(db, workspaceId);
     const _id = new ObjectId(id);
     const existing = await db.collection('conversations').findOne({ _id, workspaceId, clientId: client.clientId });
