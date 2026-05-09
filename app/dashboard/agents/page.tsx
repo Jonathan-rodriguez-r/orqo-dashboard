@@ -563,6 +563,33 @@ export default function AgentsPage() {
     setSaving(false);
   }
 
+  async function handleDuplicate() {
+    if (!selectedId || selectedId === 'new') return;
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      const r = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, name: `${form.name} (copia)`, status: 'draft' }),
+      });
+      const data = await r.json();
+      if (!r.ok || data.error) {
+        setSaveErr(data.error ?? 'Error al duplicar.');
+      } else {
+        await loadAgents();
+        if (data._id) {
+          const { _id, createdAt, aiProvider: _ai, ...rest } = data as any;
+          setSelectedId(data._id);
+          setForm(prev => ({ ...prev, ...rest, avatar: normalizeAgentAvatarIcon(rest.avatar) }));
+        }
+      }
+    } catch {
+      setSaveErr('Error de red.');
+    }
+    setSaving(false);
+  }
+
   async function handleDelete() {
     if (!selectedId || selectedId === 'new') return;
     try {
@@ -741,6 +768,16 @@ export default function AgentsPage() {
                     >
                       {showPreview ? 'Cerrar preview' : 'Preview'}
                     </button>
+                    {selectedId !== 'new' && (
+                      <button
+                        className="btn btn-ghost btn-sm agents-preview-btn"
+                        onClick={handleDuplicate}
+                        disabled={saving}
+                        title="Duplicar agente"
+                      >
+                        Duplicar
+                      </button>
+                    )}
                     {form.channels.web && form.webWidgetToken && selectedId !== 'new' && (
                       <button
                         className="btn btn-ghost btn-sm agents-preview-btn"
