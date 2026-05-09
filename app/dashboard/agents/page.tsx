@@ -181,28 +181,30 @@ function channelCount(channels: Record<string, boolean>) {
 function compileContext(form: FormState): string {
   const parts: string[] = [];
 
-  if (form.profile.systemPrompt.trim()) {
-    parts.push(`## System Prompt\n${form.profile.systemPrompt.trim()}`);
-  }
+  const name = form.name?.trim();
+  if (name) parts.push(`Eres ${name}.`);
 
-  parts.push(`## Personalidad\nTono: ${PERSONALITY_LABEL[form.profile.personality] ?? form.profile.personality}`);
+  const sp = form.profile.systemPrompt.trim();
+  if (sp) parts.push(sp);
+
+  const personality = form.profile.personality?.trim();
+  if (personality) parts.push(`Personalidad: ${PERSONALITY_LABEL[personality] ?? personality}.`);
 
   if (form.profile.languages.length > 0) {
-    parts.push(`## Idiomas\n${form.profile.languages.map(l => LANG_LABEL[l] ?? l).join(', ')}`);
-  }
-
-  if (form.skills.length > 0) {
-    const allSkills = SKILLS_GROUPS.flatMap(g => g.skills);
-    const selected = form.skills.map(id => allSkills.find(s => s.id === id)?.label ?? id);
-    parts.push(`## Skills Activos\n${selected.map(s => `• ${s}`).join('\n')}`);
+    parts.push(`Idiomas: ${form.profile.languages.map(l => LANG_LABEL[l] ?? l).join(', ')}.`);
   }
 
   if (form.corporateContext.trim()) {
-    parts.push(`## Contexto Corporativo\n${form.corporateContext.trim()}`);
+    parts.push(`Contexto corporativo:\n${form.corporateContext.trim()}`);
+  }
+
+  if (form.skills.length > 0) {
+    parts.push(`Skills activos: ${form.skills.join(', ')}.`);
   }
 
   if (form.advanced.escalationKeywords.trim()) {
-    parts.push(`## Escalación\nKeywords: ${form.advanced.escalationKeywords}\nMensaje de transferencia: ${form.advanced.humanHandoffMsg}`);
+    const handoff = form.advanced.humanHandoffMsg.trim() || 'Te conecto con un agente humano.';
+    parts.push(`Si detectas alguna de estas palabras clave: ${form.advanced.escalationKeywords}, responde: ${handoff}`);
   }
 
   return parts.length > 0 ? parts.join('\n\n') : '(Sin configuración definida aún)';
