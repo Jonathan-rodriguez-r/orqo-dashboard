@@ -23,6 +23,9 @@ function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string, agent
   const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');
   const model = doc.lastModel ?? '';
   const total = doc.totalTokens ?? 0;
+  const updatedAt = lastMsg?.timestamp
+    ? new Date(lastMsg.timestamp).getTime()
+    : new Date(doc.createdAt).getTime();
   return {
     _id: String(doc._id),
     workspaceId: dashboardWorkspaceId,
@@ -31,14 +34,15 @@ function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string, agent
     user_name: doc.phoneNumber ?? 'WhatsApp',
     user_phone: doc.phoneNumber,
     last_message: lastUserMsg?.content ?? lastMsg?.content ?? '',
-    status: 'open',
+    message_count: messages.length,
+    status: doc.status ?? 'open',
     model,
     model_provider: deriveProvider(model),
     model_label: deriveLabel(model),
     agent: agentName ?? '',
     tokens: total > 0 ? { input: 0, output: 0, total } : undefined,
     createdAt: doc.createdAt,
-    updatedAt: lastMsg?.timestamp ?? doc.createdAt,
+    updatedAt,
     _source: 'core',
   };
 }
