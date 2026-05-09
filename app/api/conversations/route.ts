@@ -80,7 +80,7 @@ export async function GET(req: Request) {
 
     const normalizedCore = coreItems.map(d => normalizeCoreConversation(d, workspaceId));
     const allItems = [...dashboardItems.map(({ _id, ...rest }) => ({ _id: String(_id), ...rest })), ...normalizedCore]
-      .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())
+      .sort((a, b) => new Date((b as any).updatedAt ?? (b as any).createdAt).getTime() - new Date((a as any).updatedAt ?? (a as any).createdAt).getTime())
       .slice(0, limit);
 
     return Response.json({
