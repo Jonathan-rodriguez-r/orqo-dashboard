@@ -51,6 +51,7 @@ export async function POST(req: Request) {
   const name = String(body?.name ?? '').trim();
   const clientId = String(body?.clientId ?? '').trim();
   const slug = slugify(String(body?.slug ?? '') || name);
+  const activateImmediately = body?.activateImmediately === true;
 
   if (!name) return Response.json({ error: 'name requerido' }, { status: 400 });
   if (!clientId) return Response.json({ error: 'clientId requerido' }, { status: 400 });
@@ -112,11 +113,23 @@ export async function POST(req: Request) {
           },
           { upsert: true }
         );
+
+        if (activateImmediately) {
+          const activateResult = await CoreClient.activateWorkspace(coreResult.data.workspaceId);
+          void writeLog({
+            level: activateResult.ok ? 'info' : 'warn',
+            source: 'workspaces',
+            msg: activateResult.ok ? 'Workspace activado inmediatamente' : 'Fallo al activar workspace inmediatamente',
+            detail: `workspaceId:${slug} coreWorkspaceId:${coreResult.data.workspaceId}${activateResult.ok ? '' : ` error:${activateResult.error}`}`,
+            workspaceId: slug,
+          });
+        }
+
         void writeLog({
           level: 'info',
           source: 'workspaces',
           msg: `Workspace provisionado en Core`,
-          detail: `workspaceId:${slug} coreWorkspaceId:${coreResult.data.workspaceId}`,
+          detail: `workspaceId:${slug} coreWorkspaceId:${coreResult.data.workspaceId} activateImmediately:${activateImmediately}`,
           workspaceId: slug,
         });
       } else {

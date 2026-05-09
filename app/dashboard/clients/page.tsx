@@ -30,6 +30,7 @@ export default function ClientsPage() {
   const [workspaceName, setWorkspaceName] = useState('');
   const [workspaceSlug, setWorkspaceSlug] = useState('');
   const [workspaceClientId, setWorkspaceClientId] = useState('');
+  const [activateImmediately, setActivateImmediately] = useState(true);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
@@ -86,7 +87,7 @@ export default function ClientsPage() {
     const res = await fetch('/api/workspaces', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: workspaceName, slug: workspaceSlug, clientId: workspaceClientId }),
+      body: JSON.stringify({ name: workspaceName, slug: workspaceSlug, clientId: workspaceClientId, activateImmediately }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -211,6 +212,18 @@ export default function ClientsPage() {
                   ))}
                 </select>
               </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                id="activateImmediately"
+                type="checkbox"
+                checked={activateImmediately}
+                onChange={(e) => setActivateImmediately(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              <label htmlFor="activateImmediately" style={{ fontSize: 13, color: 'var(--g05)', cursor: 'pointer' }}>
+                Activar inmediatamente (sin trial)
+              </label>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button className="btn btn-primary" type="submit">
