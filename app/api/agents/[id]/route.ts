@@ -57,6 +57,7 @@ async function syncAgentToCore(db: any, agentDoc: any, coreWorkspaceId: string):
         enabledSkillIds: agentDoc.skills ?? [],
         interactionLimit: agentDoc.tokenLimits?.convLimit ?? 100,
         active: agentDoc.status === 'active',
+        inactivityTimeoutMinutes: agentDoc.advanced?.inactivityTimeoutMinutes ?? 0,
         updatedAt: new Date(),
       },
       $setOnInsert: { workspaceId: coreWorkspaceId },
