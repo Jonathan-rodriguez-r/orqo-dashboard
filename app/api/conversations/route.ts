@@ -3,10 +3,26 @@ import { getSession } from '@/lib/auth';
 import { resolveScopedWorkspaceId } from '@/lib/access-control';
 import { getWorkspaceClient } from '@/lib/clients';
 
-function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string) {
+function deriveProvider(model: string): string {
+  if (!model) return '';
+  if (model.includes('/')) return 'openrouter';
+  if (model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3')) return 'openai';
+  if (model.startsWith('gemini-')) return 'google';
+  if (model.startsWith('claude-')) return 'anthropic';
+  return '';
+}
+
+function deriveLabel(model: string): string {
+  if (!model) return '';
+  return model.split('/').at(-1) ?? model;
+}
+
+function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string, agentName?: string) {
   const messages: any[] = doc.messages ?? [];
   const lastMsg = messages.at(-1);
   const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');
+  const model = doc.lastModel ?? '';
+  const total = doc.totalTokens ?? 0;
   return {
     _id: String(doc._id),
     workspaceId: dashboardWorkspaceId,
@@ -16,7 +32,11 @@ function normalizeCoreConversation(doc: any, dashboardWorkspaceId: string) {
     user_phone: doc.phoneNumber,
     last_message: lastUserMsg?.content ?? lastMsg?.content ?? '',
     status: 'open',
-    model: '',
+    model,
+    model_provider: deriveProvider(model),
+    model_label: deriveLabel(model),
+    agent: agentName ?? '',
+    tokens: total > 0 ? { input: 0, output: 0, total } : undefined,
     createdAt: doc.createdAt,
     updatedAt: lastMsg?.timestamp ?? doc.createdAt,
     _source: 'core',
@@ -66,6 +86,7 @@ export async function GET(req: Request) {
     // Fetch core conversations if provisioned and no channel/status/model filter conflicts
     let coreItems: any[] = [];
     let coreTotal = 0;
+    let coreAgentName: string | undefined;
     if (coreWorkspaceId && (!channel || channel === 'whatsapp') && !model) {
       const coreFilter: Record<string, any> = { workspaceId: coreWorkspaceId };
       if (q) coreFilter.$or = [
@@ -76,9 +97,14 @@ export async function GET(req: Request) {
         db.collection('conversations').find(coreFilter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
         db.collection('conversations').countDocuments(coreFilter),
       ]);
+      // Single agent lookup for all core conversations (same workspace = same agent)
+      if (coreItems.length > 0) {
+        const agentDoc = await db.collection('agents').findOne({ workspaceId: coreWorkspaceId });
+        coreAgentName = agentDoc?.name;
+      }
     }
 
-    const normalizedCore = coreItems.map(d => normalizeCoreConversation(d, workspaceId));
+    const normalizedCore = coreItems.map(d => normalizeCoreConversation(d, workspaceId, coreAgentName));
     const allItems = [...dashboardItems.map(({ _id, ...rest }) => ({ _id: String(_id), ...rest })), ...normalizedCore]
       .sort((a, b) => new Date((b as any).updatedAt ?? (b as any).createdAt).getTime() - new Date((a as any).updatedAt ?? (a as any).createdAt).getTime())
       .slice(0, limit);
