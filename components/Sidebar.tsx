@@ -8,7 +8,6 @@ import { useSession } from '@/hooks/usePermissions';
 const I = {
   home:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 6.5 8 1.5l6.5 5V14a.5.5 0 0 1-.5.5H10v-4H6v4H2a.5.5 0 0 1-.5-.5V6.5Z" strokeLinejoin="round"/></svg>,
   logs:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 7.5h9M2 11h6" strokeLinecap="round"/></svg>,
-  ops:     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M11.53 4.47l-1.42 1.42M4.95 11.53l-1.42 1.42" strokeLinecap="round"/></svg>,
   conv:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v7A1.5 1.5 0 0 1 13 11.5H9l-3 3v-3H3A1.5 1.5 0 0 1 1.5 10V3Z"/></svg>,
   agent:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3Z"/><path d="M2 14.5c0-3.31 2.686-6 6-6s6 2.69 6 6"/></svg>,
   report:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><path d="M4.5 10.5V8M7.5 10.5V6M10.5 10.5V4" strokeLinecap="round"/></svg>,
@@ -30,7 +29,6 @@ const NAV_MAIN = [
 const NAV_SYSTEM = [
   { href: '/dashboard/settings', label: 'Configuracion',   icon: I.settings, permission: 'settings.widget' },
   { href: '/dashboard/clients',  label: 'Clientes',        icon: I.clients,  permission: 'admin.clients'   },
-  { href: '/dashboard/ops',      label: 'Operaciones',      icon: I.ops,     permission: 'admin.logs'      },
   { href: '/dashboard/logs',     label: 'Logs & Auditoria', icon: I.logs,    permission: 'admin.logs'      },
 ] as const;
 

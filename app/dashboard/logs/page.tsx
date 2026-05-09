@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSession } from '@/hooks/usePermissions';
+import OpsTab from '../ops/page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ function ExpandedRow({ log }: { log: AuditLog }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function LogsPage() {
+  const [activeTab, setActiveTab] = useState<'audit' | 'ops'>('audit');
   const session   = useSession();
   const isGlobal  = session?.isGlobalUser === true;
   const ALL_CATEGORIES = useMemo(
@@ -331,6 +333,13 @@ export default function LogsPage() {
     color: active ? (color ?? 'var(--acc)') : 'var(--g05)',
   });
 
+  const tabStyle = (active: boolean) => ({
+    padding: '7px 18px', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
+    border: 'none', borderBottom: `2px solid ${active ? 'var(--acc)' : 'transparent'}`,
+    background: 'transparent', color: active ? 'var(--acc)' : 'var(--g05)',
+    transition: 'all .12s',
+  });
+
   return (
     <div className="dash-content">
       {/* Header */}
@@ -357,6 +366,17 @@ export default function LogsPage() {
           </button>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--g03)', marginBottom: 16, gap: 0 }}>
+        <button style={tabStyle(activeTab === 'audit')} onClick={() => setActiveTab('audit')}>Auditoría</button>
+        <button style={tabStyle(activeTab === 'ops')}   onClick={() => setActiveTab('ops')}>Operaciones</button>
+      </div>
+
+      {activeTab === 'ops' && <OpsTab />}
+
+      {activeTab === 'audit' && <>
+
       {pruneMsg && (
         <div style={{ marginBottom: 12, fontSize: 12.5, color: pruneMsg.ok ? 'var(--acc)' : 'var(--red)' }}>
           {pruneMsg.text}
@@ -629,6 +649,7 @@ export default function LogsPage() {
           <button className="page-btn" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Siguiente →</button>
         </div>
       </div>
+      </>}
     </div>
   );
 }

@@ -127,17 +127,12 @@ export default function OpsPage() {
   const infoCount  = (stats.byLevel['info']  ?? 0);
 
   return (
-    <div style={{ padding: '24px 20px', maxWidth: 1100 }}>
+    <div style={{ maxWidth: 1100 }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <div style={{ fontFamily: 'var(--f-disp)', fontWeight: 700, fontSize: 18, color: 'var(--g08)' }}>
-            Operaciones
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--g05)', marginTop: 2 }}>
-            Flujo en tiempo real — mensajes, skills, LLM, canales, inactividad
-          </div>
+      {/* Sub-header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--g05)' }}>
+          Flujo en tiempo real — mensajes, skills, LLM, canales, inactividad
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--g05)', cursor: 'pointer' }}>
