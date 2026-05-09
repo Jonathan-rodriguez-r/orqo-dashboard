@@ -48,18 +48,18 @@ function compileSystemPrompt(agent: any): string {
 
 async function syncAgentToCore(db: any, agentDoc: any, coreWorkspaceId: string): Promise<void> {
   const systemPrompt = compileSystemPrompt(agentDoc);
-  const agentId = agentDoc._id.toString();
-  await db.collection('agents').replaceOne(
+  await db.collection('agents').updateOne(
     { workspaceId: coreWorkspaceId },
     {
-      _id: agentId,
-      workspaceId: coreWorkspaceId,
-      name: agentDoc.name ?? 'Agente ORQO',
-      systemPrompt,
-      enabledSkillIds: agentDoc.skills ?? [],
-      interactionLimit: agentDoc.tokenLimits?.convLimit ?? 100,
-      active: agentDoc.status === 'active',
-      updatedAt: new Date(),
+      $set: {
+        name: agentDoc.name ?? 'Agente ORQO',
+        systemPrompt,
+        enabledSkillIds: agentDoc.skills ?? [],
+        interactionLimit: agentDoc.tokenLimits?.convLimit ?? 100,
+        active: agentDoc.status === 'active',
+        updatedAt: new Date(),
+      },
+      $setOnInsert: { workspaceId: coreWorkspaceId },
     },
     { upsert: true }
   );
