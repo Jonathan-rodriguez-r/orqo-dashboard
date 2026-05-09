@@ -52,7 +52,20 @@ export async function GET(req: Request) {
     }
 
     const db = await getDb();
+
+    // operational_logs usa coreWorkspaceId (UUID), no el slug del dashboard
+    const coreConfig = await db.collection<any>('workspace_configs').findOne({ workspaceId, key: 'core' });
+    const coreWorkspaceId = coreConfig?.coreWorkspaceId as string | undefined;
+    // Filtrar por ambos: el workspaceId del dashboard Y el coreWorkspaceId si existe
+    const wsFilter = coreWorkspaceId
+      ? { $in: [workspaceId, coreWorkspaceId] }
+      : workspaceId;
+    filter['workspaceId'] = wsFilter;
+
+    // Crear índices TTL si no existen (idempotente)
     const col = db.collection('operational_logs');
+    await col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, background: true }).catch(() => {});
+    await col.createIndex({ workspaceId: 1, ts: -1 }, { background: true }).catch(() => {});
 
     const [result] = await col.aggregate([
       { $match: filter },
