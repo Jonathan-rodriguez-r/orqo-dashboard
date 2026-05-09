@@ -129,6 +129,8 @@ const RADIUS_OPTIONS = [
 ];
 
 const CATEGORIES = ['Ayuda', 'FAQ', 'Integraciones', 'Planes'];
+const PUBLIC_WIDGET_PREVIEW_URL = 'https://www.orqo.io/';
+const PUBLIC_WIDGET_API_URL = 'https://dashboard.orqo.io/api/public/widget';
 
 function newArtId() { return 'art-' + Math.random().toString(36).slice(2, 9); }
 
@@ -296,21 +298,25 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         alert('Error al guardar: ' + (d.error ?? res.status));
-        return;
+        return false;
       }
     } catch (e: any) {
       alert('Error de red: ' + e.message);
-      return;
+      return false;
     } finally {
       setSaving(false);
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+    return true;
   }
 
   async function saveAndPreview() {
-    await doSave();
-    window.open('https://orqo.io?preview=1', '_blank');
+    const ok = await doSave();
+    if (!ok) return;
+    const previewUrl = new URL(PUBLIC_WIDGET_PREVIEW_URL);
+    previewUrl.searchParams.set('preview', '1');
+    window.open(previewUrl.toString(), '_blank', 'noopener,noreferrer');
   }
 
   // Article CRUD
@@ -759,7 +765,7 @@ export default function WidgetPage({ embedded = false }: WidgetPageProps) {
                 Guardar y abrir vista previa →
               </button>
               <a
-                href="https://dashboard.orqo.io/api/public/widget"
+                href={installInfo.api_key ? `${PUBLIC_WIDGET_API_URL}?key=${encodeURIComponent(installInfo.api_key)}` : PUBLIC_WIDGET_API_URL}
                 target="_blank"
                 rel="noopener"
                 className="btn btn-ghost"
